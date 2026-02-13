@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
+import 'package:burrow_app/src/rust/api/error.dart';
 
 class InviteMembersScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -96,7 +97,19 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         } catch (e) {
           setState(() {
             invitee.status = _InviteStatus.error;
-            invitee.error = e.toString();
+            if (e is BurrowError) {
+              final msg = e.message;
+              if (msg.toLowerCase().contains('key package') ||
+                  msg.toLowerCase().contains('keypackage') ||
+                  msg.toLowerCase().contains('not found')) {
+                invitee.error =
+                    "Could not find user's encryption key. They may need to publish their KeyPackage first.";
+              } else {
+                invitee.error = msg;
+              }
+            } else {
+              invitee.error = e.toString();
+            }
           });
         }
       }
@@ -132,8 +145,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final errorMsg = e is BurrowError ? e.message : e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: $errorMsg')),
         );
       }
     }

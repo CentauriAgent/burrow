@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
@@ -17,6 +20,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _descController = TextEditingController();
   bool _creating = false;
   final Set<String> _selectedRelays = {};
+  File? _avatarImage;
+  final _imagePicker = ImagePicker();
 
   @override
   void dispose() {
@@ -67,6 +72,40 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     if (mounted) setState(() => _creating = false);
   }
 
+  void _showAddRelayDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Relay'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'wss://relay.example.com',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.url,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final url = controller.text.trim();
+              if (url.startsWith('wss://')) {
+                ref.read(relayProvider.notifier).addAndConnect(url);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -80,14 +119,26 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           // Group avatar placeholder
           Center(
             child: GestureDetector(
-              onTap: () {
-                // TODO: avatar picker
+              onTap: () async {
+                final picked = await _imagePicker.pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: 512,
+                  maxHeight: 512,
+                );
+                if (picked != null) {
+                  setState(() => _avatarImage = File(picked.path));
+                }
               },
               child: CircleAvatar(
                 radius: 40,
                 backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(Icons.group_add, size: 36,
-                    color: theme.colorScheme.onPrimaryContainer),
+                backgroundImage: _avatarImage != null
+                    ? FileImage(_avatarImage!)
+                    : null,
+                child: _avatarImage == null
+                    ? Icon(Icons.group_add, size: 36,
+                        color: theme.colorScheme.onPrimaryContainer)
+                    : null,
               ),
             ),
           ),
@@ -136,40 +187,70 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           const SizedBox(height: 8),
           relays.when(
             data: (list) {
+              final defaultUrls = ref.read(relayProvider.notifier).defaultRelays;
               if (list.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('No relays configured. Default relays will be used.',
-                      style: TextStyle(color: Colors.grey)),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('No relays configured. Tap to add default relays:',
+                          style: TextStyle(color: Colors.grey)),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: defaultUrls.map((url) {
+                        return ActionChip(
+                          label: Text(url, style: const TextStyle(fontSize: 11)),
+                          avatar: const Icon(Icons.add, size: 16),
+                          onPressed: () => ref.read(relayProvider.notifier).addAndConnect(url),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _showAddRelayDialog,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add custom relay'),
+                    ),
+                  ],
                 );
               }
               return Column(
-                children: list.map((r) {
-                  final selected = _selectedRelays.contains(r.url);
-                  return CheckboxListTile(
-                    dense: true,
-                    title: Text(r.url,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 12)),
-                    subtitle: Text(
-                      r.connected ? 'Connected' : 'Disconnected',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: r.connected ? Colors.green : Colors.red,
+                children: [
+                  ...list.map((r) {
+                    final selected = _selectedRelays.contains(r.url);
+                    return CheckboxListTile(
+                      dense: true,
+                      title: Text(r.url,
+                          style: const TextStyle(
+                              fontFamily: 'monospace', fontSize: 12)),
+                      subtitle: Text(
+                        r.connected ? 'Connected' : 'Disconnected',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: r.connected ? Colors.green : Colors.red,
+                        ),
                       ),
-                    ),
-                    value: selected,
-                    onChanged: (v) {
-                      setState(() {
-                        if (v == true) {
-                          _selectedRelays.add(r.url);
-                        } else {
-                          _selectedRelays.remove(r.url);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
+                      value: selected,
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            _selectedRelays.add(r.url);
+                          } else {
+                            _selectedRelays.remove(r.url);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                  TextButton.icon(
+                    onPressed: _showAddRelayDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add relay'),
+                  ),
+                ],
               );
             },
             loading: () =>
