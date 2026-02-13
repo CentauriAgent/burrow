@@ -1,0 +1,75 @@
+import { Aes128Gcm, Aes256Gcm } from "@hpke/core";
+import { DependencyError } from "../../../mlsError.js";
+import { toBufferSource } from "../../../util/byteArray.js";
+export async function makeAead(aeadAlg) {
+    switch (aeadAlg) {
+        case "AES128GCM":
+            return [
+                {
+                    encrypt(key, nonce, aad, plaintext) {
+                        return encryptAesGcm(key, nonce, aad, plaintext);
+                    },
+                    decrypt(key, nonce, aad, ciphertext) {
+                        return decryptAesGcm(key, nonce, aad, ciphertext);
+                    },
+                },
+                new Aes128Gcm(),
+            ];
+        case "AES256GCM":
+            return [
+                {
+                    encrypt(key, nonce, aad, plaintext) {
+                        return encryptAesGcm(key, nonce, aad, plaintext);
+                    },
+                    decrypt(key, nonce, aad, ciphertext) {
+                        return decryptAesGcm(key, nonce, aad, ciphertext);
+                    },
+                },
+                new Aes256Gcm(),
+            ];
+        case "CHACHA20POLY1305":
+            try {
+                const { Chacha20Poly1305 } = await import("@hpke/chacha20poly1305");
+                const { chacha20poly1305 } = await import("@noble/ciphers/chacha.js");
+                return [
+                    {
+                        async encrypt(key, nonce, aad, plaintext) {
+                            return chacha20poly1305(key, nonce, aad).encrypt(plaintext);
+                        },
+                        async decrypt(key, nonce, aad, ciphertext) {
+                            return chacha20poly1305(key, nonce, aad).decrypt(ciphertext);
+                        },
+                    },
+                    new Chacha20Poly1305(),
+                ];
+            }
+            catch (err) {
+                throw new DependencyError("Optional dependency '@hpke/chacha20poly1305' is not installed. Please install it to use this feature.");
+            }
+    }
+}
+async function encryptAesGcm(key, nonce, aad, plaintext) {
+    const cryptoKey = await crypto.subtle.importKey("raw", toBufferSource(key), { name: "AES-GCM" }, false, ["encrypt"]);
+    const params = {
+        name: "AES-GCM",
+        iv: toBufferSource(nonce),
+    };
+    if (aad.length > 0) {
+        params.additionalData = toBufferSource(aad);
+    }
+    const result = await crypto.subtle.encrypt(params, cryptoKey, toBufferSource(plaintext));
+    return new Uint8Array(result);
+}
+async function decryptAesGcm(key, nonce, aad, ciphertext) {
+    const cryptoKey = await crypto.subtle.importKey("raw", toBufferSource(key), { name: "AES-GCM" }, false, ["decrypt"]);
+    const params = {
+        name: "AES-GCM",
+        iv: toBufferSource(nonce),
+    };
+    if (aad.length > 0) {
+        params.additionalData = toBufferSource(aad);
+    }
+    const result = await crypto.subtle.decrypt(params, cryptoKey, toBufferSource(ciphertext));
+    return new Uint8Array(result);
+}
+//# sourceMappingURL=makeAead.js.map

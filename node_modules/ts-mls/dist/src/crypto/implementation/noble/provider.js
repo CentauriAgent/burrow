@@ -1,0 +1,19 @@
+import { makeHashImpl } from "./makeHashImpl.js";
+import { makeNobleSignatureImpl } from "./makeNobleSignatureImpl.js";
+import { makeHpke } from "./makeHpke.js";
+import { makeKdfImpl, makeKdf } from "./makeKdfImpl.js";
+import { defaultRng } from "./rng.js";
+/** @public */
+export const nobleCryptoProvider = {
+    async getCiphersuiteImpl(cs) {
+        return {
+            kdf: makeKdfImpl(makeKdf(cs.hpke.kdf)),
+            hash: makeHashImpl(cs.hash),
+            signature: await makeNobleSignatureImpl(cs.signature),
+            hpke: await makeHpke(cs.hpke),
+            rng: defaultRng,
+            name: cs.name,
+        };
+    },
+};
+//# sourceMappingURL=provider.js.map

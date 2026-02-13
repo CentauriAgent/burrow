@@ -1,0 +1,1 @@
+{"version":3,"file":"authenticationService.js","sourceRoot":"","sources":["../../src/authenticationService.ts"],"names":[],"mappings":"AAOA,cAAc;AACd,MAAM,CAAC,MAAM,4BAA4B,GAAG;IAC1C,KAAK,CAAC,kBAAkB,CAAC,WAAuB,EAAE,mBAA+B;QAC/E,OAAO,IAAI,CAAA;IACb,CAAC;CACF,CAAA"}

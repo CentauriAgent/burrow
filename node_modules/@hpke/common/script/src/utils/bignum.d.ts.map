@@ -1,0 +1,1 @@
+{"version":3,"file":"bignum.d.ts","sourceRoot":"","sources":["../../../src/src/utils/bignum.ts"],"names":[],"mappings":"AAAA;;GAEG;AACH,qBAAa,MAAM;IACjB,OAAO,CAAC,IAAI,CAAa;gBAEN,IAAI,EAAE,MAAM;IAIxB,GAAG,IAAI,UAAU;IAIjB,KAAK;IAIL,GAAG,CAAC,GAAG,EAAE,UAAU;IAOnB,MAAM,IAAI,OAAO;IASjB,QAAQ,CAAC,CAAC,EAAE,UAAU,GAAG,OAAO;CAcxC"}

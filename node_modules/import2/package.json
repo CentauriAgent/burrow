@@ -1,0 +1,24 @@
+{
+  "name": "import2",
+  "version": "1.0.3",
+  "description": "Dynamic import function which can avoid transpiling to require function",
+  "typings": "./index.d.ts",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samchon/import2"
+  },
+  "keywords": [
+    "import",
+    "require",
+    "avoid",
+    "transpile",
+    "typescript"
+  ],
+  "author": "Jeongho Nam",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/samchon/import2/issues"
+  },
+  "homepage": "https://github.com/samchon/import2#readme"
+}
