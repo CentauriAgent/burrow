@@ -13,3 +13,5 @@ pub mod call_signaling;
 pub mod call_session;
 pub mod call_webrtc;
 pub mod call_quality;
+pub mod transcription;
+pub mod meeting_intelligence;

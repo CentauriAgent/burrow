@@ -16,6 +16,9 @@ import 'package:burrow_app/screens/incoming_call_screen.dart';
 import 'package:burrow_app/screens/outgoing_call_screen.dart';
 import 'package:burrow_app/screens/in_call_screen.dart';
 import 'package:burrow_app/providers/call_provider.dart';
+import 'package:burrow_app/screens/transcript_screen.dart';
+import 'package:burrow_app/screens/meeting_summary_screen.dart';
+import 'package:burrow_app/screens/transcript_history_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,6 +86,20 @@ class BurrowApp extends ConsumerWidget {
           builder: (context, state) => GroupInfoScreen(
             groupId: state.pathParameters['groupId']!,
           ),
+        ),
+        GoRoute(
+          path: '/transcript',
+          builder: (context, state) => const TranscriptScreen(),
+        ),
+        GoRoute(
+          path: '/meeting-summary/:meetingId',
+          builder: (context, state) => MeetingSummaryScreen(
+            meetingId: state.pathParameters['meetingId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/meeting-history',
+          builder: (context, state) => const TranscriptHistoryScreen(),
         ),
       ],
     );

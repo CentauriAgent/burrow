@@ -6,7 +6,21 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/account.dart';
+import 'api/call_quality.dart';
+import 'api/call_session.dart';
+import 'api/call_signaling.dart';
+import 'api/call_webrtc.dart';
+import 'api/error.dart';
+import 'api/group.dart';
+import 'api/identity.dart';
+import 'api/invite.dart';
+import 'api/keypackage.dart';
+import 'api/media.dart';
+import 'api/message.dart';
+import 'api/relay.dart';
 import 'api/simple.dart';
+import 'api/state.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -20,11 +34,286 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     required super.portManager,
   });
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_BurrowStatePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_ClientPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_KeysPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_MdkMdkMemoryStoragePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage;
+
+  @protected
+  BurrowState
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    dynamic raw,
+  );
+
+  @protected
+  Client
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    dynamic raw,
+  );
+
+  @protected
+  Keys
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    dynamic raw,
+  );
+
+  @protected
+  MdkMdkMemoryStorage
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    dynamic raw,
+  );
+
+  @protected
+  BurrowState
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    dynamic raw,
+  );
+
+  @protected
+  BurrowState
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    dynamic raw,
+  );
+
+  @protected
+  BurrowState
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    dynamic raw,
+  );
+
+  @protected
+  Client
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    dynamic raw,
+  );
+
+  @protected
+  Keys
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    dynamic raw,
+  );
+
+  @protected
+  MdkMdkMemoryStorage
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    dynamic raw,
+  );
+
   @protected
   String dco_decode_String(dynamic raw);
 
   @protected
+  AccountInfo dco_decode_account_info(dynamic raw);
+
+  @protected
+  AdaptiveBitrateConfig dco_decode_adaptive_bitrate_config(dynamic raw);
+
+  @protected
+  AudioConstraints dco_decode_audio_constraints(dynamic raw);
+
+  @protected
+  AudioMode dco_decode_audio_mode(dynamic raw);
+
+  @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CallSession dco_decode_box_autoadd_call_session(dynamic raw);
+
+  @protected
+  CallSignalingEvent dco_decode_box_autoadd_call_signaling_event(dynamic raw);
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  GroupMessage dco_decode_box_autoadd_group_message(dynamic raw);
+
+  @protected
+  PeerStats dco_decode_box_autoadd_peer_stats(dynamic raw);
+
+  @protected
+  ProfileData dco_decode_box_autoadd_profile_data(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  BurrowError dco_decode_burrow_error(dynamic raw);
+
+  @protected
+  CallDirection dco_decode_call_direction(dynamic raw);
+
+  @protected
+  CallSession dco_decode_call_session(dynamic raw);
+
+  @protected
+  CallSignalingEvent dco_decode_call_signaling_event(dynamic raw);
+
+  @protected
+  CallState dco_decode_call_state(dynamic raw);
+
+  @protected
+  CallType dco_decode_call_type(dynamic raw);
+
+  @protected
+  CodecPreferences dco_decode_codec_preferences(dynamic raw);
+
+  @protected
+  CreateGroupResult dco_decode_create_group_result(dynamic raw);
+
+  @protected
+  EncryptedFileResult dco_decode_encrypted_file_result(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
+  GroupInfo dco_decode_group_info(dynamic raw);
+
+  @protected
+  GroupMessage dco_decode_group_message(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
+  IceServer dco_decode_ice_server(dynamic raw);
+
+  @protected
+  KeyPackageData dco_decode_key_package_data(dynamic raw);
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<CallSession> dco_decode_list_call_session(dynamic raw);
+
+  @protected
+  List<GroupInfo> dco_decode_list_group_info(dynamic raw);
+
+  @protected
+  List<GroupMessage> dco_decode_list_group_message(dynamic raw);
+
+  @protected
+  List<IceServer> dco_decode_list_ice_server(dynamic raw);
+
+  @protected
+  List<List<String>> dco_decode_list_list_String(dynamic raw);
+
+  @protected
+  List<MemberInfo> dco_decode_list_member_info(dynamic raw);
+
+  @protected
+  List<PeerEntry> dco_decode_list_peer_entry(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<RelayInfo> dco_decode_list_relay_info(dynamic raw);
+
+  @protected
+  List<SimulcastLayer> dco_decode_list_simulcast_layer(dynamic raw);
+
+  @protected
+  List<WelcomeInfo> dco_decode_list_welcome_info(dynamic raw);
+
+  @protected
+  MediaReferenceInfo dco_decode_media_reference_info(dynamic raw);
+
+  @protected
+  MemberInfo dco_decode_member_info(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CallSession? dco_decode_opt_box_autoadd_call_session(dynamic raw);
+
+  @protected
+  CallSignalingEvent? dco_decode_opt_box_autoadd_call_signaling_event(
+    dynamic raw,
+  );
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  GroupMessage? dco_decode_opt_box_autoadd_group_message(dynamic raw);
+
+  @protected
+  PeerStats? dco_decode_opt_box_autoadd_peer_stats(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  PeerConnectionState dco_decode_peer_connection_state(dynamic raw);
+
+  @protected
+  PeerEntry dco_decode_peer_entry(dynamic raw);
+
+  @protected
+  PeerStats dco_decode_peer_stats(dynamic raw);
+
+  @protected
+  ProcessMessageResult dco_decode_process_message_result(dynamic raw);
+
+  @protected
+  ProfileData dco_decode_profile_data(dynamic raw);
+
+  @protected
+  QualityRecommendation dco_decode_quality_recommendation(dynamic raw);
+
+  @protected
+  QualityScore dco_decode_quality_score(dynamic raw);
+
+  @protected
+  RelayInfo dco_decode_relay_info(dynamic raw);
+
+  @protected
+  SdpInfo dco_decode_sdp_info(dynamic raw);
+
+  @protected
+  SfuConfig dco_decode_sfu_config(dynamic raw);
+
+  @protected
+  SimulcastConfig dco_decode_simulcast_config(dynamic raw);
+
+  @protected
+  SimulcastLayer dco_decode_simulcast_layer(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -33,10 +322,321 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  UpdateGroupResult dco_decode_update_group_result(dynamic raw);
+
+  @protected
+  UploadMediaResult dco_decode_upload_media_result(dynamic raw);
+
+  @protected
+  BigInt dco_decode_usize(dynamic raw);
+
+  @protected
+  VideoConstraints dco_decode_video_constraints(dynamic raw);
+
+  @protected
+  VideoQualityPreset dco_decode_video_quality_preset(dynamic raw);
+
+  @protected
+  WebRtcConfig dco_decode_web_rtc_config(dynamic raw);
+
+  @protected
+  WelcomeInfo dco_decode_welcome_info(dynamic raw);
+
+  @protected
+  BurrowState
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Client
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Keys
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MdkMdkMemoryStorage
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BurrowState
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BurrowState
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BurrowState
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Client
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Keys
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MdkMdkMemoryStorage
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AccountInfo sse_decode_account_info(SseDeserializer deserializer);
+
+  @protected
+  AdaptiveBitrateConfig sse_decode_adaptive_bitrate_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AudioConstraints sse_decode_audio_constraints(SseDeserializer deserializer);
+
+  @protected
+  AudioMode sse_decode_audio_mode(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  CallSession sse_decode_box_autoadd_call_session(SseDeserializer deserializer);
+
+  @protected
+  CallSignalingEvent sse_decode_box_autoadd_call_signaling_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupMessage sse_decode_box_autoadd_group_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PeerStats sse_decode_box_autoadd_peer_stats(SseDeserializer deserializer);
+
+  @protected
+  ProfileData sse_decode_box_autoadd_profile_data(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  BurrowError sse_decode_burrow_error(SseDeserializer deserializer);
+
+  @protected
+  CallDirection sse_decode_call_direction(SseDeserializer deserializer);
+
+  @protected
+  CallSession sse_decode_call_session(SseDeserializer deserializer);
+
+  @protected
+  CallSignalingEvent sse_decode_call_signaling_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CallState sse_decode_call_state(SseDeserializer deserializer);
+
+  @protected
+  CallType sse_decode_call_type(SseDeserializer deserializer);
+
+  @protected
+  CodecPreferences sse_decode_codec_preferences(SseDeserializer deserializer);
+
+  @protected
+  CreateGroupResult sse_decode_create_group_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  EncryptedFileResult sse_decode_encrypted_file_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupInfo sse_decode_group_info(SseDeserializer deserializer);
+
+  @protected
+  GroupMessage sse_decode_group_message(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  IceServer sse_decode_ice_server(SseDeserializer deserializer);
+
+  @protected
+  KeyPackageData sse_decode_key_package_data(SseDeserializer deserializer);
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<CallSession> sse_decode_list_call_session(SseDeserializer deserializer);
+
+  @protected
+  List<GroupInfo> sse_decode_list_group_info(SseDeserializer deserializer);
+
+  @protected
+  List<GroupMessage> sse_decode_list_group_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<IceServer> sse_decode_list_ice_server(SseDeserializer deserializer);
+
+  @protected
+  List<List<String>> sse_decode_list_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<MemberInfo> sse_decode_list_member_info(SseDeserializer deserializer);
+
+  @protected
+  List<PeerEntry> sse_decode_list_peer_entry(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<RelayInfo> sse_decode_list_relay_info(SseDeserializer deserializer);
+
+  @protected
+  List<SimulcastLayer> sse_decode_list_simulcast_layer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<WelcomeInfo> sse_decode_list_welcome_info(SseDeserializer deserializer);
+
+  @protected
+  MediaReferenceInfo sse_decode_media_reference_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MemberInfo sse_decode_member_info(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  CallSession? sse_decode_opt_box_autoadd_call_session(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CallSignalingEvent? sse_decode_opt_box_autoadd_call_signaling_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  GroupMessage? sse_decode_opt_box_autoadd_group_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PeerStats? sse_decode_opt_box_autoadd_peer_stats(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  PeerConnectionState sse_decode_peer_connection_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PeerEntry sse_decode_peer_entry(SseDeserializer deserializer);
+
+  @protected
+  PeerStats sse_decode_peer_stats(SseDeserializer deserializer);
+
+  @protected
+  ProcessMessageResult sse_decode_process_message_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ProfileData sse_decode_profile_data(SseDeserializer deserializer);
+
+  @protected
+  QualityRecommendation sse_decode_quality_recommendation(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  QualityScore sse_decode_quality_score(SseDeserializer deserializer);
+
+  @protected
+  RelayInfo sse_decode_relay_info(SseDeserializer deserializer);
+
+  @protected
+  SdpInfo sse_decode_sdp_info(SseDeserializer deserializer);
+
+  @protected
+  SfuConfig sse_decode_sfu_config(SseDeserializer deserializer);
+
+  @protected
+  SimulcastConfig sse_decode_simulcast_config(SseDeserializer deserializer);
+
+  @protected
+  SimulcastLayer sse_decode_simulcast_layer(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -45,13 +645,275 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
+  UpdateGroupResult sse_decode_update_group_result(
+    SseDeserializer deserializer,
+  );
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
+  UploadMediaResult sse_decode_upload_media_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer);
+
+  @protected
+  VideoConstraints sse_decode_video_constraints(SseDeserializer deserializer);
+
+  @protected
+  VideoQualityPreset sse_decode_video_quality_preset(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  WebRtcConfig sse_decode_web_rtc_config(SseDeserializer deserializer);
+
+  @protected
+  WelcomeInfo sse_decode_welcome_info(SseDeserializer deserializer);
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    BurrowState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    Client self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    Keys self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    MdkMdkMemoryStorage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    BurrowState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    BurrowState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    BurrowState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    Client self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    Keys self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    MdkMdkMemoryStorage self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_account_info(AccountInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_adaptive_bitrate_config(
+    AdaptiveBitrateConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_audio_constraints(
+    AudioConstraints self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_audio_mode(AudioMode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_call_session(
+    CallSession self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_call_signaling_event(
+    CallSignalingEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_group_message(
+    GroupMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_peer_stats(
+    PeerStats self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_profile_data(
+    ProfileData self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_burrow_error(BurrowError self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_call_direction(CallDirection self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_call_session(CallSession self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_call_signaling_event(
+    CallSignalingEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_call_state(CallState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_call_type(CallType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_codec_preferences(
+    CodecPreferences self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_create_group_result(
+    CreateGroupResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_encrypted_file_result(
+    EncryptedFileResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_info(GroupInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_message(GroupMessage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ice_server(IceServer self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_key_package_data(
+    KeyPackageData self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_call_session(
+    List<CallSession> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_group_info(
+    List<GroupInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_group_message(
+    List<GroupMessage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ice_server(
+    List<IceServer> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_list_String(
+    List<List<String>> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_member_info(
+    List<MemberInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_peer_entry(
+    List<PeerEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -60,22 +922,236 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_relay_info(
+    List<RelayInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_simulcast_layer(
+    List<SimulcastLayer> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_welcome_info(
+    List<WelcomeInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_reference_info(
+    MediaReferenceInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_member_info(MemberInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_call_session(
+    CallSession? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_call_signaling_event(
+    CallSignalingEvent? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_group_message(
+    GroupMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_peer_stats(
+    PeerStats? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_peer_connection_state(
+    PeerConnectionState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_peer_entry(PeerEntry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_peer_stats(PeerStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_process_message_result(
+    ProcessMessageResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_profile_data(ProfileData self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quality_recommendation(
+    QualityRecommendation self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_quality_score(QualityScore self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_info(RelayInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_sdp_info(SdpInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_sfu_config(SfuConfig self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_simulcast_config(
+    SimulcastConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_simulcast_layer(
+    SimulcastLayer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
+  void sse_encode_update_group_result(
+    UpdateGroupResult self,
+    SseSerializer serializer,
+  );
 
   @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
+  void sse_encode_upload_media_result(
+    UploadMediaResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_video_constraints(
+    VideoConstraints self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_video_quality_preset(
+    VideoQualityPreset self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_web_rtc_config(WebRtcConfig self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_welcome_info(WelcomeInfo self, SseSerializer serializer);
 }
 
 // Section: wire_class
 
 class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+        ptr,
+      );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+        ptr,
+      );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+        ptr,
+      );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -83,4 +1159,44 @@ external RustLibWasmModule get wasmModule;
 
 @JS()
 @anonymous
-extension type RustLibWasmModule._(JSObject _) implements JSObject {}
+extension type RustLibWasmModule._(JSObject _) implements JSObject {
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
+    int ptr,
+  );
+}
