@@ -116,19 +116,14 @@ impl ProfileData {
 #[frb]
 pub async fn set_profile(profile: ProfileData) -> Result<(), BurrowError> {
     let metadata = profile.to_metadata()?;
-    state::with_state(|s| {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
-        rt.block_on(async {
-            let builder = EventBuilder::metadata(&metadata);
-            s.client
-                .send_event_builder(builder)
-                .await
-                .map_err(|e| BurrowError::from(e.to_string()))?;
-            Ok(())
-        })
-    })
-    .await?;
+    // Clone the client out so we can drop the state lock before awaiting
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+
+    let builder = EventBuilder::metadata(&metadata);
+    client
+        .send_event_builder(builder)
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
 
     // Update cache with our own profile
     let pubkey_hex = state::with_state(|s| Ok(s.keys.public_key().to_hex())).await?;
@@ -172,30 +167,25 @@ pub async fn fetch_profile(
     let pubkey =
         PublicKey::parse(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
 
-    let profile = state::with_state(|s| {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
-        rt.block_on(async {
-            let filter = Filter::new()
-                .kind(Kind::Metadata)
-                .author(pubkey)
-                .limit(1);
-            let events = s
-                .client
-                .fetch_events(filter, Duration::from_secs(10))
-                .await
-                .map_err(|e| BurrowError::from(e.to_string()))?;
+    // Clone client out, drop the lock, then do async relay query
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
 
-            if let Some(event) = events.into_iter().next() {
-                let metadata = Metadata::from_json(&event.content)
-                    .map_err(|e| BurrowError::from(e.to_string()))?;
-                Ok(ProfileData::from_metadata(&metadata))
-            } else {
-                Ok(ProfileData::default())
-            }
-        })
-    })
-    .await?;
+    let filter = Filter::new()
+        .kind(Kind::Metadata)
+        .author(pubkey)
+        .limit(1);
+    let events = client
+        .fetch_events(filter, Duration::from_secs(10))
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    let profile = if let Some(event) = events.into_iter().next() {
+        let metadata = Metadata::from_json(&event.content)
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+        ProfileData::from_metadata(&metadata)
+    } else {
+        ProfileData::default()
+    };
 
     // Store in cache
     if !profile.is_empty() {
@@ -218,34 +208,28 @@ pub async fn fetch_user_relays(pubkey_hex: String) -> Result<Vec<String>, Burrow
     let pubkey =
         PublicKey::parse(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
 
-    state::with_state(|s| {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
-        rt.block_on(async {
-            let filter = Filter::new()
-                .kind(Kind::RelayList)
-                .author(pubkey)
-                .limit(1);
-            let events = s
-                .client
-                .fetch_events(filter, Duration::from_secs(10))
-                .await
-                .map_err(|e| BurrowError::from(e.to_string()))?;
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
 
-            if let Some(event) = events.into_iter().next() {
-                let urls: Vec<String> = event
-                    .tags
-                    .iter()
-                    .filter(|t| t.kind() == TagKind::single_letter(Alphabet::R, false))
-                    .filter_map(|t| t.content().map(|s| s.to_string()))
-                    .collect();
-                Ok(urls)
-            } else {
-                Ok(vec![])
-            }
-        })
-    })
-    .await
+    let filter = Filter::new()
+        .kind(Kind::RelayList)
+        .author(pubkey)
+        .limit(1);
+    let events = client
+        .fetch_events(filter, Duration::from_secs(10))
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    if let Some(event) = events.into_iter().next() {
+        let urls: Vec<String> = event
+            .tags
+            .iter()
+            .filter(|t| t.kind() == TagKind::single_letter(Alphabet::R, false))
+            .filter_map(|t| t.content().map(|s| s.to_string()))
+            .collect();
+        Ok(urls)
+    } else {
+        Ok(vec![])
+    }
 }
 
 /// Bootstrap a newly imported identity: connect default relays, fetch own

@@ -118,29 +118,24 @@ async fn build_gift_wrapped_signaling(
     let recipient_pk = PublicKey::from_hex(recipient_pubkey_hex)
         .map_err(|e| BurrowError::from(e.to_string()))?;
 
-    state::with_state(|s| {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
-        rt.block_on(async {
-            // Build the inner rumor as unsigned event
-            let rumor = EventBuilder::new(Kind::from(kind_num), content)
-                .tags(tags)
-                .build(s.keys.public_key());
+    let keys = state::with_state(|s| Ok(s.keys.clone())).await?;
 
-            // Gift wrap using NIP-59
-            let gift_wrap = EventBuilder::gift_wrap(
-                &s.keys,
-                &recipient_pk,
-                rumor,
-                Vec::<Tag>::new(),
-            )
-            .await
-            .map_err(|e| BurrowError::from(e.to_string()))?;
+    // Build the inner rumor as unsigned event
+    let rumor = EventBuilder::new(Kind::from(kind_num), content)
+        .tags(tags)
+        .build(keys.public_key());
 
-            serde_json::to_string(&gift_wrap).map_err(|e| BurrowError::from(e.to_string()))
-        })
-    })
+    // Gift wrap using NIP-59
+    let gift_wrap = EventBuilder::gift_wrap(
+        &keys,
+        &recipient_pk,
+        rumor,
+        Vec::<Tag>::new(),
+    )
     .await
+    .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    serde_json::to_string(&gift_wrap).map_err(|e| BurrowError::from(e.to_string()))
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────

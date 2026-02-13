@@ -6,6 +6,7 @@ import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
+import 'package:burrow_app/services/user_service.dart';
 
 class GroupInfoScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -28,6 +29,35 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     _loadGroupInfo();
   }
 
+  /// Fetch profiles for members missing display names, then refresh UI.
+  Future<void> _resolveProfiles(List<MemberInfo> members) async {
+    bool updated = false;
+    for (final m in members) {
+      if (m.displayName == null) {
+        try {
+          final profile = await UserService(
+            pubkeyHex: m.pubkeyHex,
+          ).fetchProfile();
+          final name = UserService.presentName(profile);
+          if (name != null && mounted) {
+            updated = true;
+          }
+        } catch (_) {}
+      }
+    }
+    // Re-fetch members from Rust (cache now populated) to get updated names
+    if (updated && mounted) {
+      try {
+        final refreshed = await ref
+            .read(groupProvider.notifier)
+            .getMembers(widget.groupId);
+        if (mounted) {
+          setState(() => _members = refreshed);
+        }
+      } catch (_) {}
+    }
+  }
+
   Future<void> _loadGroupInfo() async {
     setState(() {
       _loading = true;
@@ -44,6 +74,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           _loading = false;
         });
       }
+      // Fetch profiles for members missing display names (two-step pattern)
+      _resolveProfiles(members);
     } catch (e) {
       if (mounted) {
         setState(() {

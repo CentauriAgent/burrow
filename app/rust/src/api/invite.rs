@@ -248,34 +248,27 @@ pub async fn fetch_key_package(pubkey_hex: String) -> Result<String, BurrowError
     let pubkey =
         PublicKey::from_hex(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
 
-    state::with_state(|s| {
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
 
-        rt.block_on(async {
-            let filter = Filter::new()
-                .author(pubkey)
-                .kind(Kind::MlsKeyPackage)
-                .limit(1);
+    let filter = Filter::new()
+        .author(pubkey)
+        .kind(Kind::MlsKeyPackage)
+        .limit(1);
 
-            let events = s
-                .client
-                .fetch_events(filter, std::time::Duration::from_secs(10))
-                .await
-                .map_err(|e| BurrowError::from(e.to_string()))?;
+    let events = client
+        .fetch_events(filter, std::time::Duration::from_secs(10))
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
 
-            let event = events
-                .into_iter()
-                .next()
-                .ok_or_else(|| {
-                    BurrowError::from(format!(
-                        "No KeyPackage found for pubkey {}",
-                        pubkey_hex
-                    ))
-                })?;
+    let event = events
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            BurrowError::from(format!(
+                "No KeyPackage found for pubkey {}",
+                pubkey_hex
+            ))
+        })?;
 
-            serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
-        })
-    })
-    .await
+    serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
 }
