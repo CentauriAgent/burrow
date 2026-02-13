@@ -1,4 +1,4 @@
 [workspace]
-members = ["cli"]
+members = ["cli", "bridge"]
 exclude = ["app/rust", "mls-engine"]
 resolver = "2"
