@@ -1,0 +1,27 @@
+[package]
+name = "rust_lib_burrow_app"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+anyhow = "1.0"
+flutter_rust_bridge = { version = "=2.11.1", features = ["chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+thiserror = "2"
+
+# Marmot protocol dependencies (pinned to known working rev from WhiteNoise)
+mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
+nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[lints.clippy]
+not_unsafe_ptr_arg_deref = "allow"
