@@ -14,6 +14,12 @@ import {
   readCommand,
   listenCommand,
   daemonCommand,
+  aclShowCommand,
+  aclAddContactCommand,
+  aclRemoveContactCommand,
+  aclAddGroupCommand,
+  aclRemoveGroupCommand,
+  aclAuditCommand,
 } from './cli/index.js';
 
 const program = new Command();
@@ -149,6 +155,64 @@ program
       reconnectDelay: parseInt(opts.reconnectDelay),
       noAccessControl: !opts.accessControl,
     });
+  });
+
+// --- burrow acl ---
+const acl = program
+  .command('acl')
+  .description('🔐 Access control management');
+
+acl
+  .command('show')
+  .description('Display current access control config')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((opts) => {
+    aclShowCommand({ dataDir: opts.dataDir });
+  });
+
+acl
+  .command('add-contact')
+  .description('Add a contact to the allowlist')
+  .argument('<pubkey>', 'Nostr public key (npub or hex)')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((pubkey, opts) => {
+    aclAddContactCommand(pubkey, { dataDir: opts.dataDir });
+  });
+
+acl
+  .command('remove-contact')
+  .description('Remove a contact from the allowlist')
+  .argument('<pubkey>', 'Nostr public key (npub or hex)')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((pubkey, opts) => {
+    aclRemoveContactCommand(pubkey, { dataDir: opts.dataDir });
+  });
+
+acl
+  .command('add-group')
+  .description('Add a group to the allowlist')
+  .argument('<group-id>', 'Group ID')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((groupId, opts) => {
+    aclAddGroupCommand(groupId, { dataDir: opts.dataDir });
+  });
+
+acl
+  .command('remove-group')
+  .description('Remove a group from the allowlist')
+  .argument('<group-id>', 'Group ID')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((groupId, opts) => {
+    aclRemoveGroupCommand(groupId, { dataDir: opts.dataDir });
+  });
+
+acl
+  .command('audit')
+  .description('Show audit log')
+  .option('--days <n>', 'Number of days to show', '7')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .action((opts) => {
+    aclAuditCommand({ dataDir: opts.dataDir, days: opts.days });
   });
 
 program.parse();

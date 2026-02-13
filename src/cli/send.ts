@@ -15,7 +15,7 @@ import { RelayPool, buildGroupEvent, buildInnerChatMessage } from '../nostr/inde
 import { BurrowStore } from '../store/index.js';
 import { DEFAULT_RELAYS } from '../types/index.js';
 import { bytesToBase64 } from 'ts-mls';
-import { AuditLog } from '../security/index.js';
+import { AccessControl, AuditLog } from '../security/index.js';
 
 export async function sendCommand(opts: {
   groupId: string;
@@ -32,6 +32,27 @@ export async function sendCommand(opts: {
   if (!group) {
     console.error(`❌ Group not found: ${opts.groupId}`);
     process.exit(1);
+  }
+
+  // Access control: verify target group is allowed
+  try {
+    const acl = new AccessControl(dataDir);
+    if (!acl.isGroupAllowed(opts.groupId)) {
+      const audit = new AuditLog(dataDir);
+      audit.log({
+        timestamp: new Date().toISOString(),
+        type: 'message_sent',
+        groupId: opts.groupId,
+        groupName: group.name,
+        allowed: false,
+        details: 'Send blocked: group not in allowlist',
+      });
+      console.error(`🚫 Cannot send to "${group.name}" — group not in allowlist.`);
+      console.error('   Use `burrow acl add-group <id>` to authorize this group.');
+      process.exit(1);
+    }
+  } catch {
+    // If ACL not configured, allow (backward compat)
   }
 
   const relays = group.relays.length > 0 ? group.relays : DEFAULT_RELAYS;

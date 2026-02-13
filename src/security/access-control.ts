@@ -3,18 +3,25 @@
  * Allowlist-based authorization — only approved contacts/groups get responses.
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+
+export interface OwnerConfig {
+  npub: string;
+  hex: string;
+  note?: string;
+}
 
 export interface AccessControlConfig {
   version: number;
-  owner: string; // hex pubkey — ONLY person who can modify permissions
-  ownerNote?: string;
+  owner: OwnerConfig;
+  defaultPolicy: 'ignore' | 'log';
   allowedContacts: string[]; // hex pubkeys
   allowedGroups: string[]; // nostr group IDs
-  defaultPolicy: 'ignore' | 'log'; // ignore = silent drop, log = log but don't respond
-  updatedAt: string;
-  updatedBy: string;
+  settings: {
+    logRejectedContent: boolean;
+    auditEnabled: boolean;
+  };
 }
 
 export class AccessControl {
@@ -31,19 +38,37 @@ export class AccessControl {
       );
     }
 
-    this.config = JSON.parse(readFileSync(this.configPath, 'utf-8'));
+    const raw = JSON.parse(readFileSync(this.configPath, 'utf-8'));
 
-    if (!this.config.owner || this.config.owner === 'DEREK_HEX_PUBKEY_REQUIRED') {
+    // Handle both old (owner: string) and new (owner: {hex, npub}) formats
+    if (typeof raw.owner === 'string') {
+      raw.owner = { hex: raw.owner, npub: '', note: 'Migrated from legacy format' };
+    }
+
+    this.config = raw as AccessControlConfig;
+
+    // Ensure settings exist
+    if (!this.config.settings) {
+      this.config.settings = { logRejectedContent: false, auditEnabled: true };
+    }
+
+    const ownerHex = this.config.owner?.hex;
+    if (!ownerHex || ownerHex === 'DEREK_HEX_PUBKEY_REQUIRED') {
       throw new Error(
         'Owner pubkey not configured in access-control.json. ' +
-        'Set the owner field to Derek\'s hex pubkey before running.'
+        'Set the owner.hex field before running.'
       );
     }
   }
 
+  /** The owner's hex pubkey */
+  get ownerHex(): string {
+    return this.config.owner.hex;
+  }
+
   /** Check if a sender pubkey is allowed to receive responses */
   isContactAllowed(pubkey: string): boolean {
-    return pubkey === this.config.owner || this.config.allowedContacts.includes(pubkey);
+    return pubkey === this.config.owner.hex || this.config.allowedContacts.includes(pubkey);
   }
 
   /** Check if a group is allowed for participation */
@@ -53,67 +78,80 @@ export class AccessControl {
 
   /** Check if a pubkey is the owner */
   isOwner(pubkey: string): boolean {
-    return pubkey === this.config.owner;
+    return pubkey === this.config.owner.hex;
   }
 
   /** Get current config (read-only copy) */
   getConfig(): Readonly<AccessControlConfig> {
-    return { ...this.config };
+    return JSON.parse(JSON.stringify(this.config));
   }
 
   /**
-   * Modify access control. ONLY callable by owner.
-   * In daemon context, this is called after verifying the request came from owner.
+   * Add a contact to the allowlist.
+   * In CLI context (local), no owner check needed.
+   * In daemon context, verify requester is owner first.
    */
-  modify(
-    requesterPubkey: string,
-    changes: {
-      addContacts?: string[];
-      removeContacts?: string[];
-      addGroups?: string[];
-      removeGroups?: string[];
+  addContact(hexPubkey: string): void {
+    if (!this.config.allowedContacts.includes(hexPubkey)) {
+      this.config.allowedContacts.push(hexPubkey);
+      this.save();
     }
-  ): { success: boolean; reason?: string } {
-    if (!this.isOwner(requesterPubkey)) {
-      return { success: false, reason: 'Only the owner can modify access control' };
+  }
+
+  /** Remove a contact from the allowlist */
+  removeContact(hexPubkey: string): boolean {
+    const before = this.config.allowedContacts.length;
+    this.config.allowedContacts = this.config.allowedContacts.filter(c => c !== hexPubkey);
+    if (this.config.allowedContacts.length !== before) {
+      this.save();
+      return true;
     }
+    return false;
+  }
 
-    if (changes.addContacts) {
-      for (const c of changes.addContacts) {
-        if (!this.config.allowedContacts.includes(c)) {
-          this.config.allowedContacts.push(c);
-        }
-      }
+  /** Add a group to the allowlist */
+  addGroup(groupId: string): void {
+    if (!this.config.allowedGroups.includes(groupId)) {
+      this.config.allowedGroups.push(groupId);
+      this.save();
     }
+  }
 
-    if (changes.removeContacts) {
-      this.config.allowedContacts = this.config.allowedContacts.filter(
-        c => !changes.removeContacts!.includes(c)
-      );
+  /** Remove a group from the allowlist */
+  removeGroup(groupId: string): boolean {
+    const before = this.config.allowedGroups.length;
+    this.config.allowedGroups = this.config.allowedGroups.filter(g => g !== groupId);
+    if (this.config.allowedGroups.length !== before) {
+      this.save();
+      return true;
     }
-
-    if (changes.addGroups) {
-      for (const g of changes.addGroups) {
-        if (!this.config.allowedGroups.includes(g)) {
-          this.config.allowedGroups.push(g);
-        }
-      }
-    }
-
-    if (changes.removeGroups) {
-      this.config.allowedGroups = this.config.allowedGroups.filter(
-        g => !changes.removeGroups!.includes(g)
-      );
-    }
-
-    this.config.updatedAt = new Date().toISOString();
-    this.config.updatedBy = requesterPubkey.slice(0, 16);
-    this.save();
-
-    return { success: true };
+    return false;
   }
 
   private save(): void {
-    writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), { mode: 0o600 });
+    writeFileSync(this.configPath, JSON.stringify(this.config, null, 2) + '\n', { mode: 0o600 });
+  }
+
+  /** Read audit log entries for the last N days */
+  static readAuditLog(dataDir: string, days: number = 7): string[] {
+    const auditDir = join(dataDir, 'audit');
+    if (!existsSync(auditDir)) return [];
+
+    const now = Date.now();
+    const cutoff = now - days * 86400000;
+    const files = readdirSync(auditDir)
+      .filter(f => f.endsWith('.jsonl'))
+      .sort()
+      .filter(f => {
+        const dateStr = f.replace('.jsonl', '');
+        return new Date(dateStr).getTime() >= cutoff;
+      });
+
+    const lines: string[] = [];
+    for (const file of files) {
+      const content = readFileSync(join(auditDir, file), 'utf-8').trim();
+      if (content) lines.push(...content.split('\n'));
+    }
+    return lines;
   }
 }
