@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `group_state_str`, `group_to_info`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `base64_encode`, `group_state_str`, `group_to_info`, `sha256_hex`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Create a new MLS group (MIP-01).
 ///
@@ -60,6 +60,51 @@ Future<List<MemberInfo>> getGroupMembers({required String mlsGroupIdHex}) =>
 /// Returns an evolution event (kind 445) to publish to group relays.
 Future<UpdateGroupResult> leaveGroup({required String mlsGroupIdHex}) =>
     RustLib.instance.api.crateApiGroupLeaveGroup(mlsGroupIdHex: mlsGroupIdHex);
+
+/// Upload and set a group avatar image via encrypted Blossom (MIP-01).
+///
+/// 1. Validates and encrypts the image using MDK's `prepare_group_image_for_upload`.
+/// 2. Uploads the encrypted blob to the Blossom server with NIP-98 auth.
+/// 3. Updates the MLS group extension with image_hash/key/nonce/upload_key.
+/// 4. Returns the evolution event to publish to relays.
+Future<UploadGroupImageResult> uploadGroupImage({
+  required String mlsGroupIdHex,
+  required List<int> imageData,
+  required String mimeType,
+  required String blossomServerUrl,
+}) => RustLib.instance.api.crateApiGroupUploadGroupImage(
+  mlsGroupIdHex: mlsGroupIdHex,
+  imageData: imageData,
+  mimeType: mimeType,
+  blossomServerUrl: blossomServerUrl,
+);
+
+/// Download and decrypt a group's avatar image from Blossom.
+///
+/// Fetches the encrypted blob using the group's image_hash, then decrypts
+/// using the image_key and image_nonce from the MLS group extension.
+///
+/// Returns the decrypted image bytes, or an error if the group has no image.
+Future<Uint8List> downloadGroupImage({
+  required String mlsGroupIdHex,
+  required String blossomServerUrl,
+}) => RustLib.instance.api.crateApiGroupDownloadGroupImage(
+  mlsGroupIdHex: mlsGroupIdHex,
+  blossomServerUrl: blossomServerUrl,
+);
+
+/// Remove a group's avatar image. Clears the MLS extension and optionally
+/// deletes the blob from Blossom.
+///
+/// Returns the evolution event to publish to relays.
+Future<UpdateGroupResult> removeGroupImage({required String mlsGroupIdHex}) =>
+    RustLib.instance.api.crateApiGroupRemoveGroupImage(
+      mlsGroupIdHex: mlsGroupIdHex,
+    );
+
+/// Default Blossom server URL.
+Future<String> defaultBlossomServer() =>
+    RustLib.instance.api.crateApiGroupDefaultBlossomServer();
 
 /// Get the relay URLs configured for a group.
 Future<List<String>> getGroupRelays({required String mlsGroupIdHex}) => RustLib
@@ -164,6 +209,12 @@ class GroupInfo {
   /// For DMs: the peer's pubkey hex. None for groups.
   final String? dmPeerPubkeyHex;
 
+  /// Hex-encoded SHA-256 hash of encrypted group avatar on Blossom. None if no avatar.
+  final String? imageHashHex;
+
+  /// Whether this group has an avatar image set.
+  final bool hasImage;
+
   const GroupInfo({
     required this.mlsGroupIdHex,
     required this.nostrGroupIdHex,
@@ -177,6 +228,8 @@ class GroupInfo {
     this.dmPeerDisplayName,
     this.dmPeerPicture,
     this.dmPeerPubkeyHex,
+    this.imageHashHex,
+    required this.hasImage,
   });
 
   @override
@@ -192,7 +245,9 @@ class GroupInfo {
       isDirectMessage.hashCode ^
       dmPeerDisplayName.hashCode ^
       dmPeerPicture.hashCode ^
-      dmPeerPubkeyHex.hashCode;
+      dmPeerPubkeyHex.hashCode ^
+      imageHashHex.hashCode ^
+      hasImage.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -210,7 +265,9 @@ class GroupInfo {
           isDirectMessage == other.isDirectMessage &&
           dmPeerDisplayName == other.dmPeerDisplayName &&
           dmPeerPicture == other.dmPeerPicture &&
-          dmPeerPubkeyHex == other.dmPeerPubkeyHex;
+          dmPeerPubkeyHex == other.dmPeerPubkeyHex &&
+          imageHashHex == other.imageHashHex &&
+          hasImage == other.hasImage;
 }
 
 /// Member information for FFI, enriched with cached profile data.
@@ -270,5 +327,38 @@ class UpdateGroupResult {
           runtimeType == other.runtimeType &&
           evolutionEventJson == other.evolutionEventJson &&
           welcomeRumorsJson == other.welcomeRumorsJson &&
+          mlsGroupIdHex == other.mlsGroupIdHex;
+}
+
+/// Result of uploading a group image to Blossom.
+class UploadGroupImageResult {
+  /// Evolution event JSON (kind 445) to publish to relays.
+  final String evolutionEventJson;
+
+  /// Hex-encoded SHA-256 of the encrypted blob (Blossom content address).
+  final String encryptedHashHex;
+
+  /// Hex-encoded MLS group ID.
+  final String mlsGroupIdHex;
+
+  const UploadGroupImageResult({
+    required this.evolutionEventJson,
+    required this.encryptedHashHex,
+    required this.mlsGroupIdHex,
+  });
+
+  @override
+  int get hashCode =>
+      evolutionEventJson.hashCode ^
+      encryptedHashHex.hashCode ^
+      mlsGroupIdHex.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UploadGroupImageResult &&
+          runtimeType == other.runtimeType &&
+          evolutionEventJson == other.evolutionEventJson &&
+          encryptedHashHex == other.encryptedHashHex &&
           mlsGroupIdHex == other.mlsGroupIdHex;
 }

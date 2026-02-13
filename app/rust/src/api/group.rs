@@ -38,6 +38,10 @@ pub struct GroupInfo {
     pub dm_peer_picture: Option<String>,
     /// For DMs: the peer's pubkey hex. None for groups.
     pub dm_peer_pubkey_hex: Option<String>,
+    /// Hex-encoded SHA-256 hash of encrypted group avatar on Blossom. None if no avatar.
+    pub image_hash_hex: Option<String>,
+    /// Whether this group has an avatar image set.
+    pub has_image: bool,
 }
 
 /// Member information for FFI, enriched with cached profile data.
@@ -110,6 +114,11 @@ fn group_to_info(group: &group_types::Group, s: &state::BurrowState) -> GroupInf
         (None, None, None)
     };
 
+    let image_hash_hex = group.image_hash.map(|h| hex::encode(h));
+    let has_image = group.image_hash.is_some()
+        && group.image_key.is_some()
+        && group.image_nonce.is_some();
+
     GroupInfo {
         mls_group_id_hex: hex::encode(group.mls_group_id.as_slice()),
         nostr_group_id_hex: hex::encode(group.nostr_group_id),
@@ -123,6 +132,8 @@ fn group_to_info(group: &group_types::Group, s: &state::BurrowState) -> GroupInf
         dm_peer_display_name,
         dm_peer_picture,
         dm_peer_pubkey_hex,
+        image_hash_hex,
+        has_image,
     }
 }
 
@@ -288,11 +299,236 @@ pub async fn leave_group(mls_group_id_hex: String) -> Result<UpdateGroupResult, 
 
         Ok(UpdateGroupResult {
             evolution_event_json: evolution_json,
-            welcome_rumors_json: welcome_jsons,
+            welcome_rumors_json: vec![],
             mls_group_id_hex: hex::encode(result.mls_group_id.as_slice()),
         })
     })
     .await
+}
+
+/// Result of uploading a group image to Blossom.
+#[frb(non_opaque)]
+#[derive(Debug, Clone)]
+pub struct UploadGroupImageResult {
+    /// Evolution event JSON (kind 445) to publish to relays.
+    pub evolution_event_json: String,
+    /// Hex-encoded SHA-256 of the encrypted blob (Blossom content address).
+    pub encrypted_hash_hex: String,
+    /// Hex-encoded MLS group ID.
+    pub mls_group_id_hex: String,
+}
+
+/// Upload and set a group avatar image via encrypted Blossom (MIP-01).
+///
+/// 1. Validates and encrypts the image using MDK's `prepare_group_image_for_upload`.
+/// 2. Uploads the encrypted blob to the Blossom server with NIP-98 auth.
+/// 3. Updates the MLS group extension with image_hash/key/nonce/upload_key.
+/// 4. Returns the evolution event to publish to relays.
+#[frb]
+pub async fn upload_group_image(
+    mls_group_id_hex: String,
+    image_data: Vec<u8>,
+    mime_type: String,
+    blossom_server_url: String,
+) -> Result<UploadGroupImageResult, BurrowError> {
+    use mdk_core::extension::group_image::prepare_group_image_for_upload;
+
+    // 1. Encrypt the image
+    let prepared = prepare_group_image_for_upload(&image_data, &mime_type)
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    let encrypted_hash_hex = hex::encode(prepared.encrypted_hash);
+
+    // 2. Build NIP-98 authorization event for Blossom upload
+    let upload_url = format!(
+        "{}/upload/{}",
+        blossom_server_url.trim_end_matches('/'),
+        &encrypted_hash_hex
+    );
+
+    let payload_hash = sha256_hex(&prepared.encrypted_data);
+    let auth_event = nostr_sdk::EventBuilder::new(
+        nostr_sdk::Kind::HttpAuth,
+        "",
+    )
+    .tag(nostr_sdk::Tag::parse(["u".to_string(), upload_url.clone()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["method".to_string(), "PUT".to_string()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["payload".to_string(), payload_hash]).unwrap())
+    .build(prepared.upload_keypair.public_key())
+    .sign(&prepared.upload_keypair)
+    .await
+    .map_err(|e| BurrowError::from(format!("Failed to sign NIP-98 event: {}", e)))?;
+
+    let auth_header = format!("Nostr {}", base64_encode(&auth_event.as_json()));
+
+    // 3. Upload to Blossom
+    let client = reqwest::Client::new();
+    let resp = client
+        .put(&upload_url)
+        .header("Content-Type", "application/octet-stream")
+        .header("Authorization", &auth_header)
+        .body(prepared.encrypted_data.as_ref().to_vec())
+        .send()
+        .await
+        .map_err(|e| BurrowError::from(format!("Blossom upload failed: {}", e)))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(BurrowError::from(format!(
+            "Blossom upload returned HTTP {}: {}",
+            status, body
+        )));
+    }
+
+    // 4. Update MLS group extension with image metadata
+    let evolution_json = state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let update = mdk_core::groups::NostrGroupDataUpdate::new()
+            .image_hash(Some(prepared.encrypted_hash))
+            .image_key(Some(*prepared.image_key.as_ref()))
+            .image_nonce(Some(*prepared.image_nonce.as_ref()))
+            .image_upload_key(Some(*prepared.image_upload_key.as_ref()));
+
+        let result = s
+            .mdk
+            .update_group_data(&group_id, update)
+            .map_err(BurrowError::from)?;
+
+        serde_json::to_string(&result.evolution_event)
+            .map_err(|e| BurrowError::from(e.to_string()))
+    })
+    .await?;
+
+    Ok(UploadGroupImageResult {
+        evolution_event_json: evolution_json,
+        encrypted_hash_hex,
+        mls_group_id_hex,
+    })
+}
+
+/// Download and decrypt a group's avatar image from Blossom.
+///
+/// Fetches the encrypted blob using the group's image_hash, then decrypts
+/// using the image_key and image_nonce from the MLS group extension.
+///
+/// Returns the decrypted image bytes, or an error if the group has no image.
+#[frb]
+pub async fn download_group_image(
+    mls_group_id_hex: String,
+    blossom_server_url: String,
+) -> Result<Vec<u8>, BurrowError> {
+    use mdk_core::extension::group_image::decrypt_group_image;
+
+    // Get image metadata from group extension
+    let (image_hash, image_key, image_nonce) = state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+        let group = s
+            .mdk
+            .get_group(&group_id)
+            .map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Group not found".to_string()))?;
+
+        let hash = group.image_hash
+            .ok_or_else(|| BurrowError::from("Group has no avatar image".to_string()))?;
+        let key = group.image_key
+            .ok_or_else(|| BurrowError::from("Group image key missing".to_string()))?;
+        let nonce = group.image_nonce
+            .ok_or_else(|| BurrowError::from("Group image nonce missing".to_string()))?;
+
+        Ok((hash, key, nonce))
+    })
+    .await?;
+
+    // Download encrypted blob from Blossom
+    let download_url = format!(
+        "{}/{}",
+        blossom_server_url.trim_end_matches('/'),
+        hex::encode(image_hash)
+    );
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| BurrowError::from(format!("Blossom download failed: {}", e)))?;
+
+    if !resp.status().is_success() {
+        return Err(BurrowError::from(format!(
+            "Blossom download returned HTTP {}",
+            resp.status()
+        )));
+    }
+
+    let encrypted_data = resp
+        .bytes()
+        .await
+        .map_err(|e| BurrowError::from(format!("Failed to read Blossom response: {}", e)))?
+        .to_vec();
+
+    // Decrypt
+    let decrypted = decrypt_group_image(&encrypted_data, Some(&image_hash), &image_key, &image_nonce)
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    Ok(decrypted)
+}
+
+/// Remove a group's avatar image. Clears the MLS extension and optionally
+/// deletes the blob from Blossom.
+///
+/// Returns the evolution event to publish to relays.
+#[frb]
+pub async fn remove_group_image(
+    mls_group_id_hex: String,
+) -> Result<UpdateGroupResult, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        // Setting image_hash to None auto-clears image_key, image_nonce, image_upload_key
+        let update = mdk_core::groups::NostrGroupDataUpdate::new()
+            .image_hash(None);
+
+        let result = s
+            .mdk
+            .update_group_data(&group_id, update)
+            .map_err(BurrowError::from)?;
+
+        let evolution_json =
+            serde_json::to_string(&result.evolution_event).unwrap_or_default();
+
+        Ok(UpdateGroupResult {
+            evolution_event_json: evolution_json,
+            welcome_rumors_json: vec![],
+            mls_group_id_hex: hex::encode(result.mls_group_id.as_slice()),
+        })
+    })
+    .await
+}
+
+/// Default Blossom server URL.
+#[frb]
+pub fn default_blossom_server() -> String {
+    "https://blossom.primal.net".to_string()
+}
+
+// --- Internal helpers ---
+
+fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Sha256, Digest};
+    hex::encode(Sha256::digest(data))
+}
+
+fn base64_encode(data: &str) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(data.as_bytes())
 }
 
 /// Get the relay URLs configured for a group.

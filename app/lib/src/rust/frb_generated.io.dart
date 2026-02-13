@@ -301,6 +301,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UpdateGroupResult dco_decode_update_group_result(dynamic raw);
 
   @protected
+  UploadGroupImageResult dco_decode_upload_group_image_result(dynamic raw);
+
+  @protected
   UploadMediaResult dco_decode_upload_media_result(dynamic raw);
 
   @protected
@@ -614,6 +617,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UpdateGroupResult sse_decode_update_group_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UploadGroupImageResult sse_decode_upload_group_image_result(
     SseDeserializer deserializer,
   );
 
@@ -1022,6 +1030,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_update_group_result(
     UpdateGroupResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_upload_group_image_result(
+    UploadGroupImageResult self,
     SseSerializer serializer,
   );
 

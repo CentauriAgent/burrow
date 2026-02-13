@@ -29,6 +29,8 @@ rust_group.GroupInfo makeRustGroup({
     dmPeerDisplayName: dmPeerDisplayName,
     dmPeerPicture: dmPeerPicture,
     dmPeerPubkeyHex: dmPeerPubkeyHex,
+    imageHashHex: null,
+    hasImage: false,
   );
 }
 

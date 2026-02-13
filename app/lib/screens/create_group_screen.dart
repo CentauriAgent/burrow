@@ -58,12 +58,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             relayUrls: relayUrls,
           );
 
-      // Save picked avatar for this group
+      // Upload picked avatar to Blossom and update MLS extension
       if (_avatarImage != null) {
-        final avatarPath = await GroupAvatarService.avatarPath(
-          result.mlsGroupIdHex,
-        );
-        await _avatarImage!.copy(avatarPath);
+        try {
+          final bytes = await _avatarImage!.readAsBytes();
+          final mimeType = _avatarImage!.path.toLowerCase().endsWith('.png')
+              ? 'image/png'
+              : 'image/jpeg';
+          await GroupAvatarService.uploadGroupAvatar(
+            groupId: result.mlsGroupIdHex,
+            imageData: bytes,
+            mimeType: mimeType,
+          );
+        } catch (_) {
+          // Avatar upload failed — group was still created successfully
+        }
       }
 
       if (mounted) {
