@@ -4,14 +4,21 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Stored group metadata (persisted to disk, separate from MLS state).
+/// Uses camelCase to match existing TypeScript CLI format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredGroup {
+    #[serde(alias = "mls_group_id_hex", rename = "mlsGroupId")]
     pub mls_group_id_hex: String,
+    #[serde(alias = "nostr_group_id_hex", rename = "nostrGroupId")]
     pub nostr_group_id_hex: String,
     pub name: String,
+    #[serde(default)]
     pub description: String,
+    #[serde(alias = "admin_pubkeys", rename = "adminPubkeys")]
     pub admin_pubkeys: Vec<String>,
+    #[serde(alias = "relay_urls", rename = "relays")]
     pub relay_urls: Vec<String>,
+    #[serde(alias = "created_at", rename = "createdAt")]
     pub created_at: u64,
 }
 
