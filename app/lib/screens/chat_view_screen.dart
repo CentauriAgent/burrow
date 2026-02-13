@@ -45,8 +45,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final messagesManager = ref.watch(messagesProvider(widget.groupId));
-    final messages = messagesManager.messages;
+    final messagesNotifier = ref.watch(messagesProvider(widget.groupId));
+    final messages = messagesNotifier.messages;
     final groups = ref.watch(groupsProvider).value ?? [];
     final group = groups
         .where((g) => g.mlsGroupIdHex == widget.groupId)
@@ -233,7 +233,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                       msg.authorPubkeyHex);
                           return ChatBubble(
                             content: msg.content,
-                            timestamp: msg.createdAtDateTime,
+                            timestamp: DateTime.fromMillisecondsSinceEpoch(
+                              msg.createdAt.toInt() * 1000,
+                            ),
                             isSent: isSent,
                             senderName: _shortenPubkey(msg.authorPubkeyHex),
                             showSenderName: showNameForThis,
@@ -454,7 +456,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _messageController.clear();
 
     try {
-      ref.read(messagesProvider(widget.groupId)).sendMessage(content);
+      await ref
+          .read(messagesProvider(widget.groupId).notifier)
+          .sendMessage(content);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

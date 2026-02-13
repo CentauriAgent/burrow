@@ -18,6 +18,7 @@ import 'package:burrow_app/screens/incoming_call_screen.dart';
 import 'package:burrow_app/screens/outgoing_call_screen.dart';
 import 'package:burrow_app/screens/in_call_screen.dart';
 import 'package:burrow_app/providers/call_provider.dart';
+import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/screens/transcript_screen.dart';
 import 'package:burrow_app/screens/meeting_summary_screen.dart';
 import 'package:burrow_app/screens/transcript_history_screen.dart';
@@ -122,6 +123,11 @@ class BurrowApp extends ConsumerWidget {
     );
 
     final callState = ref.watch(callProvider);
+
+    // Start the global message listener when logged in
+    if (loggedIn) {
+      ref.read(messageListenerProvider).start();
+    }
 
     return MaterialApp.router(
       title: 'Burrow',

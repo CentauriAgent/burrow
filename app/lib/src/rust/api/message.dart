@@ -63,6 +63,27 @@ Future<String> groupMessageFilter({required String mlsGroupIdHex}) => RustLib
     .api
     .crateApiMessageGroupMessageFilter(mlsGroupIdHex: mlsGroupIdHex);
 
+/// Fetch and process missed group messages from relays (catch-up sync).
+///
+/// For each group, queries relays for kind 445 events and processes them
+/// through MDK's `process_message`. Returns the count of new messages found.
+/// Call this on app startup before `listen_for_group_messages` to catch
+/// messages sent while the app was offline.
+Future<int> syncGroupMessages() =>
+    RustLib.instance.api.crateApiMessageSyncGroupMessages();
+
+/// Subscribe to kind 445 group message events for all groups and stream
+/// decrypted messages to the Dart side.
+///
+/// Builds a filter for each active group's Nostr group ID, subscribes to
+/// connected relays, and processes incoming events through MDK's
+/// `process_message` pipeline. Only `ApplicationMessage` results (actual
+/// chat messages) are forwarded; commits and proposals are handled silently.
+///
+/// Runs indefinitely until the stream is closed from the Dart side.
+Stream<GroupMessage> listenForGroupMessages() =>
+    RustLib.instance.api.crateApiMessageListenForGroupMessages();
+
 /// A decrypted group message, flattened for FFI.
 class GroupMessage {
   /// Hex-encoded event ID of the inner rumor (the actual message).

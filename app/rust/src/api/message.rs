@@ -12,6 +12,8 @@ use flutter_rust_bridge::frb;
 use mdk_core::prelude::*;
 use nostr_sdk::prelude::*;
 
+use crate::frb_generated::StreamSink;
+
 use crate::api::error::BurrowError;
 use crate::api::state;
 
@@ -303,4 +305,172 @@ pub async fn group_message_filter(mls_group_id_hex: String) -> Result<String, Bu
         serde_json::to_string(&filter).map_err(|e| BurrowError::from(e.to_string()))
     })
     .await
+}
+
+/// Fetch and process missed group messages from relays (catch-up sync).
+///
+/// For each group, queries relays for kind 445 events and processes them
+/// through MDK's `process_message`. Returns the count of new messages found.
+/// Call this on app startup before `listen_for_group_messages` to catch
+/// messages sent while the app was offline.
+#[frb]
+pub async fn sync_group_messages() -> Result<u32, BurrowError> {
+    let (client, groups) = state::with_state(|s| {
+        let groups = s.mdk.get_groups().map_err(BurrowError::from)?;
+        Ok((s.client.clone(), groups))
+    })
+    .await?;
+
+    if groups.is_empty() {
+        return Ok(0);
+    }
+
+    let mut new_message_count: u32 = 0;
+
+    for group in &groups {
+        let nostr_group_id_hex = hex::encode(group.nostr_group_id);
+        let filter = Filter::new()
+            .kind(Kind::MlsGroupMessage)
+            .custom_tag(
+                SingleLetterTag::lowercase(Alphabet::H),
+                nostr_group_id_hex,
+            )
+            .limit(100);
+
+        let events = client
+            .fetch_events(filter, std::time::Duration::from_secs(10))
+            .await
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+
+        // Process each event through MDK (sorts by timestamp internally)
+        for event in events.iter() {
+            let result = state::with_state(|s| {
+                s.mdk.process_message(event).map_err(BurrowError::from)
+            })
+            .await;
+
+            if let Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(_)) = result
+            {
+                new_message_count += 1;
+            }
+            // Commits, proposals, etc. are processed silently
+        }
+    }
+
+    Ok(new_message_count)
+}
+
+/// Subscribe to kind 445 group message events for all groups and stream
+/// decrypted messages to the Dart side.
+///
+/// Builds a filter for each active group's Nostr group ID, subscribes to
+/// connected relays, and processes incoming events through MDK's
+/// `process_message` pipeline. Only `ApplicationMessage` results (actual
+/// chat messages) are forwarded; commits and proposals are handled silently.
+///
+/// Runs indefinitely until the stream is closed from the Dart side.
+#[frb]
+pub async fn listen_for_group_messages(
+    sink: StreamSink<GroupMessage>,
+) -> Result<(), BurrowError> {
+    let (client, groups) = state::with_state(|s| {
+        let groups = s.mdk.get_groups().map_err(BurrowError::from)?;
+        Ok((s.client.clone(), groups))
+    })
+    .await?;
+
+    if groups.is_empty() {
+        // No groups — still listen so the stream stays open; will get no events.
+        let filter = Filter::new()
+            .kind(Kind::MlsGroupMessage)
+            .since(Timestamp::now());
+        client
+            .subscribe(filter, None)
+            .await
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+    } else {
+        // Build one combined filter using all group Nostr IDs in the `h` tag
+        let nostr_group_ids: Vec<String> = groups
+            .iter()
+            .map(|g| hex::encode(g.nostr_group_id))
+            .collect();
+        let mut filter = Filter::new()
+            .kind(Kind::MlsGroupMessage)
+            .since(Timestamp::now());
+        for gid in &nostr_group_ids {
+            filter = filter.custom_tag(
+                SingleLetterTag::lowercase(Alphabet::H),
+                gid.clone(),
+            );
+        }
+        client
+            .subscribe(filter, None)
+            .await
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+    }
+
+    client
+        .handle_notifications(|notification| {
+            let sink = &sink;
+            async move {
+                if let nostr_sdk::RelayPoolNotification::Event { event, .. } = notification {
+                    if event.kind == Kind::MlsGroupMessage {
+                        let event_json = event.as_json();
+                        // Process through MDK (decrypt NIP-44 + MLS)
+                        let result = state::with_state(|s| {
+                            let evt: Event = Event::from_json(&event_json)
+                                .map_err(|e| BurrowError::from(e.to_string()))?;
+                            s.mdk
+                                .process_message(&evt)
+                                .map_err(BurrowError::from)
+                        })
+                        .await;
+
+                        match result {
+                            Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(
+                                msg,
+                            )) => {
+                                let group_message = GroupMessage {
+                                    event_id_hex: msg.id.to_hex(),
+                                    author_pubkey_hex: msg.pubkey.to_hex(),
+                                    content: msg.content.clone(),
+                                    created_at: msg.created_at.as_secs(),
+                                    mls_group_id_hex: hex::encode(
+                                        msg.mls_group_id.as_slice(),
+                                    ),
+                                    kind: msg.kind.as_u16() as u64,
+                                    tags: msg
+                                        .tags
+                                        .iter()
+                                        .map(|t| t.as_slice().to_vec())
+                                        .collect(),
+                                    wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+                                    epoch: msg.epoch.unwrap_or(0),
+                                };
+                                let _ = sink.add(group_message);
+                            }
+                            Ok(mdk_core::messages::MessageProcessingResult::Commit {
+                                ..
+                            }) => {
+                                // MLS epoch advanced — group state updated silently
+                            }
+                            Ok(mdk_core::messages::MessageProcessingResult::Proposal(
+                                _update_result,
+                            )) => {
+                                // Proposal received — group state updated by MDK.
+                                // Evolution events are handled by the invite/group providers.
+                            }
+                            _ => {
+                                // Other results (pending proposals, unprocessable, etc.)
+                            }
+                        }
+                    }
+                }
+                Ok(false) // keep listening
+            }
+        })
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    Ok(())
 }

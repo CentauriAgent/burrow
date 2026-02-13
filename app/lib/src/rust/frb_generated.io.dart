@@ -57,6 +57,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_call_signaling_event_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<GroupMessage> dco_decode_StreamSink_group_message_Sse(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
@@ -331,6 +336,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<CallSignalingEvent>
   sse_decode_StreamSink_call_signaling_event_Sse(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<GroupMessage> sse_decode_StreamSink_group_message_Sse(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -652,6 +662,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_call_signaling_event_Sse(
     RustStreamSink<CallSignalingEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_group_message_Sse(
+    RustStreamSink<GroupMessage> self,
     SseSerializer serializer,
   );
 
