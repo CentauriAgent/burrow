@@ -5,6 +5,7 @@ import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/providers/call_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 
@@ -474,18 +475,36 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final auth = ref.read(authProvider).value;
     if (auth == null) return;
 
-    // For 1:1 calls we need the remote pubkey — for now use group members
-    // TODO: resolve remote pubkey from group member list
-    // ignore: unused_local_variable
-    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isVideo ? 'Starting video call...' : 'Starting audio call...',
+    final group = ref
+        .read(groupsProvider)
+        .value
+        ?.firstWhere(
+          (g) => g.mlsGroupIdHex == widget.groupId,
+          orElse: () => throw StateError('Group not found'),
+        );
+
+    // For 1:1 calls, use the DM peer pubkey
+    String? remotePubkey = group?.dmPeerPubkeyHex;
+
+    if (remotePubkey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Calls are currently supported for 1:1 chats only'),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+      return;
+    }
+
+    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    ref
+        .read(callProvider.notifier)
+        .startCall(
+          remotePubkeyHex: remotePubkey,
+          localPubkeyHex: auth.account.pubkeyHex,
+          callId: callId,
+          isVideo: isVideo,
+          remoteName: group?.displayName,
+        );
   }
 
   String _initials(String name) {

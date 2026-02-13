@@ -104,15 +104,12 @@ class CallNotifier extends Notifier<CallState> {
   CallState build() {
     _callManager = CallManager();
 
-    _subscriptions.add(
-      _callManager.onCallState.listen(_handleCallState),
-    );
-    _subscriptions.add(
-      _callManager.onRemoteStream.listen(_handleRemoteStream),
-    );
-    _subscriptions.add(
-      _callManager.onIncomingCall.listen(_handleIncomingCall),
-    );
+    _subscriptions.add(_callManager.onCallState.listen(_handleCallState));
+    _subscriptions.add(_callManager.onRemoteStream.listen(_handleRemoteStream));
+    _subscriptions.add(_callManager.onIncomingCall.listen(_handleIncomingCall));
+
+    // Start listening for incoming call events from Nostr relays
+    _callManager.startListening();
 
     ref.onDispose(() {
       for (final sub in _subscriptions) {
@@ -134,10 +131,7 @@ class CallNotifier extends Notifier<CallState> {
         break;
       case 'active':
         final now = DateTime.now();
-        state = state.copyWith(
-          status: CallStatus.active,
-          callStartTime: now,
-        );
+        state = state.copyWith(status: CallStatus.active, callStartTime: now);
         _startDurationTimer();
         _scheduleControlsHide();
         break;

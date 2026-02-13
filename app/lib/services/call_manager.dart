@@ -1,52 +1,44 @@
 /// High-level call manager combining Rust signaling/crypto with Dart WebRTC media.
 ///
-/// Orchestrates the full call flow: session management (Rust) ↔ media (Dart) ↔ signaling (Rust).
+/// Orchestrates the full call flow: session management (Rust) ↔ media (Dart) ↔ signaling (Rust+Nostr).
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:burrow_app/src/rust/api/call_signaling.dart' as rust_signaling;
 import 'package:burrow_app/src/rust/api/call_session.dart' as rust_session;
 import 'package:burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
+import 'nostr_signaling_service.dart';
 import 'webrtc_service.dart';
 
-/// Manages the full lifecycle of audio/video calls.
 class CallManager {
   final WebRtcService _webrtcService = WebRtcService();
+  final NostrSignalingService _signalingService = NostrSignalingService();
+  StreamSubscription? _signalingSubscription;
 
-  // Stream controllers for UI consumption
   final _callStateController = StreamController<CallStateEvent>.broadcast();
   final _remoteStreamController =
       StreamController<RemoteStreamEvent>.broadcast();
   final _incomingCallController =
       StreamController<IncomingCallEvent>.broadcast();
 
-  /// Emits call state changes (connecting, active, ended, failed).
   Stream<CallStateEvent> get onCallState => _callStateController.stream;
-
-  /// Emits remote media streams.
   Stream<RemoteStreamEvent> get onRemoteStream =>
       _remoteStreamController.stream;
-
-  /// Emits incoming call notifications.
   Stream<IncomingCallEvent> get onIncomingCall =>
       _incomingCallController.stream;
 
-  /// The local media stream for rendering in UI.
   MediaStream? get localStream => _webrtcService.localStream;
-
-  /// Current mute state.
   bool get isMuted => _webrtcService.isMuted;
-
-  /// Current camera state.
   bool get isCameraEnabled => _webrtcService.isCameraEnabled;
 
-  /// Active call ID, if any.
   String? _activeCallId;
   String? get activeCallId => _activeCallId;
 
+  String? _remotePubkeyHex;
+
   CallManager() {
-    // Forward WebRTC events
     _webrtcService.onRemoteStream.listen((event) {
       _remoteStreamController.add(event);
     });
@@ -60,9 +52,22 @@ class CallManager {
     });
   }
 
+  /// Start listening for incoming call events from Nostr relays.
+  Future<void> startListening() async {
+    await _signalingService.startListening();
+    _signalingSubscription = _signalingService.onSignalingEvent.listen(
+      (event) => handleSignalingEvent(event),
+    );
+  }
+
+  /// Stop listening for incoming call events.
+  Future<void> stopListening() async {
+    await _signalingSubscription?.cancel();
+    _signalingSubscription = null;
+    await _signalingService.stopListening();
+  }
+
   /// Start an outgoing call.
-  ///
-  /// Full flow: create session → init media → create offer → signal via Rust.
   Future<String> startCall({
     required String remotePubkeyHex,
     required String localPubkeyHex,
@@ -71,6 +76,7 @@ class CallManager {
     String? groupIdHex,
   }) async {
     _activeCallId = callId;
+    _remotePubkeyHex = remotePubkeyHex;
 
     _callStateController.add(
       CallStateEvent(callId: callId, state: 'initiating'),
@@ -106,28 +112,24 @@ class CallManager {
     // 5. Create offer
     final offer = await _webrtcService.createOffer(remotePubkeyHex);
 
-    // 6. Send offer via Rust signaling (gift-wrapped)
-    await rust_signaling.initiateCall(
+    // 6. Send offer via Rust signaling (gift-wrapped) and publish to relays
+    final wrappedEventJson = await rust_signaling.initiateCall(
       sdpOffer: offer.sdp!,
       callId: callId,
       callType: isVideo ? 'video' : 'audio',
       recipientPubkeyHex: remotePubkeyHex,
     );
-
-    // TODO: Publish wrappedEvent to Nostr relays
+    await _signalingService.publishSignalingEvent(wrappedEventJson);
 
     _callStateController.add(
       CallStateEvent(callId: callId, state: 'connecting'),
     );
 
     await rust_session.updateSessionState(callId: callId, state: 'connecting');
-
     return callId;
   }
 
   /// Answer an incoming call.
-  ///
-  /// Flow: init media → create answer → signal back via Rust.
   Future<void> answerCall({
     required String callId,
     required String callerPubkeyHex,
@@ -137,6 +139,7 @@ class CallManager {
     String? groupIdHex,
   }) async {
     _activeCallId = callId;
+    _remotePubkeyHex = callerPubkeyHex;
 
     // 1. Create session in Rust (incoming)
     await rust_session.createSession(
@@ -172,14 +175,13 @@ class CallManager {
       remoteOffer,
     );
 
-    // 6. Send answer via Rust signaling
-    await rust_signaling.acceptCall(
+    // 6. Send answer via Rust signaling and publish to relays
+    final wrappedEventJson = await rust_signaling.acceptCall(
       sdpAnswer: answer.sdp!,
       callId: callId,
       callerPubkeyHex: callerPubkeyHex,
     );
-
-    // TODO: Publish wrappedEvent to Nostr relays
+    await _signalingService.publishSignalingEvent(wrappedEventJson);
 
     _callStateController.add(
       CallStateEvent(callId: callId, state: 'connecting'),
@@ -189,73 +191,91 @@ class CallManager {
   }
 
   /// End an active call.
-  ///
-  /// Flow: signal hangup → stop media → cleanup state.
   Future<void> endCall(String callId) async {
     if (_activeCallId != callId) return;
 
     _callStateController.add(CallStateEvent(callId: callId, state: 'ending'));
 
-    // Get session to find remote pubkey
     final session = await rust_session.getSession(callId: callId);
     if (session != null) {
-      // Signal hangup via Rust
-      await rust_signaling.endCall(
+      final wrappedEventJson = await rust_signaling.endCall(
         callId: callId,
         remotePubkeyHex: session.remotePubkeyHex,
       );
-      // TODO: Publish wrappedEvent to Nostr relays
-
+      await _signalingService.publishSignalingEvent(wrappedEventJson);
       await rust_session.updateSessionState(callId: callId, state: 'ending');
     }
 
-    // Cleanup WebRTC
     await _webrtcService.dispose();
-
-    // Cleanup Rust state
     await rust_webrtc.removeCallPeers(callId: callId);
     await rust_session.removeSession(callId: callId);
 
     _activeCallId = null;
+    _remotePubkeyHex = null;
 
     _callStateController.add(CallStateEvent(callId: callId, state: 'ended'));
   }
 
-  /// Handle an incoming signaling event (called when a gift-wrapped event is received).
+  /// Handle an incoming signaling event from the Rust stream.
   Future<void> handleSignalingEvent(
     rust_signaling.CallSignalingEvent event,
   ) async {
     switch (event.kind) {
       case 25050: // Call offer
+        // Parse the SDP from content JSON
+        String sdpOffer;
+        try {
+          final payload = jsonDecode(event.content) as Map<String, dynamic>;
+          sdpOffer = payload['sdp'] as String;
+        } catch (_) {
+          sdpOffer = event.content;
+        }
         _incomingCallController.add(
           IncomingCallEvent(
             callId: event.callId,
             callerPubkeyHex: event.senderPubkeyHex,
             callType: event.callType ?? 'audio',
-            sdpOffer: event.content,
+            sdpOffer: sdpOffer,
           ),
         );
-        break;
 
       case 25051: // Call answer
-        // Set remote description on peer connection
-        final answerSdp = RTCSessionDescription(event.content, 'answer');
+        String sdpAnswer;
+        try {
+          final payload = jsonDecode(event.content) as Map<String, dynamic>;
+          sdpAnswer = payload['sdp'] as String;
+        } catch (_) {
+          sdpAnswer = event.content;
+        }
+        final answerDesc = RTCSessionDescription(sdpAnswer, 'answer');
         await _webrtcService.setRemoteDescription(
           event.senderPubkeyHex,
-          answerSdp,
+          answerDesc,
         );
-        break;
 
       case 25052: // ICE candidate
-        // Parse and add ICE candidate
-        // Content is JSON with candidate, sdpMid, sdpMLineIndex
-        // (parsing delegated to caller for simplicity)
-        break;
+        try {
+          final payload = jsonDecode(event.content) as Map<String, dynamic>;
+          final candidate = RTCIceCandidate(
+            payload['candidate'] as String,
+            payload['sdp_mid'] as String?,
+            payload['sdp_m_line_index'] as int?,
+          );
+          await _webrtcService.addIceCandidate(
+            event.senderPubkeyHex,
+            candidate,
+          );
+        } catch (_) {
+          // Malformed ICE candidate — skip
+        }
 
       case 25053: // Call end
         if (_activeCallId == event.callId) {
           await endCall(event.callId);
         }
+
+      case 25054: // Call state update (mute/camera)
+        // Forward to UI via call state
         break;
     }
   }
@@ -265,6 +285,18 @@ class CallManager {
     final muted = _webrtcService.toggleMute();
     if (_activeCallId != null) {
       await rust_session.setMuted(callId: _activeCallId!, muted: muted);
+      // Signal state update to remote
+      if (_remotePubkeyHex != null) {
+        try {
+          final wrappedJson = await rust_signaling.sendCallStateUpdate(
+            callId: _activeCallId!,
+            remotePubkeyHex: _remotePubkeyHex!,
+            isMuted: muted,
+            isVideoEnabled: null,
+          );
+          await _signalingService.publishSignalingEvent(wrappedJson);
+        } catch (_) {}
+      }
     }
     return muted;
   }
@@ -277,6 +309,17 @@ class CallManager {
         callId: _activeCallId!,
         enabled: enabled,
       );
+      if (_remotePubkeyHex != null) {
+        try {
+          final wrappedJson = await rust_signaling.sendCallStateUpdate(
+            callId: _activeCallId!,
+            remotePubkeyHex: _remotePubkeyHex!,
+            isMuted: null,
+            isVideoEnabled: enabled,
+          );
+          await _signalingService.publishSignalingEvent(wrappedJson);
+        } catch (_) {}
+      }
     }
     return enabled;
   }
@@ -294,33 +337,26 @@ class CallManager {
     switch (event.state) {
       case RTCPeerConnectionState.RTCPeerConnectionStateNew:
         stateStr = 'new';
-        break;
       case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
         stateStr = 'checking';
-        break;
       case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
         stateStr = 'connected';
         _callStateController.add(
           CallStateEvent(callId: callId, state: 'active'),
         );
         rust_session.updateSessionState(callId: callId, state: 'active');
-        break;
       case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
         stateStr = 'disconnected';
-        break;
       case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
         stateStr = 'failed';
         _callStateController.add(
           CallStateEvent(callId: callId, state: 'failed'),
         );
         rust_session.updateSessionState(callId: callId, state: 'failed');
-        break;
       case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
         stateStr = 'closed';
-        break;
     }
 
-    // Update peer state in Rust
     rust_webrtc.updatePeerState(
       callId: callId,
       participantPubkeyHex: event.remotePubkeyHex,
@@ -330,23 +366,30 @@ class CallManager {
 
   Future<void> _sendIceCandidate(IceCandidateEvent event) async {
     final callId = _activeCallId;
-    if (callId == null) return;
+    final remotePubkey = _remotePubkeyHex;
+    if (callId == null || remotePubkey == null) return;
 
-    await rust_signaling.sendIceCandidate(
-      candidate: event.candidate.candidate!,
-      sdpMid: event.candidate.sdpMid,
-      sdpMLineIndex: event.candidate.sdpMLineIndex,
-      callId: callId,
-      remotePubkeyHex: event.remotePubkeyHex,
-    );
-    // TODO: Publish wrappedEvent to Nostr relays
+    try {
+      final wrappedJson = await rust_signaling.sendIceCandidate(
+        candidate: event.candidate.candidate!,
+        sdpMid: event.candidate.sdpMid,
+        sdpMLineIndex: event.candidate.sdpMLineIndex,
+        callId: callId,
+        remotePubkeyHex: remotePubkey,
+      );
+      await _signalingService.publishSignalingEvent(wrappedJson);
+    } catch (_) {
+      // ICE candidate send failure — non-fatal, connectivity may still work
+    }
   }
 
   /// Dispose the call manager and release all resources.
   Future<void> dispose() async {
+    await stopListening();
     if (_activeCallId != null) {
       await endCall(_activeCallId!);
     }
+    await _signalingService.dispose();
     await _callStateController.close();
     await _remoteStreamController.close();
     await _incomingCallController.close();

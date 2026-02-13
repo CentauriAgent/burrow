@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
+import 'package:burrow_app/screens/chat_shell_screen.dart';
 
 /// Decode an npub1... bech32 string to a 64-char hex pubkey.
 /// Returns null if decoding fails.
@@ -61,6 +62,16 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
   final _npubController = TextEditingController();
   final List<_InviteEntry> _invitees = [];
   bool _sending = false;
+
+  void _goBack(bool isWide) {
+    if (isWide) {
+      ref.read(detailPaneProvider.notifier).showGroupInfo(widget.groupId);
+    } else if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      context.go('/chat/${widget.groupId}');
+    }
+  }
 
   @override
   void dispose() {
@@ -185,9 +196,14 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
             content: Text('Invited ${keyPackageJsons.length} member(s)!'),
           ),
         );
-        // Refresh group data and go to group info
+        // Refresh group data and go back to group info
         ref.read(groupProvider.notifier).refresh();
-        context.go('/group-info/${widget.groupId}');
+        final wide = MediaQuery.of(context).size.width >= 700;
+        if (wide) {
+          ref.read(detailPaneProvider.notifier).showGroupInfo(widget.groupId);
+        } else {
+          context.go('/group-info/${widget.groupId}');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -211,12 +227,19 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final isWide = MediaQuery.of(context).size.width >= 700;
+
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => _goBack(isWide),
+        ),
+        automaticallyImplyLeading: false,
         title: const Text('Invite Members'),
         actions: [
           TextButton(
-            onPressed: () => context.go('/home'),
+            onPressed: () => _goBack(isWide),
             child: const Text('Skip'),
           ),
         ],
