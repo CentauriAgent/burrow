@@ -180,25 +180,53 @@ pub async fn upload_media(
     )
     .await?;
 
-    // Step 2: Upload to Blossom (BUD-02: PUT /upload)
+    // Step 2: Upload to Blossom (BUD-02: PUT /upload with kind 24242 auth)
     let upload_url = format!(
         "{}/upload",
         blossom_server_url.trim_end_matches('/')
     );
 
+    // Build BUD-02 auth event using the user's keys
+    let (keys,) = state::with_state(|s| {
+        Ok((s.keys.clone(),))
+    })
+    .await?;
+
+    let auth_event = nostr_sdk::EventBuilder::new(
+        nostr_sdk::Kind::Custom(24242),
+        "Upload encrypted media",
+    )
+    .tag(nostr_sdk::Tag::parse(["t".to_string(), "upload".to_string()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["x".to_string(), enc.encrypted_hash_hex.clone()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["expiration".to_string(), (nostr_sdk::Timestamp::now().as_secs() + 300).to_string()]).unwrap())
+    .build(keys.public_key())
+    .sign(&keys)
+    .await
+    .map_err(|e| BurrowError::from(format!("Failed to sign auth event: {}", e)))?;
+
+    let auth_b64 = {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(auth_event.as_json().as_bytes())
+    };
+    let auth_header = format!("Nostr {}", auth_b64);
+
     let client = reqwest::Client::new();
     let resp = client
         .put(&upload_url)
         .header("Content-Type", "application/octet-stream")
+        .header("X-SHA-256", &enc.encrypted_hash_hex)
+        .header("Authorization", &auth_header)
         .body(enc.encrypted_data.clone())
         .send()
         .await
         .map_err(|e| BurrowError::from(format!("Blossom upload failed: {}", e)))?;
 
     if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
         return Err(BurrowError::from(format!(
-            "Blossom upload returned HTTP {}",
-            resp.status()
+            "Blossom upload returned HTTP {}: {}",
+            status, body
         )));
     }
 

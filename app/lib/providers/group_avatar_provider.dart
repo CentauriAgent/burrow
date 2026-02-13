@@ -1,47 +1,70 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:burrow_app/services/group_avatar_service.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
 
-/// Manages the avatar File for a single group. Loads from local cache first,
-/// then falls back to downloading from Blossom if the group has an image set.
-class GroupAvatarNotifier extends ChangeNotifier {
+/// Holds the avatar state for a group: the local File (if any) and a
+/// version counter to force UI rebuilds when the file changes.
+class GroupAvatarState {
+  final File? avatarFile;
+  final int version;
+
+  const GroupAvatarState({this.avatarFile, this.version = 0});
+
+  GroupAvatarState copyWith({File? avatarFile, int? version}) =>
+      GroupAvatarState(
+        avatarFile: avatarFile ?? this.avatarFile,
+        version: version ?? this.version,
+      );
+
+  GroupAvatarState cleared({int? version}) =>
+      GroupAvatarState(avatarFile: null, version: version ?? this.version);
+}
+
+/// Provider family: avatar state for a specific group.
+/// Uses StateNotifierProvider for reliable rebuild notifications.
+final groupAvatarProvider =
+    StateNotifierProvider.family<GroupAvatarNotifier, GroupAvatarState, String>(
+      (ref, groupId) => GroupAvatarNotifier(groupId),
+    );
+
+class GroupAvatarNotifier extends StateNotifier<GroupAvatarState> {
   final String groupId;
-  File? avatarFile;
   bool _loading = false;
 
-  GroupAvatarNotifier(this.groupId) {
+  GroupAvatarNotifier(this.groupId) : super(const GroupAvatarState()) {
     _load();
   }
 
   Future<void> _load() async {
     // Try local cache first
-    avatarFile = await GroupAvatarService.getAvatar(groupId);
-    notifyListeners();
+    final cached = await GroupAvatarService.getAvatar(groupId);
+    if (cached != null) {
+      state = GroupAvatarState(avatarFile: cached, version: state.version + 1);
+      return;
+    }
 
-    // If no cached avatar, try downloading from Blossom
-    if (avatarFile == null && !_loading) {
+    // If no cache, try downloading from Blossom
+    if (!_loading) {
       _loading = true;
       try {
         final downloaded = await GroupAvatarService.downloadGroupAvatar(
           groupId: groupId,
         );
         if (downloaded != null) {
-          avatarFile = downloaded;
-          notifyListeners();
+          state = GroupAvatarState(
+            avatarFile: downloaded,
+            version: state.version + 1,
+          );
         }
-      } catch (_) {
-        // Download failed — no avatar available
-      }
+      } catch (_) {}
       _loading = false;
     }
   }
 
   /// Pick a new avatar, encrypt, upload to Blossom, update MLS extension.
-  /// Falls back to local-only storage if Blossom upload fails.
   Future<void> pickAvatar() async {
     final picked = await GroupAvatarService.pickImage();
     if (picked == null) return;
@@ -55,10 +78,8 @@ class GroupAvatarNotifier extends ChangeNotifier {
         imageData: bytes,
         mimeType: mimeType,
       );
-      avatarFile = file;
-      notifyListeners();
+      state = GroupAvatarState(avatarFile: file, version: state.version + 1);
     } catch (e) {
-      // Log the actual error to terminal
       final msg = e is BurrowError ? e.message : e.toString();
       print('DEBUG pickAvatar: Blossom upload failed: $msg');
 
@@ -66,38 +87,37 @@ class GroupAvatarNotifier extends ChangeNotifier {
       final path = await GroupAvatarService.avatarPath(groupId);
       final file = File(path);
       await file.writeAsBytes(bytes);
-      avatarFile = file;
-      notifyListeners();
-      rethrow; // Let UI show the error
+      state = GroupAvatarState(avatarFile: file, version: state.version + 1);
+      rethrow;
     }
   }
 
-  /// Remove the avatar (clear MLS extension + Blossom + local cache).
+  /// Remove the avatar.
   Future<void> removeAvatar() async {
     try {
       await GroupAvatarService.removeGroupAvatar(groupId: groupId);
     } catch (_) {
       await GroupAvatarService.deleteAvatar(groupId);
     }
-    avatarFile = null;
-    notifyListeners();
+    state = GroupAvatarState(avatarFile: null, version: state.version + 1);
   }
 
-  /// Detect MIME type from file magic bytes, falling back to the provided hint.
+  /// Force re-download from Blossom.
+  Future<void> refresh() async {
+    await GroupAvatarService.deleteAvatar(groupId);
+    state = GroupAvatarState(avatarFile: null, version: state.version + 1);
+    await _load();
+  }
+
   static String _detectMimeType(Uint8List bytes, String? hint) {
     if (bytes.length >= 8) {
-      // PNG: 89 50 4E 47
       if (bytes[0] == 0x89 &&
           bytes[1] == 0x50 &&
           bytes[2] == 0x4E &&
-          bytes[3] == 0x47) {
+          bytes[3] == 0x47)
         return 'image/png';
-      }
-      // JPEG: FF D8 FF
-      if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
         return 'image/jpeg';
-      }
-      // WebP: RIFF....WEBP
       if (bytes[0] == 0x52 &&
           bytes[1] == 0x49 &&
           bytes[2] == 0x46 &&
@@ -109,28 +129,12 @@ class GroupAvatarNotifier extends ChangeNotifier {
           bytes[11] == 0x50) {
         return 'image/webp';
       }
-      // GIF: GIF8
       if (bytes[0] == 0x47 &&
           bytes[1] == 0x49 &&
           bytes[2] == 0x46 &&
-          bytes[3] == 0x38) {
+          bytes[3] == 0x38)
         return 'image/gif';
-      }
     }
     return hint ?? 'image/jpeg';
   }
-
-  /// Force re-download from Blossom.
-  Future<void> refresh() async {
-    await GroupAvatarService.deleteAvatar(groupId);
-    avatarFile = null;
-    notifyListeners();
-    await _load();
-  }
 }
-
-/// Provider family: group avatar for a specific group.
-final groupAvatarProvider =
-    ChangeNotifierProvider.family<GroupAvatarNotifier, String>(
-      (ref, groupId) => GroupAvatarNotifier(groupId),
-    );

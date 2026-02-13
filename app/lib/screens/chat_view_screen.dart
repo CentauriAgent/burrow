@@ -12,6 +12,7 @@ import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
+import 'package:burrow_app/src/rust/api/error.dart';
 
 class ChatViewScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -543,9 +544,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       ref.read(messagesProvider(widget.groupId).notifier).refresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send file: ${_mediaError(e)}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -569,14 +570,16 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       ref.read(messagesProvider(widget.groupId).notifier).refresh();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send: ${_mediaError(e)}')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
+
+  String _mediaError(Object e) => e is BurrowError ? e.message : e.toString();
 
   void _onVoiceMessage() {
     // TODO: Record audio, encrypt, upload to Blossom, send URL in message

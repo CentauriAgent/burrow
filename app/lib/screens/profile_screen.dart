@@ -54,6 +54,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final relays = ref.watch(relayProvider);
 
     final npub = auth.value?.account.npub ?? '...';
+    final profile = ref.watch(selfProfileProvider);
+
+    // Pre-populate display name from profile if field is empty
+    if (_nameController.text.isEmpty && profile.value?.displayName != null) {
+      _nameController.text = profile.value!.displayName!;
+    }
 
     return Scaffold(
       appBar: AppBar(
