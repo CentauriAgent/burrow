@@ -65,39 +65,84 @@ final selectedChatProvider = Provider<String?>((ref) {
 
 /// Desktop split-pane layout: chat list on the left, chat/info/invite on the right.
 /// On narrow screens, this just shows the chat list (mobile behavior).
-class ChatShellScreen extends ConsumerWidget {
+class ChatShellScreen extends ConsumerStatefulWidget {
   final String? initialGroupId;
   const ChatShellScreen({super.key, this.initialGroupId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatShellScreen> createState() => _ChatShellScreenState();
+}
+
+class _ChatShellScreenState extends ConsumerState<ChatShellScreen> {
+  double _leftPaneWidth = 340;
+  static const double _minLeftWidth = 240;
+  static const double _maxLeftWidth = 500;
+
+  @override
+  Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 700;
 
-    if (initialGroupId != null) {
+    if (widget.initialGroupId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final current = ref.read(detailPaneProvider);
-        if (current.groupId != initialGroupId) {
-          ref.read(detailPaneProvider.notifier).selectChat(initialGroupId!);
+        if (current.groupId != widget.initialGroupId) {
+          ref
+              .read(detailPaneProvider.notifier)
+              .selectChat(widget.initialGroupId!);
         }
       });
     }
 
     if (!isWide) {
-      if (initialGroupId != null) {
-        return ChatViewScreen(groupId: initialGroupId!);
+      if (widget.initialGroupId != null) {
+        return ChatViewScreen(groupId: widget.initialGroupId!);
       }
       return const _ChatListPane(isWide: false);
     }
+
+    // Clamp to available width
+    final clampedWidth = _leftPaneWidth.clamp(
+      _minLeftWidth,
+      (width - 300).clamp(_minLeftWidth, _maxLeftWidth),
+    );
 
     return Scaffold(
       body: Row(
         children: [
           SizedBox(
-            width: 340,
+            width: clampedWidth,
             child: Material(elevation: 1, child: _ChatListPane(isWide: true)),
           ),
-          const VerticalDivider(width: 1),
+          MouseRegion(
+            cursor: SystemMouseCursors.resizeColumn,
+            child: GestureDetector(
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _leftPaneWidth = (_leftPaneWidth + details.delta.dx).clamp(
+                    _minLeftWidth,
+                    (width - 300).clamp(_minLeftWidth, _maxLeftWidth),
+                  );
+                });
+              },
+              child: Container(
+                width: 6,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withAlpha(80),
+                child: Center(
+                  child: Container(
+                    width: 2,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           const Expanded(child: _DetailPane()),
         ],
       ),
