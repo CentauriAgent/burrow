@@ -27,8 +27,17 @@ import {
   type Extension,
   type CreateCommitResult,
 } from 'ts-mls';
-// defaultClientConfig not exported from ts-mls index, import directly
-import { defaultClientConfig } from 'ts-mls/dist/src/clientConfig.js';
+// Default MLS client config (ts-mls doesn't export defaultClientConfig)
+const defaultClientConfig = {
+  keyRetentionConfig: { retainKeysForGenerations: 10, retainKeysForEpochs: 4, maximumForwardRatchetSteps: 200 },
+  lifetimeConfig: { notBeforeMarginSeconds: 3600, notAfterMarginSeconds: 7776000 },
+  keyPackageEqualityConfig: {
+    compareKeyPackages: (a: any, b: any) => false,
+    compareKeyPackageToLeafNode: (a: any, b: any) => false,
+  },
+  paddingConfig: { kind: 'padUntilLength' as const, padUntilLength: 256 },
+  authService: { validateCredential: async () => true },
+};
 import { randomBytes } from 'node:crypto';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import {
@@ -132,7 +141,7 @@ export async function createGroupMsg(
   const result = await createApplicationMessage(state as any, content, cs);
 
   return {
-    message: encodeMlsMessage(result.privateMessage as any),
+    message: encodeMlsMessage({ wireformat: 'mls_private_message', version: 'mls10', privateMessage: result.privateMessage } as any),
     newState: result.newState as any,
   };
 }
@@ -190,13 +199,7 @@ export function deserializeGroupState(data: Uint8Array): GroupState {
   // CRITICAL: paddingConfig must have correct shape ({ kind: 'padUntilLength', padUntilLength: 256 })
   // or byteLengthToPad returns NaN causing 0-byte buffer allocation → RangeError
   if (!state.clientConfig) {
-    state.clientConfig = {
-      keyRetentionConfig: { retainKeysForGenerations: 10, retainKeysForEpochs: 4, maximumForwardRatchetSteps: 200 },
-      lifetimeConfig: undefined,
-      keyPackageEqualityConfig: undefined,
-      paddingConfig: { kind: 'padUntilLength', padUntilLength: 256 },
-      authService: undefined,
-    } as any;
+    state.clientConfig = defaultClientConfig;
   }
 
   return state as GroupState;

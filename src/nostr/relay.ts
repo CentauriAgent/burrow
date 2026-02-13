@@ -4,6 +4,7 @@
 
 import { SimplePool, finalizeEvent } from 'nostr-tools';
 import type { Filter } from 'nostr-tools';
+import { randomBytes } from 'node:crypto';
 
 export class RelayPool {
   private pool: SimplePool;
@@ -66,7 +67,6 @@ export function createEphemeralSignedEvent(
   content: string,
   tags: string[][],
 ): { event: any; ephemeralSecret: Uint8Array } {
-  const { randomBytes } = require('node:crypto');
   const ephemeralSecret = new Uint8Array(randomBytes(32));
   const event = createSignedEvent(kind, content, tags, ephemeralSecret);
   return { event, ephemeralSecret };

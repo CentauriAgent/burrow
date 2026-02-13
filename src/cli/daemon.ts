@@ -147,13 +147,34 @@ export async function daemonCommand(opts: {
             }],
             async (event: any) => {
               try {
+                // Guard: only process MLS group messages (kind 445)
+                if (event.kind !== MARMOT_KINDS.GROUP_MESSAGE) {
+                  return;
+                }
+
                 const mlsStateBytes = store.getMlsState(groupId);
                 if (!mlsStateBytes) return;
 
                 const groupState = deserializeGroupState(mlsStateBytes);
                 const exporterSecret = await getExporterSecret(groupState);
                 const mlsBytes = decryptGroupMessage(event.content, exporterSecret);
-                const { result, newState } = await processGroupMessage(groupState, mlsBytes);
+
+                // Process with error boundary — don't save state if MLS processing fails
+                let result: any;
+                let newState: any;
+                try {
+                  const processed = await processGroupMessage(groupState, mlsBytes);
+                  result = processed.result;
+                  newState = processed.newState;
+                } catch (mlsErr: any) {
+                  emit({
+                    type: 'status',
+                    timestamp: new Date().toISOString(),
+                    event: 'mls_error',
+                    details: `${groupName}: MLS processing failed (state NOT updated): ${mlsErr.message}`,
+                  }, logFile);
+                  return; // Skip state update to prevent corruption
+                }
 
                 if (result.content) {
                   const innerEvent = JSON.parse(new TextDecoder().decode(result.content));

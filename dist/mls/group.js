@@ -2,6 +2,17 @@
  * MLS Group management per MIP-01, MIP-02, MIP-03.
  */
 import { createGroup, createApplicationMessage, createCommit, processMessage, encodeGroupState, decodeGroupState, getCiphersuiteFromName, getCiphersuiteImpl, encodeMlsMessage, decodeMlsMessage, mlsExporter, makePskIndex, } from 'ts-mls';
+// Default MLS client config (ts-mls doesn't export defaultClientConfig)
+const defaultClientConfig = {
+    keyRetentionConfig: { retainKeysForGenerations: 10, retainKeysForEpochs: 4, maximumForwardRatchetSteps: 200 },
+    lifetimeConfig: { notBeforeMarginSeconds: 3600, notAfterMarginSeconds: 7776000 },
+    keyPackageEqualityConfig: {
+        compareKeyPackages: (a, b) => false,
+        compareKeyPackageToLeafNode: (a, b) => false,
+    },
+    paddingConfig: { kind: 'padUntilLength', padUntilLength: 256 },
+    authService: { validateCredential: async () => true },
+};
 import { randomBytes } from 'node:crypto';
 import { createMarmotExtension } from './extensions.js';
 import { generateMarmotKeyPackage } from './keypackage.js';
@@ -52,7 +63,7 @@ export async function createGroupMsg(state, content, ciphersuiteName = 'MLS_128_
     const cs = await getCiphersuiteImpl(ciphersuite);
     const result = await createApplicationMessage(state, content, cs);
     return {
-        message: encodeMlsMessage(result.privateMessage),
+        message: encodeMlsMessage({ wireformat: 'mls_private_message', version: 'mls10', privateMessage: result.privateMessage }),
         newState: result.newState,
     };
 }
@@ -88,10 +99,10 @@ export function deserializeGroupState(data) {
         throw new Error('Failed to decode group state');
     const state = decoded[0];
     // ts-mls encodeGroupState doesn't persist clientConfig — restore defaults
+    // CRITICAL: paddingConfig must have correct shape ({ kind: 'padUntilLength', padUntilLength: 256 })
+    // or byteLengthToPad returns NaN causing 0-byte buffer allocation → RangeError
     if (!state.clientConfig) {
-        state.clientConfig = {
-            paddingConfig: { type: 'none' },
-        };
+        state.clientConfig = defaultClientConfig;
     }
     return state;
 }

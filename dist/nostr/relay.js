@@ -2,6 +2,7 @@
  * Nostr relay connection management.
  */
 import { SimplePool, finalizeEvent } from 'nostr-tools';
+import { randomBytes } from 'node:crypto';
 export class RelayPool {
     pool;
     relays;
@@ -41,7 +42,6 @@ export function createSignedEvent(kind, content, tags, secretKey) {
     return finalizeEvent(event, secretKey);
 }
 export function createEphemeralSignedEvent(kind, content, tags) {
-    const { randomBytes } = require('node:crypto');
     const ephemeralSecret = new Uint8Array(randomBytes(32));
     const event = createSignedEvent(kind, content, tags, ephemeralSecret);
     return { event, ephemeralSecret };
