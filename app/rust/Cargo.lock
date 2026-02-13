@@ -2293,6 +2293,7 @@ dependencies = [
  "hex",
  "mdk-core",
  "mdk-memory-storage",
+ "mdk-storage-traits",
  "nostr-sdk",
  "serde",
  "serde_json",

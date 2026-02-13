@@ -5,3 +5,6 @@ pub mod account;
 pub mod identity;
 pub mod keypackage;
 pub mod relay;
+pub mod group;
+pub mod invite;
+pub mod message;

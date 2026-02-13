@@ -4,6 +4,7 @@
 //! random 32-byte Nostr group IDs, and admin management.
 
 use flutter_rust_bridge::frb;
+use mdk_core::prelude::*;
 use nostr_sdk::prelude::*;
 
 use crate::api::error::BurrowError;
@@ -61,21 +62,21 @@ pub struct UpdateGroupResult {
     pub mls_group_id_hex: String,
 }
 
-fn group_state_str(state: &mdk_storage_traits::groups::types::GroupState) -> String {
+fn group_state_str(state: &group_types::GroupState) -> String {
     match state {
-        mdk_storage_traits::groups::types::GroupState::Active => "active".to_string(),
-        mdk_storage_traits::groups::types::GroupState::Pending => "pending".to_string(),
-        mdk_storage_traits::groups::types::GroupState::Inactive => "inactive".to_string(),
+        group_types::GroupState::Active => "active".to_string(),
+        group_types::GroupState::Pending => "pending".to_string(),
+        group_types::GroupState::Inactive => "inactive".to_string(),
     }
 }
 
-fn group_to_info(group: &mdk_storage_traits::groups::types::Group) -> GroupInfo {
+fn group_to_info(group: &group_types::Group) -> GroupInfo {
     GroupInfo {
         mls_group_id_hex: hex::encode(group.mls_group_id.as_slice()),
         nostr_group_id_hex: hex::encode(group.nostr_group_id),
         name: group.name.clone(),
         description: group.description.clone(),
-        admin_pubkeys: group.admin_pubkeys.iter().map(|pk| pk.to_hex()).collect(),
+        admin_pubkeys: group.admin_pubkeys.iter().map(|pk: &PublicKey| pk.to_hex()).collect(),
         epoch: group.epoch,
         state: group_state_str(&group.state),
     }
@@ -160,7 +161,7 @@ pub async fn create_group(
 #[frb]
 pub async fn merge_pending_commit(mls_group_id_hex: String) -> Result<(), BurrowError> {
     state::with_state(|s| {
-        let group_id = mdk_storage_traits::GroupId::from_slice(
+        let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         s.mdk
@@ -184,7 +185,7 @@ pub async fn list_groups() -> Result<Vec<GroupInfo>, BurrowError> {
 #[frb]
 pub async fn get_group(mls_group_id_hex: String) -> Result<GroupInfo, BurrowError> {
     state::with_state(|s| {
-        let group_id = mdk_storage_traits::GroupId::from_slice(
+        let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         let group = s
@@ -201,7 +202,7 @@ pub async fn get_group(mls_group_id_hex: String) -> Result<GroupInfo, BurrowErro
 #[frb]
 pub async fn get_group_members(mls_group_id_hex: String) -> Result<Vec<MemberInfo>, BurrowError> {
     state::with_state(|s| {
-        let group_id = mdk_storage_traits::GroupId::from_slice(
+        let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         let members = s.mdk.get_members(&group_id).map_err(BurrowError::from)?;
@@ -221,7 +222,7 @@ pub async fn get_group_members(mls_group_id_hex: String) -> Result<Vec<MemberInf
 #[frb]
 pub async fn leave_group(mls_group_id_hex: String) -> Result<UpdateGroupResult, BurrowError> {
     state::with_state(|s| {
-        let group_id = mdk_storage_traits::GroupId::from_slice(
+        let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         let result = s.mdk.leave_group(&group_id).map_err(BurrowError::from)?;
@@ -251,7 +252,7 @@ pub async fn update_group_name(
     name: String,
 ) -> Result<UpdateGroupResult, BurrowError> {
     state::with_state(|s| {
-        let group_id = mdk_storage_traits::GroupId::from_slice(
+        let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         let update = mdk_core::groups::NostrGroupDataUpdate::new().name(name);
