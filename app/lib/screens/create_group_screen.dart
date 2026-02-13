@@ -201,10 +201,24 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       spacing: 8,
                       runSpacing: 4,
                       children: defaultUrls.map((url) {
-                        return ActionChip(
+                        final isSelected = _selectedRelays.contains(url);
+                        return FilterChip(
                           label: Text(url, style: const TextStyle(fontSize: 11)),
-                          avatar: const Icon(Icons.add, size: 16),
-                          onPressed: () => ref.read(relayProvider.notifier).addAndConnect(url),
+                          avatar: isSelected ? const Icon(Icons.check, size: 16) : const Icon(Icons.add, size: 16),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedRelays.remove(url);
+                              } else {
+                                _selectedRelays.add(url);
+                              }
+                            });
+                            // Also connect to the relay
+                            if (!isSelected) {
+                              ref.read(relayProvider.notifier).addAndConnect(url);
+                            }
+                          },
                         );
                       }).toList(),
                     ),

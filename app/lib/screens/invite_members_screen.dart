@@ -1,3 +1,4 @@
+import 'package:bech32/bech32.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,47 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
+
+/// Decode an npub1... bech32 string to a 64-char hex pubkey.
+/// Returns null if decoding fails.
+String? _npubToHex(String npub) {
+  try {
+    final decoded = Bech32Codec().decode(npub, npub.length);
+    if (decoded.hrp != 'npub') return null;
+    // Convert 5-bit words back to 8-bit bytes
+    final words = decoded.data;
+    final bytes = _convertBits(words, 5, 8, false);
+    if (bytes == null || bytes.length != 32) return null;
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Convert between bit groups (bech32 5-bit <-> 8-bit bytes).
+List<int>? _convertBits(List<int> data, int fromBits, int toBits, bool pad) {
+  int acc = 0;
+  int bits = 0;
+  final result = <int>[];
+  final maxV = (1 << toBits) - 1;
+  for (final value in data) {
+    if (value < 0 || value >> fromBits != 0) return null;
+    acc = (acc << fromBits) | value;
+    bits += fromBits;
+    while (bits >= toBits) {
+      bits -= toBits;
+      result.add((acc >> bits) & maxV);
+    }
+  }
+  if (pad) {
+    if (bits > 0) {
+      result.add((acc << (toBits - bits)) & maxV);
+    }
+  } else if (bits >= fromBits || ((acc << (toBits - bits)) & maxV) != 0) {
+    return null;
+  }
+  return result;
+}
 
 class InviteMembersScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -31,11 +73,20 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
     final input = _npubController.text.trim();
     if (input.isEmpty) return;
 
-    // Basic validation: npub1... (63 chars) or 64-char hex
-    final isNpub = input.startsWith('npub1') && input.length == 63;
-    final isHex = RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(input);
-
-    if (!isNpub && !isHex) {
+    // Validate and resolve to hex
+    String hexKey;
+    if (RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(input)) {
+      hexKey = input.toLowerCase();
+    } else if (input.startsWith('npub1')) {
+      final decoded = _npubToHex(input);
+      if (decoded == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid npub format')),
+        );
+        return;
+      }
+      hexKey = decoded;
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Enter a valid npub or hex public key')),
@@ -43,8 +94,8 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       return;
     }
 
-    // Check duplicate
-    if (_invitees.any((e) => e.input == input)) {
+    // Check duplicate (by resolved hex)
+    if (_invitees.any((e) => e.hexKey == hexKey)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Already added')),
       );
@@ -52,7 +103,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
     }
 
     setState(() {
-      _invitees.add(_InviteEntry(input: input, isHex: isHex));
+      _invitees.add(_InviteEntry(input: input, hexKey: hexKey));
       _npubController.clear();
     });
   }
@@ -85,10 +136,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         setState(() => invitee.status = _InviteStatus.fetching);
 
         try {
-          // TODO: convert npub to hex if needed
-          final pubkeyHex = invitee.isHex
-              ? invitee.input
-              : invitee.input; // npub→hex conversion needed
+          final pubkeyHex = invitee.hexKey;
 
           final kpJson =
               await inviteNotifier.fetchUserKeyPackage(pubkeyHex);
@@ -330,13 +378,13 @@ enum _InviteStatus { pending, fetching, ready, error }
 
 class _InviteEntry {
   final String input;
-  final bool isHex;
+  final String hexKey;
   _InviteStatus status;
   String? error;
 
   _InviteEntry({
     required this.input,
-    required this.isHex,
+    required this.hexKey,
     this.status = _InviteStatus.pending,
   });
 }
