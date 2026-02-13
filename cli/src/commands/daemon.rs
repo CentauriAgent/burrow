@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
+use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
@@ -82,7 +82,10 @@ pub async fn run(
     }
 
     let client = pool::connect(&keys, &all_relays).await?;
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
+        .context("Failed to open MLS SQLite database")?;
+    let mdk = MDK::new(mdk_storage);
 
     // Generate a KeyPackage so MDK has the private key material for processing Welcomes.
     // Without this, process_welcome fails with "No matching key package was found in the key store."
@@ -194,8 +197,9 @@ pub async fn run(
                                         };
                                         write_jsonl(&log_path_clone, &welcome_entry);
 
-                                        // Auto-accept: get welcome and accept it
-                                        match mdk.get_welcome(&event.id) {
+                                        // Auto-accept: use the welcome ID from process_welcome result
+                                        let welcome_id = welcome.id;
+                                        match mdk.get_welcome(&welcome_id) {
                                             Ok(Some(w)) => {
                                                 match mdk.accept_welcome(&w) {
                                                     Ok(()) => {

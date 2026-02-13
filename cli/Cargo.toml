@@ -12,6 +12,7 @@ path = "src/main.rs"
 # Marmot protocol — same rev as Flutter app
 mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
 mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
+mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
