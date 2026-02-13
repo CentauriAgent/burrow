@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
 use mdk_sqlite_storage::MdkSqliteStorage;
+use mdk_storage_traits::welcomes::types::WelcomeState;
 use nostr_sdk::prelude::*;
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
@@ -183,6 +184,22 @@ pub async fn run(
                                 // Process welcome via MDK
                                 match mdk.process_welcome(&event.id, &unwrapped.rumor) {
                                     Ok(welcome) => {
+                                        // Skip already-accepted welcomes (re-delivered by relays after restart)
+                                        if welcome.state == WelcomeState::Accepted {
+                                            let skip_entry = DaemonLogEntry {
+                                                entry_type: "welcome_skipped".into(),
+                                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                                group_id: Some(hex::encode(&welcome.nostr_group_id)),
+                                                sender_pubkey: Some(unwrapped.sender.to_hex()),
+                                                content: Some(format!(
+                                                    "Already accepted welcome to '{}', skipping",
+                                                    welcome.group_name
+                                                )),
+                                                allowed: None,
+                                                error: None,
+                                            };
+                                            write_jsonl(&log_path_clone, &skip_entry);
+                                        } else {
                                         let welcome_entry = DaemonLogEntry {
                                             entry_type: "welcome_processed".into(),
                                             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -268,6 +285,7 @@ pub async fn run(
                                                 write_jsonl(&log_path_clone, &err_entry);
                                             }
                                         }
+                                        } // end else (not already accepted)
                                     }
                                     Err(e) => {
                                         let err_entry = DaemonLogEntry {
