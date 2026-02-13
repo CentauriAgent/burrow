@@ -82,6 +82,9 @@ enum Commands {
         #[arg(long)]
         no_access_control: bool,
     },
+    /// Manage NIP-59 welcome invitations
+    #[command(subcommand)]
+    Welcome(WelcomeCommands),
     /// Access control management
     #[command(subcommand)]
     Acl(AclCommands),
@@ -100,6 +103,26 @@ enum GroupCommands {
         data_dir: Option<String>,
         #[arg(short = 'r', long, num_args = 1..)]
         relay: Option<Vec<String>>,
+    },
+}
+
+#[derive(Subcommand)]
+enum WelcomeCommands {
+    /// List pending NIP-59 welcome messages from relays
+    List {
+        #[arg(short = 'k', long)]
+        key_path: Option<String>,
+        #[arg(short = 'd', long)]
+        data_dir: Option<String>,
+    },
+    /// Accept a welcome invitation and join the group
+    Accept {
+        /// Event ID of the gift wrap containing the welcome
+        event_id: String,
+        #[arg(short = 'k', long)]
+        key_path: Option<String>,
+        #[arg(short = 'd', long)]
+        data_dir: Option<String>,
     },
 }
 
@@ -174,6 +197,14 @@ async fn main() -> anyhow::Result<()> {
         Commands::Daemon { key_path, data_dir, log_file, reconnect_delay, no_access_control } => {
             commands::daemon::run(key_path, data_dir, log_file, reconnect_delay, no_access_control).await?;
         }
+        Commands::Welcome(sub) => match sub {
+            WelcomeCommands::List { key_path, data_dir } => {
+                commands::welcome::list(key_path, data_dir).await?;
+            }
+            WelcomeCommands::Accept { event_id, key_path, data_dir } => {
+                commands::welcome::accept(event_id, key_path, data_dir).await?;
+            }
+        },
         Commands::Acl(sub) => match sub {
             AclCommands::Show { data_dir } => commands::acl::show(data_dir)?,
             AclCommands::AddContact { pubkey, data_dir } => commands::acl::add_contact(pubkey, data_dir)?,

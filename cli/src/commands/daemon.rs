@@ -6,12 +6,13 @@ use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::acl::access_control::AccessControl;
 use crate::acl::audit;
 use crate::config;
 use crate::relay::pool;
-use crate::storage::file_store::{FileStore, StoredMessage};
+use crate::storage::file_store::{FileStore, StoredGroup, StoredMessage};
 
 #[derive(Serialize)]
 struct DaemonLogEntry {
@@ -84,32 +85,173 @@ pub async fn run(
     let mdk = MDK::new(MdkMemoryStorage::default());
 
     // Subscribe to kind 445 for all groups
-    // Build filter with all group IDs — chain custom_tag calls since it takes one value
     let mut filter = Filter::new().kind(Kind::MlsGroupMessage);
     for g in &groups {
         filter = filter.custom_tag(SingleLetterTag::lowercase(Alphabet::H), g.nostr_group_id_hex.clone());
     }
+
+    // Subscribe to kind 1059 (NIP-59 gift wraps) tagged with our pubkey for welcomes
+    let gift_wrap_filter = Filter::new()
+        .kind(Kind::GiftWrap)
+        .pubkey(keys.public_key());
 
     let startup = DaemonLogEntry {
         entry_type: "startup".into(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         group_id: None,
         sender_pubkey: None,
-        content: Some(format!("Listening on {} groups, {} relays", groups.len(), all_relays.len())),
+        content: Some(format!("Listening on {} groups, {} relays + NIP-59 gift wraps", groups.len(), all_relays.len())),
         allowed: None,
         error: None,
     };
     write_jsonl(&log_path, &startup);
 
     client.subscribe(filter, None).await?;
+    client.subscribe(gift_wrap_filter, None).await?;
 
     let data_clone = data.clone();
     let log_path_clone = log_path.clone();
+    let keys_clone = keys.clone();
+    let store_clone = Arc::new(store);
 
     client
         .handle_notifications(|notification| async {
             if let RelayPoolNotification::Event { event, .. } = notification {
-                if event.kind == Kind::MlsGroupMessage {
+                // Handle NIP-59 gift wraps (kind 1059) — Welcome messages
+                if event.kind == Kind::GiftWrap {
+                    match nip59::extract_rumor(&keys_clone, &event).await {
+                        Ok(unwrapped) => {
+                            if unwrapped.rumor.kind == Kind::Custom(444) {
+                                let entry = DaemonLogEntry {
+                                    entry_type: "gift_wrap_received".into(),
+                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                    group_id: None,
+                                    sender_pubkey: Some(unwrapped.sender.to_hex()),
+                                    content: Some("Kind 444 Welcome rumor received".into()),
+                                    allowed: None,
+                                    error: None,
+                                };
+                                write_jsonl(&log_path_clone, &entry);
+
+                                // Process welcome via MDK
+                                match mdk.process_welcome(&event.id, &unwrapped.rumor) {
+                                    Ok(welcome) => {
+                                        let welcome_entry = DaemonLogEntry {
+                                            entry_type: "welcome_processed".into(),
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            group_id: Some(hex::encode(&welcome.nostr_group_id)),
+                                            sender_pubkey: Some(unwrapped.sender.to_hex()),
+                                            content: Some(format!(
+                                                "Welcome to group '{}' ({} members)",
+                                                welcome.group_name, welcome.member_count
+                                            )),
+                                            allowed: None,
+                                            error: None,
+                                        };
+                                        write_jsonl(&log_path_clone, &welcome_entry);
+
+                                        // Auto-accept: get welcome and accept it
+                                        match mdk.get_welcome(&event.id) {
+                                            Ok(Some(w)) => {
+                                                match mdk.accept_welcome(&w) {
+                                                    Ok(()) => {
+                                                        // Save the new group
+                                                        let group = StoredGroup {
+                                                            mls_group_id_hex: hex::encode(welcome.mls_group_id.as_slice()),
+                                                            nostr_group_id_hex: hex::encode(&welcome.nostr_group_id),
+                                                            name: welcome.group_name.clone(),
+                                                            description: welcome.group_description.clone(),
+                                                            admin_pubkeys: vec![unwrapped.sender.to_hex()],
+                                                            relay_urls: config::default_relays(),
+                                                            created_at: chrono::Utc::now().timestamp() as u64,
+                                                        };
+                                                        let _ = store_clone.save_group(&group);
+
+                                                        let accepted_entry = DaemonLogEntry {
+                                                            entry_type: "welcome_accepted".into(),
+                                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                                            group_id: Some(hex::encode(&welcome.nostr_group_id)),
+                                                            sender_pubkey: Some(unwrapped.sender.to_hex()),
+                                                            content: Some(format!(
+                                                                "Auto-accepted welcome to '{}'. Restart daemon to listen on new group.",
+                                                                welcome.group_name
+                                                            )),
+                                                            allowed: None,
+                                                            error: None,
+                                                        };
+                                                        write_jsonl(&log_path_clone, &accepted_entry);
+                                                    }
+                                                    Err(e) => {
+                                                        let err_entry = DaemonLogEntry {
+                                                            entry_type: "welcome_accept_error".into(),
+                                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                                            group_id: Some(hex::encode(&welcome.nostr_group_id)),
+                                                            sender_pubkey: None,
+                                                            content: None,
+                                                            allowed: None,
+                                                            error: Some(format!("accept_welcome failed: {}", e)),
+                                                        };
+                                                        write_jsonl(&log_path_clone, &err_entry);
+                                                    }
+                                                }
+                                            }
+                                            Ok(None) => {
+                                                let err_entry = DaemonLogEntry {
+                                                    entry_type: "welcome_accept_error".into(),
+                                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                                    group_id: None,
+                                                    sender_pubkey: None,
+                                                    content: None,
+                                                    allowed: None,
+                                                    error: Some("Welcome not found after processing".into()),
+                                                };
+                                                write_jsonl(&log_path_clone, &err_entry);
+                                            }
+                                            Err(e) => {
+                                                let err_entry = DaemonLogEntry {
+                                                    entry_type: "welcome_accept_error".into(),
+                                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                                    group_id: None,
+                                                    sender_pubkey: None,
+                                                    content: None,
+                                                    allowed: None,
+                                                    error: Some(format!("get_welcome failed: {}", e)),
+                                                };
+                                                write_jsonl(&log_path_clone, &err_entry);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let err_entry = DaemonLogEntry {
+                                            entry_type: "welcome_process_error".into(),
+                                            timestamp: chrono::Utc::now().to_rfc3339(),
+                                            group_id: None,
+                                            sender_pubkey: Some(unwrapped.sender.to_hex()),
+                                            content: None,
+                                            allowed: None,
+                                            error: Some(format!("process_welcome failed: {}", e)),
+                                        };
+                                        write_jsonl(&log_path_clone, &err_entry);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // Silently ignore unwrap failures (not all 1059s are for us / valid)
+                            let entry = DaemonLogEntry {
+                                entry_type: "gift_wrap_error".into(),
+                                timestamp: chrono::Utc::now().to_rfc3339(),
+                                group_id: None,
+                                sender_pubkey: None,
+                                content: None,
+                                allowed: None,
+                                error: Some(format!("NIP-59 unwrap failed: {}", e)),
+                            };
+                            write_jsonl(&log_path_clone, &entry);
+                        }
+                    }
+                }
+                else if event.kind == Kind::MlsGroupMessage {
                     match mdk.process_message(&event) {
                         Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(msg)) => {
                             let sender_hex = msg.pubkey.to_hex();
@@ -151,7 +293,7 @@ pub async fn run(
                                     wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
                                     epoch: msg.epoch.unwrap_or(0),
                                 };
-                                let _ = store.save_message(&stored);
+                                let _ = store_clone.save_message(&stored);
                             }
                         }
                         Ok(_) => {} // commit/proposal — silent
