@@ -85,6 +85,48 @@ pub async fn send_message(
     .await
 }
 
+/// Send an encrypted message with media attachment(s) to a group.
+///
+/// Same as `send_message` but includes imeta tags for encrypted media references.
+/// The `imeta_tags_json` is a JSON array of arrays, where each inner array is
+/// a flat string list like `["imeta", "url ...", "m ...", ...]`.
+///
+/// Returns JSON-serialized signed Event (kind 445).
+#[frb]
+pub async fn send_message_with_media(
+    mls_group_id_hex: String,
+    content: String,
+    imeta_tags_json: Vec<Vec<String>>,
+) -> Result<String, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        // Build event with imeta tags
+        let mut builder = EventBuilder::new(Kind::TextNote, &content);
+        for tag_values in &imeta_tags_json {
+            let tag_strings: Vec<String> =
+                std::iter::once("imeta".to_string())
+                    .chain(tag_values.iter().cloned())
+                    .collect();
+            if let Ok(tag) = Tag::parse(tag_strings) {
+                builder = builder.tag(tag);
+            }
+        }
+
+        let rumor = builder.build(s.keys.public_key());
+
+        let event = s
+            .mdk
+            .create_message(&group_id, rumor)
+            .map_err(BurrowError::from)?;
+
+        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+    })
+    .await
+}
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

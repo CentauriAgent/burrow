@@ -339,21 +339,21 @@ pub async fn upload_group_image(
 
     let encrypted_hash_hex = hex::encode(prepared.encrypted_hash);
 
-    // 2. Build NIP-98 authorization event for Blossom upload
+    // 2. Build NIP-98 authorization event for Blossom upload (BUD-02)
     let upload_url = format!(
-        "{}/upload/{}",
-        blossom_server_url.trim_end_matches('/'),
-        &encrypted_hash_hex
+        "{}/upload",
+        blossom_server_url.trim_end_matches('/')
     );
 
     let payload_hash = sha256_hex(&prepared.encrypted_data);
+    // BUD-02: Blossom auth uses kind 24242, not NIP-98 kind 27235
     let auth_event = nostr_sdk::EventBuilder::new(
-        nostr_sdk::Kind::HttpAuth,
-        "",
+        nostr_sdk::Kind::Custom(24242),
+        "Upload group avatar",
     )
-    .tag(nostr_sdk::Tag::parse(["u".to_string(), upload_url.clone()]).unwrap())
-    .tag(nostr_sdk::Tag::parse(["method".to_string(), "PUT".to_string()]).unwrap())
-    .tag(nostr_sdk::Tag::parse(["payload".to_string(), payload_hash]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["t".to_string(), "upload".to_string()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["x".to_string(), encrypted_hash_hex.clone()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["expiration".to_string(), (nostr_sdk::Timestamp::now().as_secs() + 300).to_string()]).unwrap())
     .build(prepared.upload_keypair.public_key())
     .sign(&prepared.upload_keypair)
     .await
@@ -361,11 +361,12 @@ pub async fn upload_group_image(
 
     let auth_header = format!("Nostr {}", base64_encode(&auth_event.as_json()));
 
-    // 3. Upload to Blossom
+    // 3. Upload to Blossom (BUD-02)
     let client = reqwest::Client::new();
     let resp = client
         .put(&upload_url)
-        .header("Content-Type", "application/octet-stream")
+        .header("Content-Type", &prepared.mime_type)
+        .header("X-SHA-256", &encrypted_hash_hex)
         .header("Authorization", &auth_header)
         .body(prepared.encrypted_data.as_ref().to_vec())
         .send()

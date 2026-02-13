@@ -180,11 +180,10 @@ pub async fn upload_media(
     )
     .await?;
 
-    // Step 2: Upload to Blossom (HTTP PUT with SHA-256 hash path)
+    // Step 2: Upload to Blossom (BUD-02: PUT /upload)
     let upload_url = format!(
-        "{}/upload/{}",
-        blossom_server_url.trim_end_matches('/'),
-        &enc.encrypted_hash_hex
+        "{}/upload",
+        blossom_server_url.trim_end_matches('/')
     );
 
     let client = reqwest::Client::new();

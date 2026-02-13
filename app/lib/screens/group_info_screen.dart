@@ -170,12 +170,44 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         ),
       );
       if (action == 'pick') {
-        await avatarNotifier.pickAvatar();
+        try {
+          await avatarNotifier.pickAvatar();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Avatar saved locally. Blossom upload failed: ${_errorMsg(e)}',
+                ),
+              ),
+            );
+          }
+        }
       } else if (action == 'remove') {
-        await avatarNotifier.removeAvatar();
+        try {
+          await avatarNotifier.removeAvatar();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error removing avatar: ${_errorMsg(e)}')),
+            );
+          }
+        }
       }
     } else {
-      await avatarNotifier.pickAvatar();
+      try {
+        await avatarNotifier.pickAvatar();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Avatar saved locally. Blossom upload failed: ${_errorMsg(e)}',
+              ),
+            ),
+          );
+        }
+      }
     }
   }
 

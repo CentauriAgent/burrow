@@ -23,6 +23,23 @@ Future<String> sendMessage({
   content: content,
 );
 
+/// Send an encrypted message with media attachment(s) to a group.
+///
+/// Same as `send_message` but includes imeta tags for encrypted media references.
+/// The `imeta_tags_json` is a JSON array of arrays, where each inner array is
+/// a flat string list like `["imeta", "url ...", "m ...", ...]`.
+///
+/// Returns JSON-serialized signed Event (kind 445).
+Future<String> sendMessageWithMedia({
+  required String mlsGroupIdHex,
+  required String content,
+  required List<List<String>> imetaTagsJson,
+}) => RustLib.instance.api.crateApiMessageSendMessageWithMedia(
+  mlsGroupIdHex: mlsGroupIdHex,
+  content: content,
+  imetaTagsJson: imetaTagsJson,
+);
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts
