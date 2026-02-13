@@ -21,6 +21,8 @@ mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56c
 mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sha2 = "0.10"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

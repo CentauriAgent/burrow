@@ -7,4 +7,5 @@ pub mod keypackage;
 pub mod relay;
 pub mod group;
 pub mod invite;
+pub mod media;
 pub mod message;
