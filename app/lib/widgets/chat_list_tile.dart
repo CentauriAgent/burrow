@@ -31,6 +31,11 @@ class ChatListTile extends StatelessWidget {
 
     return ListTile(
       leading: CircleAvatar(
+        key: avatarFile != null
+            ? ValueKey(
+                '${avatarFile!.path}_${avatarFile!.lastModifiedSync().millisecondsSinceEpoch}',
+              )
+            : null,
         radius: 26,
         backgroundColor: isDirectMessage
             ? theme.colorScheme.tertiaryContainer

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
@@ -10,6 +11,7 @@ import 'package:burrow_app/providers/call_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
+import 'package:burrow_app/services/media_attachment_service.dart';
 
 class ChatViewScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -497,18 +499,83 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     );
   }
 
-  void _onAttachmentAction(String action) {
-    // TODO: Implement encrypted Blossom upload for each media type
-    final labels = {
-      'photo': 'Photo picker',
-      'video': 'Video picker',
-      'file': 'File picker',
-      'gif': 'GIF picker',
-      'stickers': 'Nostr sticker packs',
-    };
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${labels[action] ?? action} coming soon')),
-    );
+  Future<void> _onAttachmentAction(String action) async {
+    switch (action) {
+      case 'photo':
+        await _sendPhoto();
+      case 'video':
+        await _sendVideo();
+      case 'file':
+        await _sendFile();
+      default:
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$action coming soon')));
+    }
+  }
+
+  Future<void> _sendPhoto() async {
+    final picked = await MediaAttachmentService.pickPhoto();
+    if (picked == null) return;
+    await _uploadAndSend(picked);
+  }
+
+  Future<void> _sendVideo() async {
+    final picked = await MediaAttachmentService.pickVideo();
+    if (picked == null) return;
+    await _uploadAndSend(picked);
+  }
+
+  Future<void> _sendFile() async {
+    final picked = await MediaAttachmentService.pickFile();
+    if (picked == null || picked.path == null) return;
+    final bytes = await XFile(picked.path!).readAsBytes();
+    final mimeType = MediaAttachmentService.guessMimeType(picked.name);
+
+    setState(() => _isSending = true);
+    try {
+      await MediaAttachmentService.sendMediaMessage(
+        groupId: widget.groupId,
+        fileData: bytes,
+        mimeType: mimeType,
+        filename: picked.name,
+      );
+      ref.read(messagesProvider(widget.groupId).notifier).refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _uploadAndSend(XFile file) async {
+    final bytes = await file.readAsBytes();
+    final mimeType =
+        file.mimeType ?? MediaAttachmentService.guessMimeType(file.path);
+    final filename = file.name;
+
+    setState(() => _isSending = true);
+    try {
+      await MediaAttachmentService.sendMediaMessage(
+        groupId: widget.groupId,
+        fileData: bytes,
+        mimeType: mimeType,
+        filename: filename,
+      );
+      ref.read(messagesProvider(widget.groupId).notifier).refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   void _onVoiceMessage() {

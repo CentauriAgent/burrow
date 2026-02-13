@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
+import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/widgets/chat_list_tile.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
@@ -110,6 +111,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       );
     }
 
+    final profile = ref.watch(selfProfileProvider);
+    final pictureUrl = profile.value?.picture;
+
     return AppBar(
       title: const Text('Burrow'),
       actions: [
@@ -117,9 +121,25 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           icon: const Icon(Icons.search),
           onPressed: () => setState(() => _showSearch = true),
         ),
-        IconButton(
-          icon: const Icon(Icons.person_outline),
-          onPressed: () => context.go('/profile'),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            onTap: () => context.go('/profile'),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              backgroundImage: pictureUrl != null && pictureUrl.isNotEmpty
+                  ? NetworkImage(pictureUrl)
+                  : null,
+              child: pictureUrl != null && pictureUrl.isNotEmpty
+                  ? null
+                  : Icon(
+                      Icons.person,
+                      size: 18,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+            ),
+          ),
         ),
       ],
     );

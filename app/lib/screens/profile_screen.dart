@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
+import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/src/rust/api/identity.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -70,16 +71,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          // Avatar placeholder
+          // User avatar from Nostr profile
           Center(
-            child: CircleAvatar(
-              radius: 40,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(
-                Icons.person,
-                size: 40,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
+            child: Builder(
+              builder: (context) {
+                final profile = ref.watch(selfProfileProvider);
+                final pictureUrl = profile.value?.picture;
+                return CircleAvatar(
+                  radius: 40,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  backgroundImage: pictureUrl != null && pictureUrl.isNotEmpty
+                      ? NetworkImage(pictureUrl)
+                      : null,
+                  child: pictureUrl != null && pictureUrl.isNotEmpty
+                      ? null
+                      : Icon(
+                          Icons.person,
+                          size: 40,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),
