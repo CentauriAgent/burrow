@@ -15,8 +15,15 @@ class OnboardingScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              // Logo / mascot
-              Text('🦫', style: const TextStyle(fontSize: 80)),
+              // Logo
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  'assets/burrow.png',
+                  width: 120,
+                  height: 120,
+                ),
+              ),
               const SizedBox(height: 16),
               Text(
                 'Burrow',
@@ -35,7 +42,9 @@ class OnboardingScreen extends StatelessWidget {
               Text(
                 'No phone number. No email. No tracking.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.7,
+                  ),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -67,9 +76,7 @@ class OnboardingScreen extends StatelessWidget {
               const Spacer(),
               Text(
                 'Marmot Protocol • MLS + Nostr',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
               ),
               const SizedBox(height: 24),
             ],
