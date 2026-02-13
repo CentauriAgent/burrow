@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
+import 'package:burrow_app/providers/group_avatar_provider.dart';
+import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/screens/chat_view_screen.dart';
 import 'package:burrow_app/screens/group_info_screen.dart';
@@ -147,9 +151,31 @@ class _ChatListPane extends ConsumerWidget {
                 ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => context.push('/profile'),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => context.push('/profile'),
+              child: Builder(
+                builder: (context) {
+                  final profile = ref.watch(selfProfileProvider);
+                  final pictureUrl = profile.value?.picture;
+                  return CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    backgroundImage: pictureUrl != null && pictureUrl.isNotEmpty
+                        ? NetworkImage(pictureUrl)
+                        : null,
+                    child: pictureUrl != null && pictureUrl.isNotEmpty
+                        ? null
+                        : Icon(
+                            Icons.person,
+                            size: 18,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -202,16 +228,29 @@ class _ChatListPane extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final group = list[index];
                 final isSelected = group.mlsGroupIdHex == selectedId;
+                final avatarState = ref.watch(
+                  groupAvatarProvider(group.mlsGroupIdHex),
+                );
                 return ListTile(
                   selected: isSelected,
                   selectedTileColor: theme.colorScheme.primaryContainer
                       .withAlpha(60),
                   leading: CircleAvatar(
+                    key: avatarState.avatarFile != null
+                        ? ValueKey(
+                            '${avatarState.avatarFile!.path}_${avatarState.version}',
+                          )
+                        : null,
                     backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.group,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
+                    backgroundImage: avatarState.avatarFile != null
+                        ? FileImage(avatarState.avatarFile!)
+                        : null,
+                    child: avatarState.avatarFile != null
+                        ? null
+                        : Icon(
+                            Icons.group,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
                   ),
                   title: Text(
                     group.name.isNotEmpty ? group.name : 'Unnamed Group',

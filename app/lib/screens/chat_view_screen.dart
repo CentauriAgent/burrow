@@ -241,6 +241,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                               (prevMsg == null ||
                                   prevMsg.authorPubkeyHex !=
                                       msg.authorPubkeyHex);
+                          final attachments =
+                              MediaAttachmentService.parseAttachments(msg.tags);
                           return ChatBubble(
                             content: msg.content,
                             timestamp: DateTime.fromMillisecondsSinceEpoch(
@@ -249,6 +251,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                             isSent: isSent,
                             senderName: _shortenPubkey(msg.authorPubkeyHex),
                             showSenderName: showNameForThis,
+                            attachments: attachments,
+                            groupId: widget.groupId,
                           );
                         },
                       );

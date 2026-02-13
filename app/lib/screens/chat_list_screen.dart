@@ -177,6 +177,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         itemBuilder: (context, index) {
           final group = filtered[index];
           final avatar = ref.watch(groupAvatarProvider(group.mlsGroupIdHex));
+          if (avatar.avatarFile != null) {
+            print(
+              'DEBUG chat list: group=${group.displayName} avatar=${avatar.avatarFile!.path} exists=${avatar.avatarFile!.existsSync()}',
+            );
+          } else {
+            print(
+              'DEBUG chat list: group=${group.displayName} avatar=null hasImage=${group.rustGroup.hasImage}',
+            );
+          }
           return ChatListTile(
             name: group.displayName,
             lastMessage: group.lastMessage,
