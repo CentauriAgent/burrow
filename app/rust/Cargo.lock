@@ -1591,6 +1591,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdk-memory-storage"
+version = "0.5.1"
+source = "git+https://github.com/marmot-protocol/mdk?rev=5ef0c607e56cc20217ddde24b4b2f8e82f76b776#5ef0c607e56cc20217ddde24b4b2f8e82f76b776"
+dependencies = [
+ "lru",
+ "mdk-storage-traits",
+ "nostr",
+ "openmls",
+ "openmls_traits",
+ "parking_lot",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mdk-storage-traits"
 version = "0.5.1"
 source = "git+https://github.com/marmot-protocol/mdk?rev=5ef0c607e56cc20217ddde24b4b2f8e82f76b776#5ef0c607e56cc20217ddde24b4b2f8e82f76b776"
@@ -1908,6 +1923,16 @@ checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
 dependencies = [
  "elliptic-curve",
  "primeorder",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -2267,6 +2292,7 @@ dependencies = [
  "flutter_rust_bridge",
  "hex",
  "mdk-core",
+ "mdk-memory-storage",
  "nostr-sdk",
  "serde",
  "serde_json",

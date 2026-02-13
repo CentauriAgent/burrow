@@ -18,6 +18,7 @@ thiserror = "2"
 
 # Marmot protocol dependencies (pinned to known working rev from WhiteNoise)
 mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
+mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
 
 [lints.rust]
