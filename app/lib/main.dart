@@ -8,7 +8,7 @@ import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/screens/onboarding_screen.dart';
 import 'package:burrow_app/screens/create_identity_screen.dart';
 import 'package:burrow_app/screens/import_identity_screen.dart';
-import 'package:burrow_app/screens/home_screen.dart';
+import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/screens/profile_screen.dart';
 import 'package:burrow_app/screens/create_group_screen.dart';
 import 'package:burrow_app/screens/invite_members_screen.dart';
@@ -22,7 +22,6 @@ import 'package:burrow_app/screens/transcript_screen.dart';
 import 'package:burrow_app/screens/meeting_summary_screen.dart';
 import 'package:burrow_app/screens/transcript_history_screen.dart';
 import 'package:burrow_app/screens/new_dm_screen.dart';
-import 'package:burrow_app/screens/chat_view_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,7 +69,10 @@ class BurrowApp extends ConsumerWidget {
           path: '/import-identity',
           builder: (context, state) => const ImportIdentityScreen(),
         ),
-        GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const ChatShellScreen(),
+        ),
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
@@ -100,7 +102,7 @@ class BurrowApp extends ConsumerWidget {
         GoRoute(
           path: '/chat/:groupId',
           builder: (context, state) =>
-              ChatViewScreen(groupId: state.pathParameters['groupId']!),
+              ChatShellScreen(initialGroupId: state.pathParameters['groupId']!),
         ),
         GoRoute(
           path: '/transcript',
