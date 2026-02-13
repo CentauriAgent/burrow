@@ -6,7 +6,7 @@ library;
 
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:rust_lib_burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
+import 'package:burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
 
 /// Manages WebRTC peer connections and local media for calls.
 class WebRtcService {
@@ -67,7 +67,7 @@ class WebRtcService {
   ///
   /// [callId] - call identifier for ICE credential derivation.
   /// [remotePubkeyHex] - hex pubkey of remote peer (used as connection key).
-  Future<RTCPeerConnection> createPeerConnection({
+  Future<RTCPeerConnection> createBurrowPeerConnection({
     required String callId,
     required String remotePubkeyHex,
   }) async {

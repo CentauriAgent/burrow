@@ -120,13 +120,13 @@ Burrow is a secure messaging and collaboration platform built on the **Marmot pr
 ### Milestones
 | # | Milestone | Target |
 |---|-----------|--------|
-| 4.1 | Agent joins WebRTC call as audio-only participant | TBD |
-| 4.2 | Real-time transcription pipeline | TBD |
-| 4.3 | Speaker diarization | TBD |
-| 4.4 | Post-call summary generation | TBD |
-| 4.5 | Action item extraction and tracking | TBD |
-| 4.6 | Live Q&A — ask the agent questions during the call | TBD |
-| 4.7 | Searchable transcript archive | TBD |
+| 4.1 | Agent joins WebRTC call as audio-only participant | 🔜 Deferred |
+| 4.2 | Real-time transcription pipeline (Rust whisper.cpp FFI + Flutter service) | ✅ Complete |
+| 4.3 | Speaker diarization (WebRTC track-based, no ML needed) | ✅ Complete |
+| 4.4 | Post-call summary generation (rule-based + LLM prompt builder) | ✅ Complete |
+| 4.5 | Action item extraction and tracking (keyword + priority detection) | ✅ Complete |
+| 4.6 | Live Q&A — ask the agent questions during the call | 🔜 Deferred |
+| 4.7 | Searchable transcript archive | ✅ Complete |
 
 ### Design Doc
 → See [docs/PHASE4-DESIGN.md](docs/PHASE4-DESIGN.md)

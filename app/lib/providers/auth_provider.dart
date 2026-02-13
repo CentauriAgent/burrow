@@ -45,5 +45,5 @@ final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState?>(() {
 /// Convenience: is user logged in right now?
 final isLoggedInProvider = Provider<bool>((ref) {
   final auth = ref.watch(authProvider);
-  return auth.valueOrNull != null;
+  return auth.value != null;
 });

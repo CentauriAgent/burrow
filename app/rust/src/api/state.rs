@@ -3,9 +3,9 @@
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
-use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
-use nostr_sdk::prelude::*;
+pub use mdk_core::MDK;
+pub use mdk_memory_storage::MdkMemoryStorage;
+pub use nostr_sdk::prelude::*;
 
 use crate::api::error::BurrowError;
 

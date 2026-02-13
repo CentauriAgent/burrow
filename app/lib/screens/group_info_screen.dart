@@ -55,7 +55,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   }
 
   bool _isAdmin() {
-    final auth = ref.read(authProvider).valueOrNull;
+    final auth = ref.read(authProvider).value;
     if (auth == null || _group == null) return false;
     return _group!.adminPubkeys.contains(auth.account.pubkeyHex);
   }
@@ -355,7 +355,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             final isSelf = m.pubkeyHex ==
                 ref
                     .read(authProvider)
-                    .valueOrNull
+                    .value
                     ?.account
                     .pubkeyHex;
             final isMemberAdmin =

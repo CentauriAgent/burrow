@@ -178,7 +178,7 @@ fn wire__crate__api__state__BurrowState_auto_accessor_get_mdk_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(api_that_guard.mdk.clone())?;
+                let output_ok = Result::<_, ()>::Ok(MDK::new(MdkMemoryStorage::default()))?;
                 Ok(output_ok)
             })())
         },

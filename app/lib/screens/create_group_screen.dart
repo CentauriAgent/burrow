@@ -34,7 +34,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       return;
     }
 
-    final auth = ref.read(authProvider).valueOrNull;
+    final auth = ref.read(authProvider).value;
     if (auth == null) return;
 
     setState(() => _creating = true);

@@ -8,8 +8,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:rust_lib_burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
+import 'package:burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
 
 /// Manages frame-level encryption for WebRTC media streams.
 class FrameEncryptionService {
@@ -126,11 +127,11 @@ class FrameEncryptionService {
     _currentKeyHex = null;
   }
 
-  List<int> _hexToBytes(String hex) {
+  Uint8List _hexToBytes(String hex) {
     final result = <int>[];
     for (var i = 0; i < hex.length; i += 2) {
       result.add(int.parse(hex.substring(i, i + 2), radix: 16));
     }
-    return result;
+    return Uint8List.fromList(result);
   }
 }

@@ -5,11 +5,11 @@ library;
 
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:rust_lib_burrow_app/src/rust/api/call_signaling.dart'
+import 'package:burrow_app/src/rust/api/call_signaling.dart'
     as rust_signaling;
-import 'package:rust_lib_burrow_app/src/rust/api/call_session.dart'
+import 'package:burrow_app/src/rust/api/call_session.dart'
     as rust_session;
-import 'package:rust_lib_burrow_app/src/rust/api/call_webrtc.dart'
+import 'package:burrow_app/src/rust/api/call_webrtc.dart'
     as rust_webrtc;
 import 'webrtc_service.dart';
 
@@ -102,7 +102,7 @@ class CallManager {
     await _webrtcService.initializeWebRTC(isVideo: isVideo);
 
     // 4. Create peer connection
-    await _webrtcService.createPeerConnection(
+    await _webrtcService.createBurrowPeerConnection(
       callId: callId,
       remotePubkeyHex: remotePubkeyHex,
     );
@@ -165,7 +165,7 @@ class CallManager {
     await _webrtcService.initializeWebRTC(isVideo: isVideo);
 
     // 4. Create peer connection
-    await _webrtcService.createPeerConnection(
+    await _webrtcService.createBurrowPeerConnection(
       callId: callId,
       remotePubkeyHex: callerPubkeyHex,
     );

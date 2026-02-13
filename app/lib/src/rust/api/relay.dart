@@ -34,6 +34,18 @@ Future<List<RelayInfo>> listRelays() =>
 Future<String> publishEventJson({required String eventJson}) =>
     RustLib.instance.api.crateApiRelayPublishEventJson(eventJson: eventJson);
 
+/// Subscribe to events matching a filter (JSON-serialized Nostr filter).
+/// Stub: will be implemented when relay subscription support is added to Rust core.
+Future<void> subscribe({required String filterJson}) async {
+  // TODO: implement relay subscription
+}
+
+/// Fetch pending events received from subscriptions.
+/// Stub: returns empty list until relay subscription is implemented.
+Future<List<String>> fetchPendingEvents() async {
+  return [];
+}
+
 /// Default relays for the Marmot/Burrow network.
 List<String> defaultRelayUrls() =>
     RustLib.instance.api.crateApiRelayDefaultRelayUrls();

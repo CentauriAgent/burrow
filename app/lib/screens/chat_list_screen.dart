@@ -211,7 +211,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
   Widget _buildSettingsTab(ThemeData theme) {
     final auth = ref.watch(authProvider);
-    final npub = auth.valueOrNull?.account.npub ?? '';
+    final npub = auth.value?.account.npub ?? '';
 
     return ListView(
       children: [

@@ -53,7 +53,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final auth = ref.watch(authProvider);
     final relays = ref.watch(relayProvider);
 
-    final npub = auth.valueOrNull?.account.npub ?? '...';
+    final npub = auth.value?.account.npub ?? '...';
 
     return Scaffold(
       appBar: AppBar(

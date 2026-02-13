@@ -144,7 +144,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                         color: Colors.green,
                         label: 'Accept',
                         onPressed: () async {
-                          final auth = ref.read(authProvider).valueOrNull;
+                          final auth = ref.read(authProvider).value;
                           if (auth == null) return;
                           await ref.read(callProvider.notifier).acceptCall(
                                 localPubkeyHex: auth.account.pubkeyHex,

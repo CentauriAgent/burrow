@@ -26,7 +26,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     super.initState();
     // Set the active group
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(activeGroupIdProvider.notifier).state = widget.groupId;
+      // TODO: Track active group ID when state management is finalized
     });
   }
 
@@ -41,8 +41,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final messagesAsync = ref.watch(messagesProvider(widget.groupId));
-    final groups = ref.watch(groupsProvider).valueOrNull ?? [];
+    final messagesManager = ref.watch(messagesProvider(widget.groupId));
+    final messages = messagesManager.messages;
+    final groups = ref.watch(groupsProvider).value ?? [];
     final group = groups.where((g) => g.mlsGroupIdHex == widget.groupId).firstOrNull;
     final auth = ref.watch(authProvider);
     // TODO: Use account.pubkeyHex when FFI bindings are generated
@@ -118,57 +119,35 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         children: [
           // Messages list
           Expanded(
-            child: messagesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 48,
-                        color: theme.colorScheme.error),
-                    const SizedBox(height: 8),
-                    Text('Failed to load messages',
-                        style: TextStyle(color: theme.colorScheme.error)),
-                  ],
-                ),
-              ),
-              data: (messages) {
-                if (messages.isEmpty) {
-                  return _buildEmptyChat(theme);
-                }
-
-                final isGroup = (group?.memberCount ?? 0) > 2;
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isSent = msg.authorPubkeyHex == selfPubkey ||
-                        msg.authorPubkeyHex == 'self';
-
-                    // Show sender name in groups for received messages
-                    final showName = isGroup && !isSent;
-                    // Don't repeat sender name for consecutive messages
-                    final prevMsg =
-                        index < messages.length - 1 ? messages[index + 1] : null;
-                    final showNameForThis = showName &&
-                        (prevMsg == null ||
-                            prevMsg.authorPubkeyHex != msg.authorPubkeyHex);
-
-                    return ChatBubble(
-                      content: msg.content,
-                      timestamp: msg.createdAtDateTime,
-                      isSent: isSent,
-                      senderName: _shortenPubkey(msg.authorPubkeyHex),
-                      showSenderName: showNameForThis,
+            child: messages.isEmpty
+                ? _buildEmptyChat(theme)
+                : Builder(builder: (context) {
+                    final isGroup = (group?.memberCount ?? 0) > 2;
+                    return ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        final isSent = msg.authorPubkeyHex == selfPubkey ||
+                            msg.authorPubkeyHex == 'self';
+                        final showName = isGroup && !isSent;
+                        final prevMsg =
+                            index < messages.length - 1 ? messages[index + 1] : null;
+                        final showNameForThis = showName &&
+                            (prevMsg == null ||
+                                prevMsg.authorPubkeyHex != msg.authorPubkeyHex);
+                        return ChatBubble(
+                          content: msg.content,
+                          timestamp: msg.createdAtDateTime,
+                          isSent: isSent,
+                          senderName: _shortenPubkey(msg.authorPubkeyHex),
+                          showSenderName: showNameForThis,
+                        );
+                      },
                     );
-                  },
-                );
-              },
-            ),
+                  }),
           ),
 
           // E2E encryption notice
@@ -315,8 +294,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _messageController.clear();
 
     try {
-      await ref
-          .read(messagesProvider(widget.groupId).notifier)
+      ref
+          .read(messagesProvider(widget.groupId))
           .sendMessage(content);
     } catch (e) {
       if (mounted) {
@@ -381,7 +360,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   }
 
   void _startCall(BuildContext context, {required bool isVideo}) {
-    final auth = ref.read(authProvider).valueOrNull;
+    final auth = ref.read(authProvider).value;
     if (auth == null) return;
 
     // For 1:1 calls we need the remote pubkey — for now use group members

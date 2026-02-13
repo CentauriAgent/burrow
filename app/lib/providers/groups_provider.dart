@@ -50,7 +50,7 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
 
   /// Add a newly created group to the local list.
   void addGroup(GroupInfo group) {
-    final current = state.valueOrNull ?? [];
+    final current = state.value ?? [];
     state = AsyncData([group, ...current]);
   }
 }
@@ -62,7 +62,7 @@ final groupsProvider =
 
 /// Convenience: sorted groups by last message time (most recent first).
 final sortedGroupsProvider = Provider<List<GroupInfo>>((ref) {
-  final groups = ref.watch(groupsProvider).valueOrNull ?? [];
+  final groups = ref.watch(groupsProvider).value ?? [];
   final sorted = List<GroupInfo>.from(groups);
   sorted.sort((a, b) {
     final aTime = a.lastMessageTime ?? DateTime(2000);

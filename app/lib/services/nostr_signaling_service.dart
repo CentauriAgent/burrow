@@ -6,9 +6,9 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'package:rust_lib_burrow_app/src/rust/api/call_signaling.dart'
+import 'package:burrow_app/src/rust/api/call_signaling.dart'
     as rust_signaling;
-import 'package:rust_lib_burrow_app/src/rust/api/relay.dart' as rust_relay;
+import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
 /// Manages publishing call signaling events to Nostr relays and
 /// subscribing to incoming call events.
@@ -27,7 +27,7 @@ class NostrSignalingService {
   /// produced by the Rust signaling layer.
   Future<void> publishSignalingEvent(String wrappedEventJson) async {
     // Publish to all configured relays via the Rust relay module
-    await rust_relay.publishRawEvent(eventJson: wrappedEventJson);
+    await rust_relay.publishEventJson(eventJson: wrappedEventJson);
   }
 
   /// Start listening for incoming call signaling events.

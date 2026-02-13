@@ -54,5 +54,5 @@ final inviteProvider =
 /// Count of pending invites for badge display.
 final pendingInviteCountProvider = Provider<int>((ref) {
   final invites = ref.watch(inviteProvider);
-  return invites.valueOrNull?.where((w) => w.state == 'pending').length ?? 0;
+  return invites.value?.where((w) => w.state == 'pending').length ?? 0;
 });

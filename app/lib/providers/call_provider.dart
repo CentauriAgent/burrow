@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:burrow_app/services/call_manager.dart';
+import 'package:burrow_app/services/webrtc_service.dart';
 
 /// Call state exposed to UI.
 enum CallStatus {
