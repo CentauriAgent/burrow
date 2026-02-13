@@ -7,6 +7,7 @@ import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/call_provider.dart';
+import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 
@@ -56,6 +57,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final selfPubkey = auth.value?.account.pubkeyHex ?? 'self';
 
     final isWide = MediaQuery.of(context).size.width >= 700;
+    final avatar = ref.watch(groupAvatarProvider(widget.groupId));
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +85,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 backgroundColor: isDm
                     ? theme.colorScheme.tertiaryContainer
                     : theme.colorScheme.primaryContainer,
-                child: isDm
+                backgroundImage: avatar.avatarFile != null
+                    ? FileImage(avatar.avatarFile!)
+                    : null,
+                child: avatar.avatarFile != null
+                    ? null
+                    : isDm
                     ? Icon(
                         Icons.person,
                         size: 18,

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
+import 'package:burrow_app/services/group_avatar_service.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
@@ -56,6 +57,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             adminPubkeysHex: [auth.account.pubkeyHex],
             relayUrls: relayUrls,
           );
+
+      // Save picked avatar for this group
+      if (_avatarImage != null) {
+        final avatarPath = await GroupAvatarService.avatarPath(
+          result.mlsGroupIdHex,
+        );
+        await _avatarImage!.copy(avatarPath);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(

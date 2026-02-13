@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
+import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
@@ -133,6 +134,48 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         ).showSnackBar(SnackBar(content: Text('Error: ${_errorMsg(e)}')));
         setState(() => _leaving = false);
       }
+    }
+  }
+
+  Future<void> _changeAvatar(BuildContext context) async {
+    final avatarNotifier = ref.read(
+      groupAvatarProvider(widget.groupId).notifier,
+    );
+    final hasAvatar =
+        ref.read(groupAvatarProvider(widget.groupId)).avatarFile != null;
+
+    if (hasAvatar) {
+      // Show options: change or remove
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose new photo'),
+                onTap: () => Navigator.pop(ctx, 'pick'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text(
+                  'Remove photo',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (action == 'pick') {
+        await avatarNotifier.pickAvatar();
+      } else if (action == 'remove') {
+        await avatarNotifier.removeAvatar();
+      }
+    } else {
+      await avatarNotifier.pickAvatar();
     }
   }
 
@@ -381,15 +424,57 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 // --- Header: Avatar + Name + Description ---
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: isAdmin ? _editGroupName : null,
-                  child: CircleAvatar(
-                    radius: 44,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.group,
-                      size: 40,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
+                  onTap: isAdmin ? () => _changeAvatar(context) : null,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 44,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        backgroundImage:
+                            ref
+                                    .watch(groupAvatarProvider(widget.groupId))
+                                    .avatarFile !=
+                                null
+                            ? FileImage(
+                                ref
+                                    .watch(groupAvatarProvider(widget.groupId))
+                                    .avatarFile!,
+                              )
+                            : null,
+                        child:
+                            ref
+                                    .watch(groupAvatarProvider(widget.groupId))
+                                    .avatarFile !=
+                                null
+                            ? null
+                            : Icon(
+                                Icons.group,
+                                size: 40,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                      ),
+                      if (isAdmin)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: theme.colorScheme.surface,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: theme.colorScheme.onPrimary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),

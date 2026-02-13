@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/widgets/chat_list_tile.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
@@ -155,6 +156,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ),
         itemBuilder: (context, index) {
           final group = filtered[index];
+          final avatar = ref.watch(groupAvatarProvider(group.mlsGroupIdHex));
           return ChatListTile(
             name: group.displayName,
             lastMessage: group.lastMessage,
@@ -162,6 +164,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             unreadCount: group.unreadCount,
             memberCount: group.memberCount,
             isDirectMessage: group.isDirectMessage,
+            avatarFile: avatar.avatarFile,
             onTap: () => context.go('/chat/${group.mlsGroupIdHex}'),
           );
         },

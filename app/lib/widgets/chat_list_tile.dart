@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -8,6 +10,7 @@ class ChatListTile extends StatelessWidget {
   final int unreadCount;
   final int memberCount;
   final bool isDirectMessage;
+  final File? avatarFile;
   final VoidCallback? onTap;
 
   const ChatListTile({
@@ -18,6 +21,7 @@ class ChatListTile extends StatelessWidget {
     this.unreadCount = 0,
     this.memberCount = 0,
     this.isDirectMessage = false,
+    this.avatarFile,
     this.onTap,
   });
 
@@ -31,7 +35,10 @@ class ChatListTile extends StatelessWidget {
         backgroundColor: isDirectMessage
             ? theme.colorScheme.tertiaryContainer
             : theme.colorScheme.primaryContainer,
-        child: isDirectMessage
+        backgroundImage: avatarFile != null ? FileImage(avatarFile!) : null,
+        child: avatarFile != null
+            ? null
+            : isDirectMessage
             ? Icon(
                 Icons.person,
                 color: theme.colorScheme.onTertiaryContainer,
@@ -62,8 +69,9 @@ class ChatListTile extends StatelessWidget {
                 color: unreadCount > 0
                     ? theme.colorScheme.onSurface
                     : theme.colorScheme.onSurface.withAlpha(150),
-                fontWeight:
-                    unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                fontWeight: unreadCount > 0
+                    ? FontWeight.w500
+                    : FontWeight.normal,
                 fontSize: 14,
               ),
               maxLines: 1,
@@ -72,7 +80,9 @@ class ChatListTile extends StatelessWidget {
           : Text(
               isDirectMessage
                   ? 'No messages yet'
-                  : (memberCount > 0 ? '$memberCount members' : 'No messages yet'),
+                  : (memberCount > 0
+                        ? '$memberCount members'
+                        : 'No messages yet'),
               style: TextStyle(
                 color: theme.colorScheme.onSurface.withAlpha(120),
                 fontSize: 14,
