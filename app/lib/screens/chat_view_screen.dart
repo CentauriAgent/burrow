@@ -45,7 +45,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final groups = ref.watch(groupsProvider).valueOrNull ?? [];
     final group = groups.where((g) => g.mlsGroupIdHex == widget.groupId).firstOrNull;
     final auth = ref.watch(authProvider);
-    final selfPubkey = auth.valueOrNull?.account.pubkeyHex ?? 'self';
+    // TODO: Use account.pubkeyHex when FFI bindings are generated
+    final selfPubkey = 'self';
 
     return Scaffold(
       appBar: AppBar(

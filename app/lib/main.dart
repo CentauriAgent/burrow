@@ -8,6 +8,10 @@ import 'package:burrow_app/screens/create_identity_screen.dart';
 import 'package:burrow_app/screens/import_identity_screen.dart';
 import 'package:burrow_app/screens/home_screen.dart';
 import 'package:burrow_app/screens/profile_screen.dart';
+import 'package:burrow_app/screens/create_group_screen.dart';
+import 'package:burrow_app/screens/invite_members_screen.dart';
+import 'package:burrow_app/screens/pending_invites_screen.dart';
+import 'package:burrow_app/screens/group_info_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +59,26 @@ class BurrowApp extends ConsumerWidget {
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: '/create-group',
+          builder: (context, state) => const CreateGroupScreen(),
+        ),
+        GoRoute(
+          path: '/invite/:groupId',
+          builder: (context, state) => InviteMembersScreen(
+            groupId: state.pathParameters['groupId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/invites',
+          builder: (context, state) => const PendingInvitesScreen(),
+        ),
+        GoRoute(
+          path: '/group-info/:groupId',
+          builder: (context, state) => GroupInfoScreen(
+            groupId: state.pathParameters['groupId']!,
+          ),
         ),
       ],
     );
