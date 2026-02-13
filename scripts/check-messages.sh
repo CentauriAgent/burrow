@@ -1,6 +1,6 @@
 #!/bin/bash
 # Check for new Burrow messages since last check.
-# Reads daemon.jsonl, outputs only new message lines since last offset.
+# Only shows ALLOWED messages — rejected senders are silently skipped.
 # Usage: ./check-messages.sh [--reset]
 
 JSONL_FILE="$HOME/.burrow/daemon.jsonl"
@@ -30,8 +30,8 @@ if [ "$TOTAL_LINES" -le "$LAST_OFFSET" ]; then
   exit 0
 fi
 
-# Extract new message lines (skip status lines)
-tail -n +"$((LAST_OFFSET + 1))" "$JSONL_FILE" | jq -r 'select(.type == "message") | "[\(.groupName)] \(.senderPubkey[0:8])...: \(.content)"'
+# Extract ONLY allowed message lines — never surface rejected messages
+tail -n +"$((LAST_OFFSET + 1))" "$JSONL_FILE" | jq -r 'select(.type == "message" and .allowed == true) | "[\(.groupName)] \(.senderPubkey[0:8])...: \(.content)"'
 
 # Update offset
 echo "$TOTAL_LINES" > "$OFFSET_FILE"

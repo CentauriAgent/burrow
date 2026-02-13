@@ -140,12 +140,14 @@ program
   .option('-d, --data-dir <path>', 'Data directory')
   .option('-l, --log-file <path>', 'Path to JSONL log file for OpenClaw integration')
   .option('--reconnect-delay <ms>', 'Reconnect delay in ms', '5000')
+  .option('--no-access-control', 'Disable access control (TESTING ONLY)')
   .action(async (opts) => {
     await daemonCommand({
       keyPath: opts.keyPath,
       dataDir: opts.dataDir,
       logFile: opts.logFile,
       reconnectDelay: parseInt(opts.reconnectDelay),
+      noAccessControl: !opts.accessControl,
     });
   });
 

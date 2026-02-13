@@ -8,6 +8,7 @@ import { createGroupMsg, getExporterSecret, deserializeGroupState, serializeGrou
 import { RelayPool, buildGroupEvent, buildInnerChatMessage } from '../nostr/index.js';
 import { BurrowStore } from '../store/index.js';
 import { DEFAULT_RELAYS } from '../types/index.js';
+import { AuditLog } from '../security/index.js';
 export async function sendCommand(opts) {
     const dataDir = opts.dataDir || join(process.env.HOME || '~', '.burrow');
     const identity = loadIdentity(opts.keyPath);
@@ -52,6 +53,13 @@ export async function sendCommand(opts) {
     group.mlsState = Buffer.from(newEncoded).toString('base64');
     group.lastMessageAt = Math.floor(Date.now() / 1000);
     store.saveGroup(group);
+    // Audit log
+    const audit = new AuditLog(dataDir);
+    audit.logSentMessage({
+        groupId: opts.groupId,
+        groupName: group.name,
+        contentPreview: opts.message.slice(0, 100),
+    });
     // Store message locally
     store.saveMessage({
         id: event.id,

@@ -27,6 +27,8 @@ import {
   type Extension,
   type CreateCommitResult,
 } from 'ts-mls';
+// defaultClientConfig not exported from ts-mls index, import directly
+import { defaultClientConfig } from 'ts-mls/dist/src/clientConfig.js';
 import { randomBytes } from 'node:crypto';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import {
@@ -185,10 +187,16 @@ export function deserializeGroupState(data: Uint8Array): GroupState {
   const state = decoded[0] as any;
 
   // ts-mls encodeGroupState doesn't persist clientConfig — restore defaults
+  // CRITICAL: paddingConfig must have correct shape ({ kind: 'padUntilLength', padUntilLength: 256 })
+  // or byteLengthToPad returns NaN causing 0-byte buffer allocation → RangeError
   if (!state.clientConfig) {
     state.clientConfig = {
-      paddingConfig: { type: 'none' },
-    };
+      keyRetentionConfig: { retainKeysForGenerations: 10, retainKeysForEpochs: 4, maximumForwardRatchetSteps: 200 },
+      lifetimeConfig: undefined,
+      keyPackageEqualityConfig: undefined,
+      paddingConfig: { kind: 'padUntilLength', padUntilLength: 256 },
+      authService: undefined,
+    } as any;
   }
 
   return state as GroupState;

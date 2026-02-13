@@ -1,5 +1,6 @@
 /**
  * `burrow daemon` — Listen for messages across ALL groups with auto-reconnect.
+ * Enforces access control and maintains audit trail.
  * Outputs JSONL to stdout and optionally to a log file for OpenClaw integration.
  */
 
@@ -16,6 +17,7 @@ import {
 import { RelayPool } from '../nostr/index.js';
 import { BurrowStore } from '../store/index.js';
 import { MARMOT_KINDS, DEFAULT_RELAYS } from '../types/index.js';
+import { AccessControl, AuditLog } from '../security/index.js';
 
 interface DaemonMessage {
   type: 'message';
@@ -25,6 +27,7 @@ interface DaemonMessage {
   senderPubkey: string;
   content: string;
   eventId: string;
+  allowed: boolean;
 }
 
 interface DaemonStatus {
@@ -47,6 +50,7 @@ export async function daemonCommand(opts: {
   dataDir?: string;
   logFile?: string;
   reconnectDelay?: number;
+  noAccessControl?: boolean;
 }): Promise<void> {
   const dataDir = opts.dataDir || join(process.env.HOME || '~', '.burrow');
   const reconnectDelay = opts.reconnectDelay || 5000;
@@ -58,15 +62,71 @@ export async function daemonCommand(opts: {
 
   const identity = loadIdentity(opts.keyPath);
   const store = new BurrowStore(dataDir);
+  const audit = new AuditLog(dataDir);
+
+  // Access control — required unless explicitly disabled (for testing only)
+  let acl: AccessControl | null = null;
+  if (!opts.noAccessControl) {
+    try {
+      acl = new AccessControl(dataDir);
+    } catch (err: any) {
+      emit({
+        type: 'status',
+        timestamp: new Date().toISOString(),
+        event: 'error',
+        details: `Access control failed: ${err.message}`,
+      }, logFile);
+      process.exit(1);
+    }
+  }
+
+  audit.log({
+    timestamp: new Date().toISOString(),
+    type: 'daemon_start',
+    allowed: true,
+    details: `Identity: ${identity.publicKeyHex.slice(0, 16)}..., ACL: ${acl ? 'enabled' : 'DISABLED'}`,
+  });
 
   emit({
     type: 'status',
     timestamp: new Date().toISOString(),
     event: 'starting',
-    details: `Burrow daemon starting, identity: ${identity.publicKeyHex.slice(0, 16)}...`,
+    details: `Burrow daemon starting, identity: ${identity.publicKeyHex.slice(0, 16)}..., ACL: ${acl ? 'enabled' : 'DISABLED'}`,
   }, logFile);
 
+  // Graceful shutdown
+  const shutdown = () => {
+    audit.log({
+      timestamp: new Date().toISOString(),
+      type: 'daemon_stop',
+      allowed: true,
+      details: 'Clean shutdown',
+    });
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
   async function listenToGroup(groupId: string, groupName: string, relays: string[]): Promise<void> {
+    // Check group allowlist
+    if (acl && !acl.isGroupAllowed(groupId)) {
+      audit.log({
+        timestamp: new Date().toISOString(),
+        type: 'group_rejected',
+        groupId,
+        groupName,
+        allowed: false,
+        details: 'Group not in allowlist, skipping',
+      });
+      emit({
+        type: 'status',
+        timestamp: new Date().toISOString(),
+        event: 'group_skipped',
+        details: `"${groupName}" not in allowlist, skipping`,
+      }, logFile);
+      return;
+    }
+
     while (true) {
       try {
         emit({
@@ -77,9 +137,8 @@ export async function daemonCommand(opts: {
         }, logFile);
 
         const pool = new RelayPool(relays);
-        let connected = false;
 
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           const sub = pool.subscribe(
             [{
               kinds: [MARMOT_KINDS.GROUP_MESSAGE],
@@ -98,41 +157,83 @@ export async function daemonCommand(opts: {
 
                 if (result.content) {
                   const innerEvent = JSON.parse(new TextDecoder().decode(result.content));
+                  const senderPubkey = innerEvent.pubkey || '';
+                  const content = innerEvent.content || '';
 
-                  emit({
-                    type: 'message',
-                    timestamp: new Date().toISOString(),
-                    groupId,
-                    groupName,
-                    senderPubkey: innerEvent.pubkey || '',
-                    content: innerEvent.content,
-                    eventId: event.id,
-                  }, logFile);
+                  // ACCESS CONTROL CHECK
+                  const senderAllowed = !acl || acl.isContactAllowed(senderPubkey);
 
+                  if (senderAllowed) {
+                    // Allowed sender — emit full message for OpenClaw
+                    audit.logAllowedMessage({
+                      senderPubkey,
+                      groupId,
+                      groupName,
+                      contentPreview: content.slice(0, 100),
+                    });
+
+                    emit({
+                      type: 'message',
+                      timestamp: new Date().toISOString(),
+                      groupId,
+                      groupName,
+                      senderPubkey,
+                      content,
+                      eventId: event.id,
+                      allowed: true,
+                    }, logFile);
+                  } else {
+                    // REJECTED — log metadata only, NO content, NO response
+                    audit.logRejectedMessage({
+                      senderPubkey,
+                      groupId,
+                      groupName,
+                      reason: 'Sender not in allowlist',
+                    });
+
+                    // Emit redacted status (no content!)
+                    emit({
+                      type: 'message',
+                      timestamp: new Date().toISOString(),
+                      groupId,
+                      groupName,
+                      senderPubkey: senderPubkey.slice(0, 16) + '...',
+                      content: '[REDACTED - sender not allowed]',
+                      eventId: event.id,
+                      allowed: false,
+                    }, logFile);
+                  }
+
+                  // Always store message locally (for group state), but redact content if not allowed
                   store.saveMessage({
                     id: event.id,
                     groupId,
-                    senderPubkey: innerEvent.pubkey || '',
-                    content: innerEvent.content,
+                    senderPubkey,
+                    content: senderAllowed ? content : '[REDACTED]',
                     kind: innerEvent.kind,
                     createdAt: innerEvent.created_at,
                     tags: innerEvent.tags || [],
                   });
 
+                  // Always update MLS state (required for protocol correctness)
                   const newEncoded = serializeGroupState(newState);
                   store.saveMlsState(groupId, newEncoded);
                 }
               } catch (err: any) {
-                emit({
-                  type: 'status',
-                  timestamp: new Date().toISOString(),
-                  event: 'decrypt_error',
-                  details: `${groupName}: ${err.message}`,
-                }, logFile);
+                // Don't spam logs with decrypt errors from non-MLS events
+                if (!err.message.includes('invalid base64') &&
+                    !err.message.includes('invalid payload length') &&
+                    !err.message.includes('unknown encryption version')) {
+                  emit({
+                    type: 'status',
+                    timestamp: new Date().toISOString(),
+                    event: 'decrypt_error',
+                    details: `${groupName}: ${err.message}`,
+                  }, logFile);
+                }
               }
             },
             () => {
-              connected = true;
               emit({
                 type: 'status',
                 timestamp: new Date().toISOString(),
@@ -142,27 +243,14 @@ export async function daemonCommand(opts: {
             },
           );
 
-          // Monitor connection - if pool closes unexpectedly, reject to trigger reconnect
-          // SimplePool doesn't expose disconnect events directly, so we use a heartbeat
-          const heartbeat = setInterval(() => {
-            // Check if still alive by verifying pool state
-            // If the pool errors out, the subscribe callbacks stop firing
-          }, 30000);
-
-          // Keep this promise open until error
-          process.on('SIGTERM', () => {
-            clearInterval(heartbeat);
+          // Keep alive until signal
+          const onExit = () => {
             sub.close();
             pool.close();
             resolve();
-          });
-
-          process.on('SIGINT', () => {
-            clearInterval(heartbeat);
-            sub.close();
-            pool.close();
-            resolve();
-          });
+          };
+          process.once('SIGTERM', onExit);
+          process.once('SIGINT', onExit);
         });
 
         break; // Clean exit
@@ -178,7 +266,7 @@ export async function daemonCommand(opts: {
     }
   }
 
-  // Listen on all groups concurrently
+  // Listen on all groups concurrently (ACL filtering happens inside listenToGroup)
   const groups = store.listGroups();
   if (groups.length === 0) {
     emit({

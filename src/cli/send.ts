@@ -15,6 +15,7 @@ import { RelayPool, buildGroupEvent, buildInnerChatMessage } from '../nostr/inde
 import { BurrowStore } from '../store/index.js';
 import { DEFAULT_RELAYS } from '../types/index.js';
 import { bytesToBase64 } from 'ts-mls';
+import { AuditLog } from '../security/index.js';
 
 export async function sendCommand(opts: {
   groupId: string;
@@ -76,6 +77,14 @@ export async function sendCommand(opts: {
   group.mlsState = Buffer.from(newEncoded).toString('base64');
   group.lastMessageAt = Math.floor(Date.now() / 1000);
   store.saveGroup(group);
+
+  // Audit log
+  const audit = new AuditLog(dataDir);
+  audit.logSentMessage({
+    groupId: opts.groupId,
+    groupName: group.name,
+    contentPreview: opts.message.slice(0, 100),
+  });
 
   // Store message locally
   store.saveMessage({
