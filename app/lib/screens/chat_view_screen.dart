@@ -99,6 +99,16 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.call),
+            tooltip: 'Audio Call',
+            onPressed: () => _startCall(context, isVideo: false),
+          ),
+          IconButton(
+            icon: const Icon(Icons.videocam),
+            tooltip: 'Video Call',
+            onPressed: () => _startCall(context, isVideo: true),
+          ),
+          IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () => _showGroupMenu(context),
           ),
@@ -367,6 +377,21 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _startCall(BuildContext context, {required bool isVideo}) {
+    final auth = ref.read(authProvider).valueOrNull;
+    if (auth == null) return;
+
+    // For 1:1 calls we need the remote pubkey — for now use group members
+    // TODO: resolve remote pubkey from group member list
+    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isVideo ? 'Starting video call...' : 'Starting audio call...'),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 

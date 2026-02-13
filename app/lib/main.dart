@@ -12,6 +12,10 @@ import 'package:burrow_app/screens/create_group_screen.dart';
 import 'package:burrow_app/screens/invite_members_screen.dart';
 import 'package:burrow_app/screens/pending_invites_screen.dart';
 import 'package:burrow_app/screens/group_info_screen.dart';
+import 'package:burrow_app/screens/incoming_call_screen.dart';
+import 'package:burrow_app/screens/outgoing_call_screen.dart';
+import 'package:burrow_app/screens/in_call_screen.dart';
+import 'package:burrow_app/providers/call_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,6 +87,8 @@ class BurrowApp extends ConsumerWidget {
       ],
     );
 
+    final callState = ref.watch(callProvider);
+
     return MaterialApp.router(
       title: 'Burrow',
       theme: ThemeData(
@@ -93,6 +99,24 @@ class BurrowApp extends ConsumerWidget {
         useMaterial3: true,
       ),
       routerConfig: router,
+      builder: (context, child) {
+        // Overlay call screens on top of the app
+        return Stack(
+          children: [
+            child!,
+            if (callState.status == CallStatus.incoming)
+              const IncomingCallScreen(),
+            if (callState.status == CallStatus.outgoing)
+              const OutgoingCallScreen(),
+            if (callState.status == CallStatus.connecting ||
+                callState.status == CallStatus.active ||
+                callState.status == CallStatus.ending ||
+                callState.status == CallStatus.ended ||
+                callState.status == CallStatus.failed)
+              const InCallScreen(),
+          ],
+        );
+      },
     );
   }
 }

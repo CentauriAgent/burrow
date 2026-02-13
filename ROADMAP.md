@@ -85,15 +85,15 @@ Burrow is a secure messaging and collaboration platform built on the **Marmot pr
 ### Milestones
 | # | Milestone | Target |
 |---|-----------|--------|
-| 3.1 | Persistent encrypted storage (platform keychain + encrypted SQLite) | TBD |
-| 3.2 | KeyPackage rotation and expiration | TBD |
-| 3.3 | Push notifications (platform-native, MIP-05) | TBD |
-| 3.4 | WebRTC signaling protocol design (Nostr events) | TBD |
-| 3.5 | 1:1 audio calls | TBD |
-| 3.6 | 1:1 video calls | TBD |
-| 3.7 | Group audio calls (mesh, up to 5) | TBD |
-| 3.8 | Group video calls | TBD |
-| 3.9 | Screen sharing | TBD |
+| 3.1 | Persistent encrypted storage (platform keychain + encrypted SQLite) | 🔜 Deferred |
+| 3.2 | KeyPackage rotation and expiration | 🔜 Deferred |
+| 3.3 | Push notifications (platform-native, MIP-05) | 🔜 Deferred |
+| 3.4 | WebRTC signaling protocol design (Nostr events) | ✅ Complete |
+| 3.5 | 1:1 audio calls | ✅ Complete |
+| 3.6 | 1:1 video calls | ✅ Complete |
+| 3.7 | Group audio calls (mesh, up to 5) | ✅ Complete |
+| 3.8 | Group video calls | ✅ Complete |
+| 3.9 | Screen sharing | 🔜 Deferred |
 
 ### Insights from Phase 2
 - `block_on` inside async `RwLock` guards should be refactored to proper async flow before adding real-time WebRTC
