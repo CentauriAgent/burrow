@@ -47,11 +47,20 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
     await rust_group.mergePendingCommit(mlsGroupIdHex: mlsGroupIdHex);
 
     // 4. Gift-wrap and publish each welcome rumor
-    for (final welcomeJson in result.welcomeRumorsJson) {
+    // MDK welcome rumors don't have "p" tags — the recipient is the author
+    // of the corresponding KeyPackage event. Welcome rumors are returned in
+    // the same order as keyPackageEventsJson, so we correlate by index.
+    final recipientPubkeys = keyPackageEventsJson.map((json) {
+      final event = jsonDecode(json) as Map<String, dynamic>;
+      return event['pubkey'] as String;
+    }).toList();
+
+    for (var i = 0; i < result.welcomeRumorsJson.length; i++) {
+      final welcomeJson = result.welcomeRumorsJson[i];
       if (welcomeJson.isEmpty) continue;
 
-      // Extract recipient pubkey from the welcome rumor's "p" tag
-      final recipientHex = _extractRecipientPubkey(welcomeJson);
+      final recipientHex =
+          i < recipientPubkeys.length ? recipientPubkeys[i] : null;
       if (recipientHex == null) continue;
 
       // Gift-wrap the welcome for this recipient (NIP-59)
@@ -63,22 +72,6 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
       // Publish the gift-wrapped welcome to relays
       await rust_relay.publishEventJson(eventJson: wrappedJson);
     }
-  }
-
-  /// Extract the recipient pubkey hex from a welcome rumor JSON's "p" tag.
-  String? _extractRecipientPubkey(String rumorJson) {
-    try {
-      final map = jsonDecode(rumorJson) as Map<String, dynamic>;
-      final tags = map['tags'] as List<dynamic>?;
-      if (tags == null) return null;
-      for (final tag in tags) {
-        final t = tag as List<dynamic>;
-        if (t.isNotEmpty && t[0] == 'p' && t.length >= 2) {
-          return t[1] as String;
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   /// Fetch a user's key package from relays.

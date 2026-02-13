@@ -200,6 +200,12 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     );
     if (confirmed != true) return;
     try {
+      // Clear any stale pending commit from a previous failed operation
+      try {
+        await mergePendingCommit(mlsGroupIdHex: widget.groupId);
+      } catch (_) {
+        // No pending commit — that's fine
+      }
       await removeMembers(
         mlsGroupIdHex: widget.groupId,
         pubkeysHex: [pubkeyHex],
