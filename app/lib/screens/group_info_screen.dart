@@ -7,6 +7,7 @@ import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
+import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
 
 class GroupInfoScreen extends ConsumerStatefulWidget {
@@ -349,7 +350,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {
-                if (Navigator.canPop(context)) {
+                final isWide = MediaQuery.of(context).size.width >= 700;
+                if (isWide) {
+                  ref.read(detailPaneProvider.notifier).backToChat();
+                } else if (Navigator.canPop(context)) {
                   Navigator.pop(context);
                 } else {
                   context.go('/chat/${widget.groupId}');
@@ -482,7 +486,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       ),
                     ),
                     title: const Text('Add members'),
-                    onTap: () => context.push('/invite/${widget.groupId}'),
+                    onTap: () {
+                      final wide = MediaQuery.of(context).size.width >= 700;
+                      if (wide) {
+                        ref
+                            .read(detailPaneProvider.notifier)
+                            .showInvite(widget.groupId);
+                      } else {
+                        context.push('/invite/${widget.groupId}');
+                      }
+                    },
                   ),
                 ...members.map((m) => _buildMemberTile(m, group, isAdmin)),
                 const Divider(),

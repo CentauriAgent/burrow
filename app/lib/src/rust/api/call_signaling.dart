@@ -144,6 +144,16 @@ Future<CallSignalingEvent?> processCallEvent({required String eventJson}) =>
       eventJson: eventJson,
     );
 
+/// Subscribe to incoming gift-wrapped events and stream unwrapped call signaling events.
+///
+/// This subscribes to kind 1059 (GiftWrap) events addressed to the local user,
+/// unwraps them using NIP-59, and pushes any call signaling events (kinds 25050-25054)
+/// to the provided stream sink.
+///
+/// Runs indefinitely until the stream is closed from the Dart side.
+Stream<CallSignalingEvent> listenForCallEvents() =>
+    RustLib.instance.api.crateApiCallSignalingListenForCallEvents();
+
 /// Build a call signaling event for a group call (MLS-encrypted, not gift-wrapped).
 ///
 /// For group calls, signaling goes through the Marmot group message channel.

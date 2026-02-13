@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::error::BurrowError;
 use crate::api::state;
+use crate::frb_generated::StreamSink;
 
 // ── Event kind constants ───────────────────────────────────────────────────
 
@@ -382,6 +383,100 @@ pub async fn process_call_event(
         content: event.content.to_string(),
         created_at: event.created_at.as_secs(),
     }))
+}
+
+/// Subscribe to incoming gift-wrapped events and stream unwrapped call signaling events.
+///
+/// This subscribes to kind 1059 (GiftWrap) events addressed to the local user,
+/// unwraps them using NIP-59, and pushes any call signaling events (kinds 25050-25054)
+/// to the provided stream sink.
+///
+/// Runs indefinitely until the stream is closed from the Dart side.
+#[frb]
+pub async fn listen_for_call_events(
+    sink: StreamSink<CallSignalingEvent>,
+) -> Result<(), BurrowError> {
+    let (client, keys) = state::with_state(|s| Ok((s.client.clone(), s.keys.clone()))).await?;
+
+    // Subscribe to gift-wrapped events addressed to us
+    let filter = Filter::new()
+        .kind(Kind::GiftWrap)
+        .pubkey(keys.public_key())
+        .since(Timestamp::now());
+
+    client
+        .subscribe(filter, None)
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    // Listen for notifications
+    client
+        .handle_notifications(|notification| {
+            let sink = &sink;
+            let _keys = &keys;
+            let client = &client;
+            async move {
+                if let nostr_sdk::RelayPoolNotification::Event { event, .. } = notification {
+                    // Only process gift wraps
+                    if event.kind == Kind::GiftWrap {
+                        // Unwrap the gift wrap
+                        match client.unwrap_gift_wrap(&event).await {
+                            Ok(unwrapped) => {
+                                let rumor = unwrapped.rumor;
+                                let kind_num = rumor.kind.as_u16();
+
+                                // Only forward call signaling kinds
+                                if kind_num >= KIND_CALL_OFFER
+                                    && kind_num <= KIND_CALL_STATE_UPDATE
+                                {
+                                    let call_id = rumor
+                                        .tags
+                                        .iter()
+                                        .find(|t| {
+                                            t.as_slice()
+                                                .first()
+                                                .map(|v| v == "call-id")
+                                                .unwrap_or(false)
+                                        })
+                                        .and_then(|t| t.as_slice().get(1).cloned())
+                                        .unwrap_or_default();
+
+                                    let call_type = rumor
+                                        .tags
+                                        .iter()
+                                        .find(|t| {
+                                            t.as_slice()
+                                                .first()
+                                                .map(|v| v == "call-type")
+                                                .unwrap_or(false)
+                                        })
+                                        .and_then(|t| t.as_slice().get(1).cloned());
+
+                                    let event = CallSignalingEvent {
+                                        kind: kind_num as u32,
+                                        sender_pubkey_hex: unwrapped.sender.to_hex(),
+                                        call_id,
+                                        call_type,
+                                        content: rumor.content.to_string(),
+                                        created_at: rumor.created_at.as_secs(),
+                                    };
+
+                                    let _ = sink.add(event);
+                                }
+                            }
+                            Err(_) => {
+                                // Could not unwrap — not for us or corrupted
+                            }
+                        }
+                    }
+                }
+                Ok(false) // false = keep listening
+            }
+        })
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    Ok(())
 }
 
 /// Build a call signaling event for a group call (MLS-encrypted, not gift-wrapped).

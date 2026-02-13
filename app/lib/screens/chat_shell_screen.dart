@@ -5,23 +5,63 @@ import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/screens/chat_view_screen.dart';
+import 'package:burrow_app/screens/group_info_screen.dart';
+import 'package:burrow_app/screens/invite_members_screen.dart';
 
-/// Notifier tracking which chat is currently selected in the split view.
-class SelectedChatNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
+/// What the right pane is currently showing.
+enum DetailView { chat, groupInfo, invite }
 
-  void select(String? groupId) => state = groupId;
+/// State for the right pane: which group + which view.
+class DetailPaneState {
+  final String? groupId;
+  final DetailView view;
+
+  const DetailPaneState({this.groupId, this.view = DetailView.chat});
+
+  DetailPaneState copyWith({String? groupId, DetailView? view}) {
+    return DetailPaneState(
+      groupId: groupId ?? this.groupId,
+      view: view ?? this.view,
+    );
+  }
 }
 
-final selectedChatProvider = NotifierProvider<SelectedChatNotifier, String?>(
-  SelectedChatNotifier.new,
-);
+class DetailPaneNotifier extends Notifier<DetailPaneState> {
+  @override
+  DetailPaneState build() => const DetailPaneState();
 
-/// Desktop split-pane layout: chat list on the left, chat view on the right.
-/// On narrow screens, this just shows the chat list (home_screen behavior).
+  void selectChat(String groupId) {
+    state = DetailPaneState(groupId: groupId, view: DetailView.chat);
+  }
+
+  void showGroupInfo(String groupId) {
+    state = DetailPaneState(groupId: groupId, view: DetailView.groupInfo);
+  }
+
+  void showInvite(String groupId) {
+    state = DetailPaneState(groupId: groupId, view: DetailView.invite);
+  }
+
+  void backToChat() {
+    if (state.groupId != null) {
+      state = DetailPaneState(groupId: state.groupId, view: DetailView.chat);
+    }
+  }
+}
+
+final detailPaneProvider =
+    NotifierProvider<DetailPaneNotifier, DetailPaneState>(
+      DetailPaneNotifier.new,
+    );
+
+/// Convenience: just the selected group ID.
+final selectedChatProvider = Provider<String?>((ref) {
+  return ref.watch(detailPaneProvider).groupId;
+});
+
+/// Desktop split-pane layout: chat list on the left, chat/info/invite on the right.
+/// On narrow screens, this just shows the chat list (mobile behavior).
 class ChatShellScreen extends ConsumerWidget {
-  /// If a groupId is passed via route, open that chat immediately.
   final String? initialGroupId;
   const ChatShellScreen({super.key, this.initialGroupId});
 
@@ -30,22 +70,22 @@ class ChatShellScreen extends ConsumerWidget {
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 700;
 
-    // If navigated with a groupId, set it as selected
     if (initialGroupId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(selectedChatProvider.notifier).select(initialGroupId);
+        final current = ref.read(detailPaneProvider);
+        if (current.groupId != initialGroupId) {
+          ref.read(detailPaneProvider.notifier).selectChat(initialGroupId!);
+        }
       });
     }
 
     if (!isWide) {
-      // Narrow: if we have a selected chat from route, show it full screen
       if (initialGroupId != null) {
         return ChatViewScreen(groupId: initialGroupId!);
       }
       return const _ChatListPane(isWide: false);
     }
 
-    // Wide: split pane
     return Scaffold(
       body: Row(
         children: [
@@ -54,14 +94,14 @@ class ChatShellScreen extends ConsumerWidget {
             child: Material(elevation: 1, child: _ChatListPane(isWide: true)),
           ),
           const VerticalDivider(width: 1),
-          const Expanded(child: _ChatDetailPane()),
+          const Expanded(child: _DetailPane()),
         ],
       ),
     );
   }
 }
 
-/// Left pane: chat list with app bar, FAB, groups.
+/// Left pane: chat list.
 class _ChatListPane extends ConsumerWidget {
   final bool isWide;
   const _ChatListPane({required this.isWide});
@@ -193,8 +233,8 @@ class _ChatListPane extends ConsumerWidget {
                   onTap: () {
                     if (isWide) {
                       ref
-                          .read(selectedChatProvider.notifier)
-                          .select(group.mlsGroupIdHex);
+                          .read(detailPaneProvider.notifier)
+                          .selectChat(group.mlsGroupIdHex);
                     } else {
                       context.go('/chat/${group.mlsGroupIdHex}');
                     }
@@ -211,16 +251,16 @@ class _ChatListPane extends ConsumerWidget {
   }
 }
 
-/// Right pane: shows the selected chat or an empty state.
-class _ChatDetailPane extends ConsumerWidget {
-  const _ChatDetailPane();
+/// Right pane: shows chat, group info, or invite based on detailPaneProvider.
+class _DetailPane extends ConsumerWidget {
+  const _DetailPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedId = ref.watch(selectedChatProvider);
+    final paneState = ref.watch(detailPaneProvider);
     final theme = Theme.of(context);
 
-    if (selectedId == null) {
+    if (paneState.groupId == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -241,6 +281,21 @@ class _ChatDetailPane extends ConsumerWidget {
       );
     }
 
-    return ChatViewScreen(key: ValueKey(selectedId), groupId: selectedId);
+    final groupId = paneState.groupId!;
+
+    switch (paneState.view) {
+      case DetailView.groupInfo:
+        return GroupInfoScreen(
+          key: ValueKey('info-$groupId'),
+          groupId: groupId,
+        );
+      case DetailView.invite:
+        return InviteMembersScreen(
+          key: ValueKey('invite-$groupId'),
+          groupId: groupId,
+        );
+      case DetailView.chat:
+        return ChatViewScreen(key: ValueKey('chat-$groupId'), groupId: groupId);
+    }
   }
 }

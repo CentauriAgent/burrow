@@ -5,6 +5,7 @@ import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 
 class ChatViewScreen extends ConsumerStatefulWidget {
@@ -52,14 +53,27 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final auth = ref.watch(authProvider);
     final selfPubkey = auth.value?.account.pubkeyHex ?? 'self';
 
+    final isWide = MediaQuery.of(context).size.width >= 700;
+
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
-        ),
+        leading: isWide
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/home'),
+              ),
+        automaticallyImplyLeading: false,
         title: InkWell(
-          onTap: () => context.push('/group-info/${widget.groupId}'),
+          onTap: () {
+            if (isWide) {
+              ref
+                  .read(detailPaneProvider.notifier)
+                  .showGroupInfo(widget.groupId);
+            } else {
+              context.push('/group-info/${widget.groupId}');
+            }
+          },
           child: Row(
             children: [
               CircleAvatar(
@@ -396,9 +410,14 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
   void _onMenuAction(BuildContext context, String action) {
     final groupId = widget.groupId;
+    final isWide = MediaQuery.of(context).size.width >= 700;
     switch (action) {
       case 'group_settings':
-        context.push('/group-info/$groupId');
+        if (isWide) {
+          ref.read(detailPaneProvider.notifier).showGroupInfo(groupId);
+        } else {
+          context.push('/group-info/$groupId');
+        }
       case 'search':
         ScaffoldMessenger.of(
           context,
