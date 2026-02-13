@@ -33,9 +33,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   Future<void> _createGroup() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Group name is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Group name is required')));
       return;
     }
 
@@ -48,7 +48,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           ? _selectedRelays.toList()
           : ref.read(relayProvider.notifier).defaultRelays;
 
-      final result = await ref.read(groupProvider.notifier).createNewGroup(
+      final result = await ref
+          .read(groupProvider.notifier)
+          .createNewGroup(
             name: name,
             description: _descController.text.trim(),
             adminPubkeysHex: [auth.account.pubkeyHex],
@@ -56,17 +58,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Group "$name" created!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Group "$name" created!')));
         // Navigate to invite members for this new group
         context.go('/invite/${result.mlsGroupIdHex}');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
     if (mounted) setState(() => _creating = false);
@@ -92,12 +94,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final url = controller.text.trim();
-              if (url.startsWith('wss://')) {
-                ref.read(relayProvider.notifier).addAndConnect(url);
+              if (url.startsWith('wss://') || url.startsWith('ws://')) {
+                Navigator.pop(ctx);
+                await ref.read(relayProvider.notifier).addAndConnect(url);
+                if (mounted) {
+                  setState(() {
+                    _selectedRelays.add(url);
+                  });
+                }
               }
-              Navigator.pop(ctx);
             },
             child: const Text('Add'),
           ),
@@ -136,17 +143,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     ? FileImage(_avatarImage!)
                     : null,
                 child: _avatarImage == null
-                    ? Icon(Icons.group_add, size: 36,
-                        color: theme.colorScheme.onPrimaryContainer)
+                    ? Icon(
+                        Icons.group_add,
+                        size: 36,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      )
                     : null,
               ),
             ),
           ),
           const SizedBox(height: 8),
           Center(
-            child: Text('Tap to set avatar',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: Colors.grey)),
+            child: Text(
+              'Tap to set avatar',
+              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -181,21 +192,26 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           // Relay selection
           Text('Relays', style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
-          Text('Select relays for group messages',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: Colors.grey)),
+          Text(
+            'Select relays for group messages',
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+          ),
           const SizedBox(height: 8),
           relays.when(
             data: (list) {
-              final defaultUrls = ref.read(relayProvider.notifier).defaultRelays;
+              final defaultUrls = ref
+                  .read(relayProvider.notifier)
+                  .defaultRelays;
               if (list.isEmpty) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Padding(
                       padding: EdgeInsets.all(8),
-                      child: Text('No relays configured. Tap to add default relays:',
-                          style: TextStyle(color: Colors.grey)),
+                      child: Text(
+                        'No relays configured. Tap to add default relays:',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
                     Wrap(
                       spacing: 8,
@@ -203,10 +219,15 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       children: defaultUrls.map((url) {
                         final isSelected = _selectedRelays.contains(url);
                         return FilterChip(
-                          label: Text(url, style: const TextStyle(fontSize: 11)),
-                          avatar: isSelected ? const Icon(Icons.check, size: 16) : const Icon(Icons.add, size: 16),
+                          label: Text(
+                            url,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          avatar: isSelected
+                              ? const Icon(Icons.check, size: 16)
+                              : const Icon(Icons.add, size: 16),
                           selected: isSelected,
-                          onSelected: (_) {
+                          onSelected: (_) async {
                             setState(() {
                               if (isSelected) {
                                 _selectedRelays.remove(url);
@@ -214,9 +235,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                                 _selectedRelays.add(url);
                               }
                             });
-                            // Also connect to the relay
                             if (!isSelected) {
-                              ref.read(relayProvider.notifier).addAndConnect(url);
+                              await ref
+                                  .read(relayProvider.notifier)
+                                  .addAndConnect(url);
                             }
                           },
                         );
@@ -237,9 +259,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     final selected = _selectedRelays.contains(r.url);
                     return CheckboxListTile(
                       dense: true,
-                      title: Text(r.url,
-                          style: const TextStyle(
-                              fontFamily: 'monospace', fontSize: 12)),
+                      title: Text(
+                        r.url,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
                       subtitle: Text(
                         r.connected ? 'Connected' : 'Disconnected',
                         style: TextStyle(
@@ -267,8 +293,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 ],
               );
             },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text('Error: $e'),
           ),
           const SizedBox(height: 32),
@@ -278,9 +303,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             onPressed: _creating ? null : _createGroup,
             icon: _creating
                 ? const SizedBox(
-                    height: 18, width: 18,
+                    height: 18,
+                    width: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.add),
             label: Text(_creating ? 'Creating...' : 'Create Group'),
             style: FilledButton.styleFrom(

@@ -18,11 +18,29 @@ thiserror = "2"
 
 # Marmot protocol dependencies (pinned to known working rev from WhiteNoise)
 mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
-mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
+mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 sha2 = "0.10"
+
+# Keyring for MdkSqliteStorage encryption key management
+keyring-core = "0.7"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-keyutils-keyring-store = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "0.2", features = ["keychain"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+apple-native-keyring-store = { version = "0.2", features = ["protected"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "0.5"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "0.5"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1094937169;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1054629041;
 
 // Section: executor
 
@@ -3827,6 +3827,41 @@ fn wire__crate__api__message__send_message_impl(
         },
     )
 }
+fn wire__crate__api__state__set_data_dir_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_data_dir",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::api::state::set_data_dir(api_path);
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__keypackage__set_key_package_relays_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -5795,64 +5830,65 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         101 => wire__crate__api__message__send_message_impl(port, ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__keypackage__set_key_package_relays_impl(
+        102 => wire__crate__api__state__set_data_dir_impl(port, ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__keypackage__set_key_package_relays_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__call_session__set_muted_impl(port, ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__identity__set_profile_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__call_session__set_video_enabled_impl(
+        104 => wire__crate__api__call_session__set_muted_impl(port, ptr, rust_vec_len, data_len),
+        105 => wire__crate__api__identity__set_profile_impl(port, ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__call_session__set_video_enabled_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => {
+        107 => {
             wire__crate__api__call_webrtc__should_use_sfu_impl(port, ptr, rust_vec_len, data_len)
         }
-        107 => wire__crate__api__transcription__start_transcription_impl(
+        108 => wire__crate__api__transcription__start_transcription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__crate__api__transcription__stop_transcription_impl(
+        109 => wire__crate__api__transcription__stop_transcription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__crate__api__call_signaling__subscribe_call_events_impl(
+        110 => wire__crate__api__call_signaling__subscribe_call_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__crate__api__meeting_intelligence__toggle_action_item_impl(
+        111 => wire__crate__api__meeting_intelligence__toggle_action_item_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__crate__api__transcription__transcription_config_default_impl(
+        112 => wire__crate__api__transcription__transcription_config_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        112 => wire__crate__api__group__update_group_name_impl(port, ptr, rust_vec_len, data_len),
-        113 => {
+        113 => wire__crate__api__group__update_group_name_impl(port, ptr, rust_vec_len, data_len),
+        114 => {
             wire__crate__api__call_webrtc__update_peer_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        114 => wire__crate__api__call_session__update_session_state_impl(
+        115 => wire__crate__api__call_session__update_session_state_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => wire__crate__api__media__upload_media_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__media__upload_media_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

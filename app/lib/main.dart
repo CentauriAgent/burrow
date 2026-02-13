@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/frb_generated.dart';
+import 'package:burrow_app/src/rust/api/state.dart' as rust_state;
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/screens/onboarding_screen.dart';
 import 'package:burrow_app/screens/create_identity_screen.dart';
@@ -25,6 +27,9 @@ import 'package:burrow_app/screens/chat_view_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
+  // Set the data directory for persistent MLS storage before auth loads
+  final appDir = await getApplicationSupportDirectory();
+  rust_state.setDataDir(path: appDir.path);
   runApp(const ProviderScope(child: BurrowApp()));
 }
 
@@ -39,7 +44,11 @@ class BurrowApp extends ConsumerWidget {
       initialLocation: loggedIn ? '/home' : '/onboarding',
       redirect: (context, state) {
         final path = state.uri.path;
-        final authPaths = ['/onboarding', '/create-identity', '/import-identity'];
+        final authPaths = [
+          '/onboarding',
+          '/create-identity',
+          '/import-identity',
+        ];
         if (!loggedIn && !authPaths.contains(path)) {
           return '/onboarding';
         }
@@ -61,10 +70,7 @@ class BurrowApp extends ConsumerWidget {
           path: '/import-identity',
           builder: (context, state) => const ImportIdentityScreen(),
         ),
-        GoRoute(
-          path: '/home',
-          builder: (context, state) => const HomeScreen(),
-        ),
+        GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
@@ -75,9 +81,8 @@ class BurrowApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/invite/:groupId',
-          builder: (context, state) => InviteMembersScreen(
-            groupId: state.pathParameters['groupId']!,
-          ),
+          builder: (context, state) =>
+              InviteMembersScreen(groupId: state.pathParameters['groupId']!),
         ),
         GoRoute(
           path: '/invites',
@@ -85,9 +90,8 @@ class BurrowApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/group-info/:groupId',
-          builder: (context, state) => GroupInfoScreen(
-            groupId: state.pathParameters['groupId']!,
-          ),
+          builder: (context, state) =>
+              GroupInfoScreen(groupId: state.pathParameters['groupId']!),
         ),
         GoRoute(
           path: '/new-dm',
@@ -95,9 +99,8 @@ class BurrowApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/chat/:groupId',
-          builder: (context, state) => ChatViewScreen(
-            groupId: state.pathParameters['groupId']!,
-          ),
+          builder: (context, state) =>
+              ChatViewScreen(groupId: state.pathParameters['groupId']!),
         ),
         GoRoute(
           path: '/transcript',
