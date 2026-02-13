@@ -7,6 +7,7 @@ import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
+import 'package:burrow_app/src/rust/api/error.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
 
@@ -129,7 +130,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error: ${_errorMsg(e)}')));
         setState(() => _leaving = false);
       }
     }
@@ -172,7 +173,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(SnackBar(content: Text('Error: ${_errorMsg(e)}')));
         }
       }
     }
@@ -203,6 +204,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         mlsGroupIdHex: widget.groupId,
         pubkeysHex: [pubkeyHex],
       );
+      // Merge the pending commit after removal
+      await mergePendingCommit(mlsGroupIdHex: widget.groupId);
       _loadGroupInfo();
       if (mounted) {
         ScaffoldMessenger.of(
@@ -211,9 +214,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e is BurrowError ? e.message : e.toString();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error: $msg')));
       }
     }
   }
@@ -290,11 +294,13 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error: ${_errorMsg(e)}')));
       }
     }
     if (mounted) setState(() => _updatingRelays = false);
   }
+
+  String _errorMsg(Object e) => e is BurrowError ? e.message : e.toString();
 
   String _truncateHex(String hex) {
     if (hex.length > 16) {

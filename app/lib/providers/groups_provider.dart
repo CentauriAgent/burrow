@@ -29,8 +29,12 @@ class GroupInfo {
   bool get isDirectMessage => rustGroup.isDirectMessage;
   String? get dmPeerPubkeyHex => rustGroup.dmPeerPubkeyHex;
 
-  /// Display name: for DMs show peer name, otherwise group name.
+  /// Display name: prefer group name, fall back to peer name for unnamed DMs.
   String get displayName {
+    // If the group has an explicit name, always use it
+    if (name.isNotEmpty) return name;
+
+    // For unnamed DMs, show peer display name or truncated pubkey
     if (isDirectMessage) {
       if (rustGroup.dmPeerDisplayName != null &&
           rustGroup.dmPeerDisplayName!.isNotEmpty) {
@@ -40,7 +44,7 @@ class GroupInfo {
         return UserService.truncatePubkey(dmPeerPubkeyHex!);
       }
     }
-    return name.isNotEmpty ? name : 'Unnamed Group';
+    return 'Unnamed Group';
   }
 
   /// DM peer profile picture URL (from Rust cache).
