@@ -38,25 +38,13 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
       keyPackageEventsJson: keyPackageEventsJson,
     );
 
-    print(
-      'DEBUG sendInvite: evolution=${result.evolutionEventJson.length}, welcomes=${result.welcomeRumorsJson.length}',
-    );
-    for (var j = 0; j < result.welcomeRumorsJson.length; j++) {
-      print(
-        'DEBUG sendInvite: welcome[$j] length=${result.welcomeRumorsJson[j].length}',
-      );
-    }
-
     // 2. Publish the evolution event (kind 445 commit) to relays
     if (result.evolutionEventJson.isNotEmpty) {
-      print('DEBUG sendInvite: publishing evolution event (kind 445)');
       await rust_relay.publishEventJson(eventJson: result.evolutionEventJson);
-      print('DEBUG sendInvite: evolution published OK');
     }
 
     // 3. Merge the pending commit in local MLS state
     await rust_group.mergePendingCommit(mlsGroupIdHex: mlsGroupIdHex);
-    print('DEBUG sendInvite: pending commit merged');
 
     // 4. Gift-wrap and publish each welcome rumor
     // MDK welcome rumors don't have "p" tags — the recipient is the author
@@ -67,59 +55,24 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
       return event['pubkey'] as String;
     }).toList();
 
-    print('DEBUG sendInvite: recipientPubkeys=$recipientPubkeys');
-
     for (var i = 0; i < result.welcomeRumorsJson.length; i++) {
       final welcomeJson = result.welcomeRumorsJson[i];
-      print(
-        'DEBUG sendInvite: processing welcome[$i], empty=${welcomeJson.isEmpty}',
-      );
       if (welcomeJson.isEmpty) continue;
 
       final recipientHex = i < recipientPubkeys.length
           ? recipientPubkeys[i]
           : null;
-      print('DEBUG sendInvite: recipient[$i]=$recipientHex');
       if (recipientHex == null) continue;
 
       // Gift-wrap the welcome for this recipient (NIP-59)
-      print('DEBUG sendInvite: gift-wrapping welcome for $recipientHex');
       final wrappedJson = await giftWrapWelcome(
         welcomeRumorJson: welcomeJson,
         recipientPubkeyHex: recipientHex,
       );
-      print(
-        'DEBUG sendInvite: gift-wrap done, wrappedJson length=${wrappedJson.length}',
-      );
-
-      // Dump the gift-wrapped event so we can verify p-tag and kind
-      try {
-        final wrapped = jsonDecode(wrappedJson) as Map<String, dynamic>;
-        print(
-          'DEBUG sendInvite: wrapped kind=${wrapped['kind']}, id=${wrapped['id']}',
-        );
-        final tags = wrapped['tags'] as List<dynamic>?;
-        if (tags != null) {
-          for (final tag in tags) {
-            print('DEBUG sendInvite: wrapped tag=$tag');
-          }
-        }
-      } catch (e) {
-        print('DEBUG sendInvite: could not parse wrapped event: $e');
-      }
 
       // Publish the gift-wrapped welcome to relays
-      print('DEBUG sendInvite: publishing gift-wrapped welcome (kind 1059)');
-      final publishResult = await rust_relay.publishEventJson(
-        eventJson: wrappedJson,
-      );
-      print('DEBUG sendInvite: publishEventJson result=$publishResult');
-      print(
-        'DEBUG sendInvite: gift-wrapped welcome published OK for $recipientHex',
-      );
+      await rust_relay.publishEventJson(eventJson: wrappedJson);
     }
-
-    print('DEBUG sendInvite: invite flow complete');
   }
 
   /// Fetch a user's key package from relays.
