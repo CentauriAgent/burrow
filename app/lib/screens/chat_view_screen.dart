@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
@@ -328,13 +329,47 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Attachment button
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              // TODO: Attachment picker
-            },
-            color: theme.colorScheme.onSurface.withAlpha(150),
+          // Attachment / plus button
+          PopupMenuButton<String>(
+            icon: Icon(
+              Icons.add_circle_outline,
+              color: theme.colorScheme.onSurface.withAlpha(150),
+            ),
+            offset: const Offset(0, -280),
+            onSelected: _onAttachmentAction,
+            itemBuilder: (context) => [
+              _attachmentMenuItem(
+                icon: Icons.image_outlined,
+                label: 'Photo',
+                value: 'photo',
+                theme: theme,
+              ),
+              _attachmentMenuItem(
+                icon: Icons.videocam_outlined,
+                label: 'Video',
+                value: 'video',
+                theme: theme,
+              ),
+              _attachmentMenuItem(
+                icon: Icons.insert_drive_file_outlined,
+                label: 'File',
+                value: 'file',
+                theme: theme,
+              ),
+              _attachmentMenuItem(
+                icon: Icons.gif_box_outlined,
+                label: 'GIF',
+                value: 'gif',
+                theme: theme,
+              ),
+              const PopupMenuDivider(),
+              _attachmentMenuItem(
+                icon: Icons.emoji_emotions_outlined,
+                label: 'Stickers',
+                value: 'stickers',
+                theme: theme,
+              ),
+            ],
           ),
 
           // Text field
@@ -345,42 +380,66 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: TextField(
-                controller: _messageController,
-                focusNode: _focusNode,
-                maxLines: null,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Message',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+              child: Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.enter &&
+                      !HardwareKeyboard.instance.isShiftPressed) {
+                    _sendMessage();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TextField(
+                  controller: _messageController,
+                  focusNode: _focusNode,
+                  maxLines: null,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Message',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
-                onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
 
           const SizedBox(width: 4),
 
-          // Send button
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            child: IconButton(
-              icon: _isSending
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
-                      ),
-                    )
-                  : Icon(Icons.send, color: theme.colorScheme.primary),
-              onPressed: _isSending ? null : _sendMessage,
-            ),
+          // Send button (when text) or Voice message button (when empty)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 150),
+            transitionBuilder: (child, animation) =>
+                ScaleTransition(scale: animation, child: child),
+            child: _messageController.text.trim().isNotEmpty
+                ? IconButton(
+                    key: const ValueKey('send'),
+                    icon: _isSending
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: theme.colorScheme.primary,
+                            ),
+                          )
+                        : Icon(Icons.send, color: theme.colorScheme.primary),
+                    onPressed: _isSending ? null : _sendMessage,
+                  )
+                : IconButton(
+                    key: const ValueKey('voice'),
+                    icon: Icon(
+                      Icons.mic,
+                      color: theme.colorScheme.onSurface.withAlpha(150),
+                    ),
+                    onPressed: _onVoiceMessage,
+                    tooltip: 'Voice message',
+                  ),
           ),
         ],
       ),
@@ -407,6 +466,45 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     }
 
     _focusNode.requestFocus();
+  }
+
+  PopupMenuItem<String> _attachmentMenuItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.onSurface),
+          const SizedBox(width: 12),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
+  void _onAttachmentAction(String action) {
+    // TODO: Implement encrypted Blossom upload for each media type
+    final labels = {
+      'photo': 'Photo picker',
+      'video': 'Video picker',
+      'file': 'File picker',
+      'gif': 'GIF picker',
+      'stickers': 'Nostr sticker packs',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${labels[action] ?? action} coming soon')),
+    );
+  }
+
+  void _onVoiceMessage() {
+    // TODO: Record audio, encrypt, upload to Blossom, send URL in message
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Voice messages coming soon')));
   }
 
   void _onMenuAction(BuildContext context, String action) {
