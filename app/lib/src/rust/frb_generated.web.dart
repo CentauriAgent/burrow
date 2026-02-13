@@ -17,10 +17,12 @@ import 'api/identity.dart';
 import 'api/invite.dart';
 import 'api/keypackage.dart';
 import 'api/media.dart';
+import 'api/meeting_intelligence.dart';
 import 'api/message.dart';
 import 'api/relay.dart';
 import 'api/simple.dart';
 import 'api/state.dart';
+import 'api/transcription.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -34,32 +36,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     required super.portManager,
   });
 
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_BurrowStatePtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ClientPtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient;
-
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_KeysPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MdkMdkMemoryStoragePtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage;
-
-  @protected
-  BurrowState
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    dynamic raw,
-  );
-
-  @protected
-  Client
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    dynamic raw,
-  );
 
   @protected
   Keys
@@ -68,44 +46,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  MdkMdkMemoryStorage
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    dynamic raw,
-  );
-
-  @protected
-  BurrowState
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    dynamic raw,
-  );
-
-  @protected
-  BurrowState
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    dynamic raw,
-  );
-
-  @protected
-  BurrowState
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    dynamic raw,
-  );
-
-  @protected
-  Client
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    dynamic raw,
-  );
-
-  @protected
   Keys
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-    dynamic raw,
-  );
-
-  @protected
-  MdkMdkMemoryStorage
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
     dynamic raw,
   );
 
@@ -117,6 +59,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AdaptiveBitrateConfig dco_decode_adaptive_bitrate_config(dynamic raw);
+
+  @protected
+  AiBackend dco_decode_ai_backend(dynamic raw);
 
   @protected
   AudioConstraints dco_decode_audio_constraints(dynamic raw);
@@ -182,6 +127,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EncryptedFileResult dco_decode_encrypted_file_result(dynamic raw);
 
   @protected
+  double dco_decode_f_32(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -192,6 +140,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   IceServer dco_decode_ice_server(dynamic raw);
@@ -224,6 +175,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PeerEntry> dco_decode_list_peer_entry(dynamic raw);
 
   @protected
+  List<double> dco_decode_list_prim_f_32_loose(dynamic raw);
+
+  @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -234,6 +191,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SimulcastLayer> dco_decode_list_simulcast_layer(dynamic raw);
+
+  @protected
+  List<TranscriptSegment> dco_decode_list_transcript_segment(dynamic raw);
 
   @protected
   List<WelcomeInfo> dco_decode_list_welcome_info(dynamic raw);
@@ -310,6 +270,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SimulcastLayer dco_decode_simulcast_layer(dynamic raw);
 
   @protected
+  TranscriptSegment dco_decode_transcript_segment(dynamic raw);
+
+  @protected
+  TranscriptionConfig dco_decode_transcription_config(dynamic raw);
+
+  @protected
   int dco_decode_u_32(dynamic raw);
 
   @protected
@@ -343,62 +309,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   WelcomeInfo dco_decode_welcome_info(dynamic raw);
 
   @protected
-  BurrowState
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  Client
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   Keys
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
     SseDeserializer deserializer,
   );
 
   @protected
-  MdkMdkMemoryStorage
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BurrowState
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BurrowState
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BurrowState
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  Client
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   Keys
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MdkMdkMemoryStorage
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
     SseDeserializer deserializer,
   );
 
@@ -412,6 +330,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdaptiveBitrateConfig sse_decode_adaptive_bitrate_config(
     SseDeserializer deserializer,
   );
+
+  @protected
+  AiBackend sse_decode_ai_backend(SseDeserializer deserializer);
 
   @protected
   AudioConstraints sse_decode_audio_constraints(SseDeserializer deserializer);
@@ -487,6 +408,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -497,6 +421,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   IceServer sse_decode_ice_server(SseDeserializer deserializer);
@@ -531,6 +458,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PeerEntry> sse_decode_list_peer_entry(SseDeserializer deserializer);
 
   @protected
+  List<double> sse_decode_list_prim_f_32_loose(SseDeserializer deserializer);
+
+  @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -541,6 +474,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SimulcastLayer> sse_decode_list_simulcast_layer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<TranscriptSegment> sse_decode_list_transcript_segment(
     SseDeserializer deserializer,
   );
 
@@ -633,6 +571,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SimulcastLayer sse_decode_simulcast_layer(SseDeserializer deserializer);
 
   @protected
+  TranscriptSegment sse_decode_transcript_segment(SseDeserializer deserializer);
+
+  @protected
+  TranscriptionConfig sse_decode_transcription_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
@@ -673,20 +619,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    BurrowState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    Client self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
     Keys self,
     SseSerializer serializer,
@@ -694,50 +626,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    MdkMdkMemoryStorage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    BurrowState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    BurrowState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    BurrowState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    Client self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
     Keys self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    MdkMdkMemoryStorage self,
     SseSerializer serializer,
   );
 
@@ -752,6 +642,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     AdaptiveBitrateConfig self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_ai_backend(AiBackend self, SseSerializer serializer);
 
   @protected
   void sse_encode_audio_constraints(
@@ -847,6 +740,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -857,6 +753,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_ice_server(IceServer self, SseSerializer serializer);
@@ -913,6 +812,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_prim_f_32_loose(
+    List<double> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -930,6 +841,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_simulcast_layer(
     List<SimulcastLayer> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_transcript_segment(
+    List<TranscriptSegment> self,
     SseSerializer serializer,
   );
 
@@ -1039,6 +956,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_transcript_segment(
+    TranscriptSegment self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_transcription_config(
+    TranscriptionConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
@@ -1090,38 +1019,6 @@ class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-        ptr,
-      );
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-        ptr,
-      );
-
-  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
     int ptr,
   ) => wasmModule
@@ -1136,22 +1033,6 @@ class RustLibWire implements BaseWire {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
         ptr,
       );
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-        ptr,
-      );
 }
 
 @JS('wasm_bindgen')
@@ -1161,42 +1042,12 @@ external RustLibWasmModule get wasmModule;
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
   external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBurrowState(
-    int ptr,
-  );
-
-  external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClient(
-    int ptr,
-  );
-
-  external void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
     int ptr,
   );
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-    int ptr,
-  );
-
-  external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMDKMdkMemoryStorage(
     int ptr,
   );
 }

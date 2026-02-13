@@ -34,10 +34,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         index: _navIndex,
         children: [
           _buildChatsList(theme),
-          _buildPlaceholderTab(theme, Icons.contacts_outlined, 'Contacts',
-              'Contact list coming soon'),
           _buildPlaceholderTab(
-              theme, Icons.call_outlined, 'Calls', 'Voice & video calls coming soon'),
+            theme,
+            Icons.contacts_outlined,
+            'Contacts',
+            'Contact list coming soon',
+          ),
+          _buildPlaceholderTab(
+            theme,
+            Icons.call_outlined,
+            'Calls',
+            'Voice & video calls coming soon',
+          ),
           _buildSettingsTab(theme),
         ],
       ),
@@ -123,11 +131,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final filtered = _searchQuery.isEmpty
         ? groups
         : groups
-            .where((g) =>
-                g.displayName.toLowerCase().contains(_searchQuery) ||
-                g.name.toLowerCase().contains(_searchQuery) ||
-                (g.lastMessage?.toLowerCase().contains(_searchQuery) ?? false))
-            .toList();
+              .where(
+                (g) =>
+                    g.displayName.toLowerCase().contains(_searchQuery) ||
+                    g.name.toLowerCase().contains(_searchQuery) ||
+                    (g.lastMessage?.toLowerCase().contains(_searchQuery) ??
+                        false),
+              )
+              .toList();
 
     if (groups.isEmpty) {
       return _buildEmptyState(theme);
@@ -137,7 +148,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       onRefresh: () => ref.read(groupsProvider.notifier).refresh(),
       child: ListView.separated(
         itemCount: filtered.length,
-        separatorBuilder: (_, __) => Divider(
+        separatorBuilder: (_, _) => Divider(
           height: 1,
           indent: 80,
           color: theme.colorScheme.outlineVariant.withAlpha(50),
@@ -165,7 +176,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.lock_outline, size: 72, color: theme.colorScheme.primary.withAlpha(150)),
+            Icon(
+              Icons.lock_outline,
+              size: 72,
+              color: theme.colorScheme.primary.withAlpha(150),
+            ),
             const SizedBox(height: 20),
             Text(
               'No conversations yet',
@@ -194,7 +209,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   Widget _buildPlaceholderTab(
-      ThemeData theme, IconData icon, String title, String subtitle) {
+    ThemeData theme,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -203,9 +222,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           const SizedBox(height: 16),
           Text(title, style: theme.textTheme.titleLarge),
           const SizedBox(height: 8),
-          Text(subtitle,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurface.withAlpha(120))),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withAlpha(120),
+            ),
+          ),
         ],
       ),
     );
@@ -222,7 +244,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           leading: CircleAvatar(
             radius: 28,
             backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(Icons.person, color: theme.colorScheme.onPrimaryContainer),
+            child: Icon(
+              Icons.person,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
           ),
           title: const Text('Profile'),
           subtitle: npub.isNotEmpty
@@ -256,11 +281,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ),
         const Divider(),
         ListTile(
-          leading: Icon(Icons.info_outline, color: theme.colorScheme.onSurface.withAlpha(150)),
+          leading: Icon(
+            Icons.info_outline,
+            color: theme.colorScheme.onSurface.withAlpha(150),
+          ),
           title: const Text('About Burrow'),
-          subtitle: Text('Marmot Protocol • End-to-end encrypted',
-              style: TextStyle(
-                  fontSize: 12, color: theme.colorScheme.onSurface.withAlpha(120))),
+          subtitle: Text(
+            'Marmot Protocol • End-to-end encrypted',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurface.withAlpha(120),
+            ),
+          ),
           onTap: () {},
         ),
       ],
@@ -286,9 +318,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('New Conversation',
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                'New Conversation',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 20),
               ListTile(
                 leading: CircleAvatar(

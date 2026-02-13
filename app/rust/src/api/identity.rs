@@ -1,4 +1,10 @@
 //! Identity management: import/export keys, manage display name and profile.
+//!
+//! Profile fetching follows the White Noise pattern:
+//! - `blocking_sync = false`: return from cache immediately (may be empty)
+//! - `blocking_sync = true`: query relays and wait for result
+
+use std::time::Duration;
 
 use flutter_rust_bridge::frb;
 use nostr_sdk::prelude::*;
@@ -48,47 +54,234 @@ pub struct ProfileData {
     pub lud16: Option<String>,
 }
 
+impl ProfileData {
+    /// Returns true if all meaningful display fields are empty.
+    #[frb(ignore)]
+    pub fn is_empty(&self) -> bool {
+        self.name.is_none()
+            && self.display_name.is_none()
+            && self.picture.is_none()
+    }
+
+    /// Build from nostr_sdk Metadata.
+    #[frb(ignore)]
+    pub fn from_metadata(m: &Metadata) -> Self {
+        ProfileData {
+            name: m.name.clone(),
+            display_name: m.display_name.clone(),
+            about: m.about.clone(),
+            picture: m.picture.as_ref().map(|u| u.to_string()),
+            nip05: m.nip05.clone(),
+            lud16: m.lud16.clone(),
+        }
+    }
+
+    /// Convert to nostr_sdk Metadata.
+    #[frb(ignore)]
+    pub fn to_metadata(&self) -> Result<Metadata, BurrowError> {
+        let mut metadata = Metadata::new();
+        if let Some(ref name) = self.name {
+            metadata = metadata.name(name);
+        }
+        if let Some(ref display_name) = self.display_name {
+            metadata = metadata.display_name(display_name);
+        }
+        if let Some(ref about) = self.about {
+            metadata = metadata.about(about);
+        }
+        if let Some(ref picture) = self.picture {
+            metadata = metadata.picture(
+                Url::parse(picture).map_err(|e| BurrowError::from(e.to_string()))?,
+            );
+        }
+        if let Some(ref nip05) = self.nip05 {
+            metadata = metadata.nip05(nip05);
+        }
+        if let Some(ref lud16) = self.lud16 {
+            metadata = metadata.lud16(lud16);
+        }
+        Ok(metadata)
+    }
+
+    /// Best display name: prefers display_name, falls back to name.
+    #[frb(ignore)]
+    pub fn best_name(&self) -> Option<String> {
+        self.display_name
+            .clone()
+            .or_else(|| self.name.clone())
+    }
+}
+
 /// Publish a kind 0 metadata event to connected relays.
 #[frb]
 pub async fn set_profile(profile: ProfileData) -> Result<(), BurrowError> {
-    state::with_state(|_s| {
-        let mut metadata = Metadata::new();
-        if let Some(name) = profile.name {
-            metadata = metadata.name(name);
-        }
-        if let Some(display_name) = profile.display_name {
-            metadata = metadata.display_name(display_name);
-        }
-        if let Some(about) = profile.about {
-            metadata = metadata.about(about);
-        }
-        if let Some(picture) = profile.picture {
-            metadata = metadata.picture(Url::parse(&picture).map_err(|e| BurrowError::from(e.to_string()))?);
-        }
-        if let Some(nip05) = profile.nip05 {
-            metadata = metadata.nip05(nip05);
-        }
-        if let Some(lud16) = profile.lud16 {
-            metadata = metadata.lud16(lud16);
-        }
+    let metadata = profile.to_metadata()?;
+    state::with_state(|s| {
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+        rt.block_on(async {
+            let builder = EventBuilder::metadata(&metadata);
+            s.client
+                .send_event_builder(builder)
+                .await
+                .map_err(|e| BurrowError::from(e.to_string()))?;
+            Ok(())
+        })
+    })
+    .await?;
 
-        // Build and sign the event — actual publishing happens via relay module
-        let _event = EventBuilder::metadata(&metadata);
+    // Update cache with our own profile
+    let pubkey_hex = state::with_state(|s| Ok(s.keys.public_key().to_hex())).await?;
+    state::with_state_mut(|s| {
+        s.profile_cache.insert(pubkey_hex, profile);
         Ok(())
     })
     .await
 }
 
-/// Fetch the metadata for a given pubkey from connected relays.
+/// Fetch the metadata for a given pubkey.
+///
+/// - `blocking_sync = false`: return cached data immediately (may be empty).
+/// - `blocking_sync = true`: query connected relays and wait up to 10 seconds.
+///
+/// Follows the White Noise two-step pattern: Flutter calls with false first,
+/// then with true only if the result is empty.
 #[frb]
-pub async fn fetch_profile(pubkey_hex: String) -> Result<ProfileData, BurrowError> {
-    let pubkey = PublicKey::parse(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
-    state::with_state(|_s| {
-        // Use the nostr client to fetch metadata
-        let _pubkey = pubkey;
-        // For now, return empty profile — actual fetching requires async relay queries
-        // which will be wired up when relay connections are established
-        Ok(ProfileData::default())
+pub async fn fetch_profile(
+    pubkey_hex: String,
+    blocking_sync: bool,
+) -> Result<ProfileData, BurrowError> {
+    // Check cache first
+    let cached = state::with_state(|s| {
+        Ok(s.profile_cache.get(&pubkey_hex).cloned())
+    })
+    .await?;
+
+    if !blocking_sync {
+        return Ok(cached.unwrap_or_default());
+    }
+
+    // If cache has data and we're not forcing refresh, return it
+    if let Some(ref profile) = cached {
+        if !profile.is_empty() {
+            return Ok(profile.clone());
+        }
+    }
+
+    // Query relays for kind 0 metadata
+    let pubkey =
+        PublicKey::parse(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
+
+    let profile = state::with_state(|s| {
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+        rt.block_on(async {
+            let filter = Filter::new()
+                .kind(Kind::Metadata)
+                .author(pubkey)
+                .limit(1);
+            let events = s
+                .client
+                .fetch_events(filter, Duration::from_secs(10))
+                .await
+                .map_err(|e| BurrowError::from(e.to_string()))?;
+
+            if let Some(event) = events.into_iter().next() {
+                let metadata = Metadata::from_json(&event.content)
+                    .map_err(|e| BurrowError::from(e.to_string()))?;
+                Ok(ProfileData::from_metadata(&metadata))
+            } else {
+                Ok(ProfileData::default())
+            }
+        })
+    })
+    .await?;
+
+    // Store in cache
+    if !profile.is_empty() {
+        let pk_hex = pubkey_hex.clone();
+        let cached_profile = profile.clone();
+        state::with_state_mut(|s| {
+            s.profile_cache.insert(pk_hex, cached_profile);
+            Ok(())
+        })
+        .await?;
+    }
+
+    Ok(profile)
+}
+
+/// Fetch relay list (NIP-65 kind 10002) for a given pubkey.
+/// Returns a list of relay URLs.
+#[frb]
+pub async fn fetch_user_relays(pubkey_hex: String) -> Result<Vec<String>, BurrowError> {
+    let pubkey =
+        PublicKey::parse(&pubkey_hex).map_err(|e| BurrowError::from(e.to_string()))?;
+
+    state::with_state(|s| {
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+        rt.block_on(async {
+            let filter = Filter::new()
+                .kind(Kind::RelayList)
+                .author(pubkey)
+                .limit(1);
+            let events = s
+                .client
+                .fetch_events(filter, Duration::from_secs(10))
+                .await
+                .map_err(|e| BurrowError::from(e.to_string()))?;
+
+            if let Some(event) = events.into_iter().next() {
+                let urls: Vec<String> = event
+                    .tags
+                    .iter()
+                    .filter(|t| t.kind() == TagKind::single_letter(Alphabet::R, false))
+                    .filter_map(|t| t.content().map(|s| s.to_string()))
+                    .collect();
+                Ok(urls)
+            } else {
+                Ok(vec![])
+            }
+        })
+    })
+    .await
+}
+
+/// Bootstrap a newly imported identity: connect default relays, fetch own
+/// profile (kind 0) and relay list (NIP-65 kind 10002), then add user's
+/// relays if found.
+#[frb]
+pub async fn bootstrap_identity() -> Result<ProfileData, BurrowError> {
+    let pubkey_hex = state::with_state(|s| Ok(s.keys.public_key().to_hex())).await?;
+
+    // Connect to default relays first
+    let defaults = crate::api::relay::default_relay_urls();
+    for url in &defaults {
+        let _ = crate::api::relay::add_relay(url.clone()).await;
+    }
+    crate::api::relay::connect_relays().await?;
+
+    // Fetch own profile from relays (blocking)
+    let profile = fetch_profile(pubkey_hex.clone(), true).await?;
+
+    // Fetch user's relay list and add those relays too
+    let user_relays = fetch_user_relays(pubkey_hex).await.unwrap_or_default();
+    for url in &user_relays {
+        let _ = crate::api::relay::add_relay(url.clone()).await;
+    }
+    if !user_relays.is_empty() {
+        let _ = crate::api::relay::connect_relays().await;
+    }
+
+    Ok(profile)
+}
+
+/// Look up a cached profile without any relay queries. Returns empty if not cached.
+#[frb]
+pub async fn get_cached_profile(pubkey_hex: String) -> Result<ProfileData, BurrowError> {
+    state::with_state(|s| {
+        Ok(s.profile_cache.get(&pubkey_hex).cloned().unwrap_or_default())
     })
     .await
 }

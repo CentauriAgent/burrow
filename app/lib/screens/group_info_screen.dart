@@ -66,7 +66,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Leave Group'),
         content: Text(
-            'Leave "${_group?.name ?? 'this group'}"? You\'ll need a new invitation to rejoin.'),
+          'Leave "${_group?.name ?? 'this group'}"? You\'ll need a new invitation to rejoin.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -86,16 +87,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     try {
       await ref.read(groupProvider.notifier).leaveFromGroup(widget.groupId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Left group')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Left group')));
         context.go('/home');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
         setState(() => _leaving = false);
       }
     }
@@ -136,9 +137,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         _loadGroupInfo();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
       }
     }
@@ -149,8 +150,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove Member'),
-        content: Text(
-            'Remove ${_truncateHex(pubkeyHex)} from the group?'),
+        content: Text('Remove ${_truncateHex(pubkeyHex)} from the group?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -173,15 +173,15 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       );
       _loadGroupInfo();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member removed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Member removed')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -251,8 +251,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             child: CircleAvatar(
               radius: 40,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.group, size: 36,
-                  color: theme.colorScheme.onPrimaryContainer),
+              child: Icon(
+                Icons.group,
+                size: 36,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -264,8 +267,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 children: [
                   Text(
                     group.name.isNotEmpty ? group.name : 'Unnamed Group',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   if (isAdmin) ...[
                     const SizedBox(width: 4),
@@ -278,26 +282,25 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           if (group.description.isNotEmpty) ...[
             const SizedBox(height: 4),
             Center(
-              child: Text(group.description,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: Colors.grey),
-                  textAlign: TextAlign.center),
+              child: Text(
+                group.description,
+                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
           const SizedBox(height: 8),
           Center(
             child: Chip(
               avatar: Icon(
-                group.state == 'active'
-                    ? Icons.check_circle
-                    : Icons.pending,
+                group.state == 'active' ? Icons.check_circle : Icons.pending,
                 size: 16,
-                color: group.state == 'active'
-                    ? Colors.green
-                    : Colors.amber,
+                color: group.state == 'active' ? Colors.green : Colors.amber,
               ),
-              label: Text('${group.state} · epoch ${group.epoch}',
-                  style: const TextStyle(fontSize: 12)),
+              label: Text(
+                '${group.state} · epoch ${group.epoch}',
+                style: const TextStyle(fontSize: 12),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -307,11 +310,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           const SizedBox(height: 4),
           GestureDetector(
             onTap: () {
-              Clipboard.setData(
-                  ClipboardData(text: group.nostrGroupIdHex));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Group ID copied')),
-              );
+              Clipboard.setData(ClipboardData(text: group.nostrGroupIdHex));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Group ID copied')));
             },
             child: Container(
               padding: const EdgeInsets.all(10),
@@ -325,7 +327,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     child: Text(
                       _truncateHex(group.nostrGroupIdHex),
                       style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   const Icon(Icons.copy, size: 16, color: Colors.grey),
@@ -338,13 +342,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           // Members
           Row(
             children: [
-              Text('Members (${members.length})',
-                  style: theme.textTheme.titleMedium),
+              Text(
+                'Members (${members.length})',
+                style: theme.textTheme.titleMedium,
+              ),
               const Spacer(),
               if (isAdmin)
                 TextButton.icon(
-                  onPressed: () =>
-                      context.go('/invite/${widget.groupId}'),
+                  onPressed: () => context.go('/invite/${widget.groupId}'),
                   icon: const Icon(Icons.person_add, size: 16),
                   label: const Text('Add'),
                 ),
@@ -352,60 +357,71 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           ),
           const SizedBox(height: 8),
           ...members.map((m) {
-            final isSelf = m.pubkeyHex ==
-                ref
-                    .read(authProvider)
-                    .value
-                    ?.account
-                    .pubkeyHex;
-            final isMemberAdmin =
-                group.adminPubkeys.contains(m.pubkeyHex);
+            final isSelf =
+                m.pubkeyHex == ref.read(authProvider).value?.account.pubkeyHex;
+            final isMemberAdmin = group.adminPubkeys.contains(m.pubkeyHex);
+
+            final memberName = m.displayName ?? _truncateHex(m.pubkeyHex);
+            final initials = m.displayName != null && m.displayName!.isNotEmpty
+                ? m.displayName!.substring(0, 1).toUpperCase()
+                : m.pubkeyHex.substring(0, 2).toUpperCase();
 
             return ListTile(
               dense: true,
-              leading: CircleAvatar(
-                radius: 18,
-                backgroundColor:
-                    theme.colorScheme.secondaryContainer,
-                child: Text(
-                  m.pubkeyHex.substring(0, 2).toUpperCase(),
-                  style: TextStyle(
-                    color:
-                        theme.colorScheme.onSecondaryContainer,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              leading: m.picture != null
+                  ? CircleAvatar(
+                      radius: 18,
+                      backgroundImage: NetworkImage(m.picture!),
+                      backgroundColor: theme.colorScheme.secondaryContainer,
+                    )
+                  : CircleAvatar(
+                      radius: 18,
+                      backgroundColor: theme.colorScheme.secondaryContainer,
+                      child: Text(
+                        initials,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSecondaryContainer,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
               title: Row(
                 children: [
                   Flexible(
                     child: Text(
-                      _truncateHex(m.pubkeyHex),
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
+                      memberName,
+                      style: m.displayName != null
+                          ? theme.textTheme.bodyMedium
+                          : const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
                     ),
                   ),
                   if (isSelf) ...[
                     const SizedBox(width: 6),
-                    const Text('(you)',
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey)),
+                    const Text(
+                      '(you)',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ],
                 ],
               ),
               subtitle: isMemberAdmin
-                  ? const Text('Admin',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.amber))
+                  ? const Text(
+                      'Admin',
+                      style: TextStyle(fontSize: 11, color: Colors.amber),
+                    )
                   : null,
               trailing: isAdmin && !isSelf
                   ? IconButton(
-                      icon: const Icon(Icons.remove_circle_outline,
-                          size: 18, color: Colors.red),
-                      onPressed: () =>
-                          _removeMember(m.pubkeyHex),
+                      icon: const Icon(
+                        Icons.remove_circle_outline,
+                        size: 18,
+                        color: Colors.red,
+                      ),
+                      onPressed: () => _removeMember(m.pubkeyHex),
                       tooltip: 'Remove',
                     )
                   : null,
@@ -420,10 +436,13 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 ? const SizedBox(
                     height: 16,
                     width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.exit_to_app, color: Colors.red),
-            label: Text(_leaving ? 'Leaving...' : 'Leave Group',
-                style: const TextStyle(color: Colors.red)),
+            label: Text(
+              _leaving ? 'Leaving...' : 'Leave Group',
+              style: const TextStyle(color: Colors.red),
+            ),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Colors.red),
               minimumSize: const Size.fromHeight(44),

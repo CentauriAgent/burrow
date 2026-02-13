@@ -1,12 +1,19 @@
-/// Pure Dart unit tests for call state models.
-/// These test the data structures without depending on Rust FFI bindings.
+// Pure Dart unit tests for call state models.
+// These test the data structures without depending on Rust FFI bindings.
 import 'package:flutter_test/flutter_test.dart';
 
 // Inline copies of CallStatus and CallState for testing without FFI dependencies.
 // These mirror the types in providers/call_provider.dart.
 
 enum CallStatus {
-  idle, incoming, outgoing, connecting, active, ending, ended, failed,
+  idle,
+  incoming,
+  outgoing,
+  connecting,
+  active,
+  ending,
+  ended,
+  failed,
 }
 
 class CallState {

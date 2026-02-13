@@ -28,14 +28,28 @@ pub struct GroupInfo {
     pub epoch: u64,
     /// Group state: "active", "pending", or "inactive".
     pub state: String,
+    /// Number of members in the group.
+    pub member_count: u32,
+    /// Whether this is a 1:1 direct message group (2 members, including self).
+    pub is_direct_message: bool,
+    /// For DMs: the peer's display name (from profile cache). None for groups.
+    pub dm_peer_display_name: Option<String>,
+    /// For DMs: the peer's profile picture URL. None for groups.
+    pub dm_peer_picture: Option<String>,
+    /// For DMs: the peer's pubkey hex. None for groups.
+    pub dm_peer_pubkey_hex: Option<String>,
 }
 
-/// Member information for FFI.
+/// Member information for FFI, enriched with cached profile data.
 #[frb(non_opaque)]
 #[derive(Debug, Clone)]
 pub struct MemberInfo {
     /// Hex-encoded public key of the member.
     pub pubkey_hex: String,
+    /// Display name from cached profile (if available).
+    pub display_name: Option<String>,
+    /// Profile picture URL from cached profile (if available).
+    pub picture: Option<String>,
 }
 
 /// Result of creating a group, including welcome events for invited members.
@@ -70,7 +84,32 @@ fn group_state_str(state: &group_types::GroupState) -> String {
     }
 }
 
-fn group_to_info(group: &group_types::Group) -> GroupInfo {
+fn group_to_info(group: &group_types::Group, s: &state::BurrowState) -> GroupInfo {
+    let members_set = s
+        .mdk
+        .get_members(&group.mls_group_id)
+        .unwrap_or_default();
+    let members: Vec<PublicKey> = members_set.into_iter().collect();
+    let member_count = members.len() as u32;
+    let is_dm = member_count == 2;
+    let self_pubkey = s.keys.public_key();
+
+    let (dm_peer_display_name, dm_peer_picture, dm_peer_pubkey_hex) = if is_dm {
+        if let Some(peer) = members.iter().find(|pk| **pk != self_pubkey) {
+            let hex = peer.to_hex();
+            let cached = s.profile_cache.get(&hex);
+            (
+                cached.and_then(|p| p.best_name()),
+                cached.and_then(|p| p.picture.clone()),
+                Some(hex),
+            )
+        } else {
+            (None, None, None)
+        }
+    } else {
+        (None, None, None)
+    };
+
     GroupInfo {
         mls_group_id_hex: hex::encode(group.mls_group_id.as_slice()),
         nostr_group_id_hex: hex::encode(group.nostr_group_id),
@@ -79,6 +118,11 @@ fn group_to_info(group: &group_types::Group) -> GroupInfo {
         admin_pubkeys: group.admin_pubkeys.iter().map(|pk: &PublicKey| pk.to_hex()).collect(),
         epoch: group.epoch,
         state: group_state_str(&group.state),
+        member_count,
+        is_direct_message: is_dm,
+        dm_peer_display_name,
+        dm_peer_picture,
+        dm_peer_pubkey_hex,
     }
 }
 
@@ -143,7 +187,7 @@ pub async fn create_group(
             .collect();
 
         let mls_group_id_hex = hex::encode(result.group.mls_group_id.as_slice());
-        let group_info = group_to_info(&result.group);
+        let group_info = group_to_info(&result.group, s);
 
         Ok(CreateGroupResult {
             group: group_info,
@@ -176,7 +220,7 @@ pub async fn merge_pending_commit(mls_group_id_hex: String) -> Result<(), Burrow
 pub async fn list_groups() -> Result<Vec<GroupInfo>, BurrowError> {
     state::with_state(|s| {
         let groups = s.mdk.get_groups().map_err(BurrowError::from)?;
-        Ok(groups.iter().map(group_to_info).collect())
+        Ok(groups.iter().map(|g| group_to_info(g, s)).collect())
     })
     .await
 }
@@ -193,12 +237,12 @@ pub async fn get_group(mls_group_id_hex: String) -> Result<GroupInfo, BurrowErro
             .get_group(&group_id)
             .map_err(BurrowError::from)?
             .ok_or_else(|| BurrowError::from("Group not found".to_string()))?;
-        Ok(group_to_info(&group))
+        Ok(group_to_info(&group, s))
     })
     .await
 }
 
-/// Get members of a group.
+/// Get members of a group, enriched with cached profile data.
 #[frb]
 pub async fn get_group_members(mls_group_id_hex: String) -> Result<Vec<MemberInfo>, BurrowError> {
     state::with_state(|s| {
@@ -208,8 +252,14 @@ pub async fn get_group_members(mls_group_id_hex: String) -> Result<Vec<MemberInf
         let members = s.mdk.get_members(&group_id).map_err(BurrowError::from)?;
         Ok(members
             .iter()
-            .map(|pk| MemberInfo {
-                pubkey_hex: pk.to_hex(),
+            .map(|pk| {
+                let hex = pk.to_hex();
+                let cached = s.profile_cache.get(&hex);
+                MemberInfo {
+                    pubkey_hex: hex,
+                    display_name: cached.and_then(|p| p.best_name()),
+                    picture: cached.and_then(|p| p.picture.clone()),
+                }
             })
             .collect())
     })

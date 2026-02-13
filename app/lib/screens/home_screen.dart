@@ -10,14 +10,14 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
+    ref.watch(authProvider);
     final groups = ref.watch(groupProvider);
     final pendingCount = ref.watch(pendingInviteCountProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Burrow 🦫'),
+        title: const Text('Burrow'),
         actions: [
           // Pending invites badge
           Stack(
@@ -40,9 +40,10 @@ class HomeScreen extends ConsumerWidget {
                     child: Text(
                       '$pendingCount',
                       style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold),
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -68,16 +69,19 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.chat_bubble_outline,
-                        size: 64, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      size: 64,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(height: 16),
-                    Text('No groups yet',
-                        style: theme.textTheme.titleLarge),
+                    Text('No groups yet', style: theme.textTheme.titleLarge),
                     const SizedBox(height: 8),
                     Text(
                       'Create a group or accept an invitation to get started.',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: Colors.grey),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
@@ -92,7 +96,8 @@ class HomeScreen extends ConsumerWidget {
                         onPressed: () => context.go('/invites'),
                         icon: const Icon(Icons.mail),
                         label: Text(
-                            '$pendingCount pending invite${pendingCount > 1 ? 's' : ''}'),
+                          '$pendingCount pending invite${pendingCount > 1 ? 's' : ''}',
+                        ),
                       ),
                     ],
                   ],
@@ -102,8 +107,7 @@ class HomeScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () =>
-                ref.read(groupProvider.notifier).refresh(),
+            onRefresh: () => ref.read(groupProvider.notifier).refresh(),
             child: ListView.builder(
               itemCount: list.length,
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -111,44 +115,36 @@ class HomeScreen extends ConsumerWidget {
                 final group = list[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor:
-                        theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.group,
-                        color:
-                            theme.colorScheme.onPrimaryContainer),
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.group,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   title: Text(
-                    group.name.isNotEmpty
-                        ? group.name
-                        : 'Unnamed Group',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600),
+                    group.name.isNotEmpty ? group.name : 'Unnamed Group',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
                     group.description.isNotEmpty
                         ? group.description
                         : '${group.state} · epoch ${group.epoch}',
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: Icon(
                     Icons.circle,
                     size: 10,
-                    color: group.state == 'active'
-                        ? Colors.green
-                        : Colors.grey,
+                    color: group.state == 'active' ? Colors.green : Colors.grey,
                   ),
-                  onTap: () => context
-                      .go('/group-info/${group.mlsGroupIdHex}'),
+                  onTap: () => context.go('/group-info/${group.mlsGroupIdHex}'),
                 );
               },
             ),
           );
         },
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );

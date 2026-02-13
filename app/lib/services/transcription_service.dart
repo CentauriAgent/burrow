@@ -10,8 +10,7 @@ import 'package:burrow_app/models/transcript.dart';
 
 /// Manages the audio capture and transcription pipeline.
 class TranscriptionService {
-  final _segmentController =
-      StreamController<TranscriptSegment>.broadcast();
+  final _segmentController = StreamController<TranscriptSegment>.broadcast();
   final _statusController = StreamController<TranscriptionStatus>.broadcast();
 
   /// Stream of new transcript segments as they arrive.
@@ -28,7 +27,6 @@ class TranscriptionService {
   TranscriptionStatus get status => _status;
 
   Timer? _processingTimer;
-  String? _callId;
 
   /// Initialize the transcription engine with model config.
   Future<void> initialize({
@@ -54,7 +52,6 @@ class TranscriptionService {
       return;
     }
 
-    _callId = callId;
     _segments.clear();
     _updateStatus(TranscriptionStatus.transcribing);
 
@@ -145,11 +142,6 @@ class TranscriptionService {
     // a custom AudioRenderer to get raw PCM frames.
   }
 
-  void _addSegment(TranscriptSegment segment) {
-    _segments.add(segment);
-    _segmentController.add(segment);
-  }
-
   void _updateStatus(TranscriptionStatus newStatus) {
     _status = newStatus;
     _statusController.add(newStatus);
@@ -163,11 +155,4 @@ class TranscriptionService {
 }
 
 /// Transcription engine status.
-enum TranscriptionStatus {
-  idle,
-  loading,
-  ready,
-  transcribing,
-  paused,
-  error,
-}
+enum TranscriptionStatus { idle, loading, ready, transcribing, paused, error }

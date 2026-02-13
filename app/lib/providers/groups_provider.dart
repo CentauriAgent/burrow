@@ -1,71 +1,68 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
+import 'package:burrow_app/services/user_service.dart';
 
-/// Group info model (mirrors Rust GroupInfo FFI struct).
-/// TODO: Replace with generated FFI binding when flutter_rust_bridge codegen runs.
+/// Wrapper around Rust GroupInfo with UI-only fields.
 class GroupInfo {
-  final String mlsGroupIdHex;
-  final String nostrGroupIdHex;
-  final String name;
-  final String description;
-  final List<String> adminPubkeys;
-  final int epoch;
-  final String state;
+  final rust_group.GroupInfo rustGroup;
 
-  // UI-only fields (populated client-side)
+  // UI-only fields
   final String? lastMessage;
   final DateTime? lastMessageTime;
   final int unreadCount;
-  final int memberCount;
-
-  // Direct message fields
-  final bool isDirectMessage;
-  final String? dmPeerPubkey; // hex pubkey of the other person in a 1:1 chat
-  final String? dmPeerDisplayName; // npub or petname for display
 
   GroupInfo({
-    required this.mlsGroupIdHex,
-    required this.nostrGroupIdHex,
-    required this.name,
-    this.description = '',
-    this.adminPubkeys = const [],
-    this.epoch = 0,
-    this.state = 'active',
+    required this.rustGroup,
     this.lastMessage,
     this.lastMessageTime,
     this.unreadCount = 0,
-    this.memberCount = 0,
-    this.isDirectMessage = false,
-    this.dmPeerPubkey,
-    this.dmPeerDisplayName,
   });
+
+  String get mlsGroupIdHex => rustGroup.mlsGroupIdHex;
+  String get nostrGroupIdHex => rustGroup.nostrGroupIdHex;
+  String get name => rustGroup.name;
+  String get description => rustGroup.description;
+  List<String> get adminPubkeys => rustGroup.adminPubkeys;
+  BigInt get epoch => rustGroup.epoch;
+  String get state => rustGroup.state;
+  int get memberCount => rustGroup.memberCount;
+  bool get isDirectMessage => rustGroup.isDirectMessage;
+  String? get dmPeerPubkeyHex => rustGroup.dmPeerPubkeyHex;
 
   /// Display name: for DMs show peer name, otherwise group name.
   String get displayName {
-    if (isDirectMessage && dmPeerDisplayName != null && dmPeerDisplayName!.isNotEmpty) {
-      return dmPeerDisplayName!;
+    if (isDirectMessage) {
+      if (rustGroup.dmPeerDisplayName != null &&
+          rustGroup.dmPeerDisplayName!.isNotEmpty) {
+        return rustGroup.dmPeerDisplayName!;
+      }
+      if (dmPeerPubkeyHex != null) {
+        return UserService.truncatePubkey(dmPeerPubkeyHex!);
+      }
     }
-    return name;
+    return name.isNotEmpty ? name : 'Unnamed Group';
   }
+
+  /// DM peer profile picture URL (from Rust cache).
+  String? get dmPeerPicture => rustGroup.dmPeerPicture;
 }
 
-/// Groups list provider — fetches all groups for the current user.
+/// Groups list provider — fetches all groups from the Rust backend.
 class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   @override
   Future<List<GroupInfo>> build() async {
-    // TODO: Call Rust FFI list_groups() when bindings are generated
-    return [];
+    try {
+      final rustGroups = await rust_group.listGroups();
+      return rustGroups.map((g) => GroupInfo(rustGroup: g)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Refresh the groups list from the Rust backend.
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build());
-  }
-
-  /// Add a newly created group to the local list.
-  void addGroup(GroupInfo group) {
-    final current = state.value ?? [];
-    state = AsyncData([group, ...current]);
   }
 
   /// Remove a group from the local list (e.g. after leaving).
@@ -77,10 +74,11 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   }
 }
 
-final groupsProvider =
-    AsyncNotifierProvider<GroupsNotifier, List<GroupInfo>>(() {
-  return GroupsNotifier();
-});
+final groupsProvider = AsyncNotifierProvider<GroupsNotifier, List<GroupInfo>>(
+  () {
+    return GroupsNotifier();
+  },
+);
 
 /// Convenience: sorted groups by last message time (most recent first).
 final sortedGroupsProvider = Provider<List<GroupInfo>>((ref) {

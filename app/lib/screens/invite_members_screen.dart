@@ -80,25 +80,24 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
     } else if (input.startsWith('npub1')) {
       final decoded = _npubToHex(input);
       if (decoded == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid npub format')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invalid npub format')));
         return;
       }
       hexKey = decoded;
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Enter a valid npub or hex public key')),
+        const SnackBar(content: Text('Enter a valid npub or hex public key')),
       );
       return;
     }
 
     // Check duplicate (by resolved hex)
     if (_invitees.any((e) => e.hexKey == hexKey)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Already added')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Already added')));
       return;
     }
 
@@ -138,8 +137,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         try {
           final pubkeyHex = invitee.hexKey;
 
-          final kpJson =
-              await inviteNotifier.fetchUserKeyPackage(pubkeyHex);
+          final kpJson = await inviteNotifier.fetchUserKeyPackage(pubkeyHex);
           keyPackageJsons.add(kpJson);
           setState(() => invitee.status = _InviteStatus.ready);
         } catch (e) {
@@ -167,8 +165,8 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text(
-                    'Could not fetch KeyPackages for any invitee')),
+              content: Text('Could not fetch KeyPackages for any invitee'),
+            ),
           );
         }
         setState(() => _sending = false);
@@ -184,8 +182,8 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Invited ${keyPackageJsons.length} member(s)!')),
+            content: Text('Invited ${keyPackageJsons.length} member(s)!'),
+          ),
         );
         // Refresh group data and go to group info
         ref.read(groupProvider.notifier).refresh();
@@ -194,9 +192,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
     } catch (e) {
       if (mounted) {
         final errorMsg = e is BurrowError ? e.message : e.toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $errorMsg')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $errorMsg')));
       }
     }
     if (mounted) setState(() => _sending = false);
@@ -224,9 +222,12 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Add people by their Nostr public key',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: Colors.grey)),
+                Text(
+                  'Add people by their Nostr public key',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -245,7 +246,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                           ),
                         ),
                         style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 13),
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                        ),
                         onSubmitted: (_) => _addInvitee(),
                       ),
                     ),
@@ -270,18 +273,24 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.group_add_outlined,
-                            size: 48,
-                            color: theme.colorScheme.outline),
+                        Icon(
+                          Icons.group_add_outlined,
+                          size: 48,
+                          color: theme.colorScheme.outline,
+                        ),
                         const SizedBox(height: 12),
-                        Text('No members added yet',
-                            style: theme.textTheme.bodyLarge
-                                ?.copyWith(color: Colors.grey)),
+                        Text(
+                          'No members added yet',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           'Paste an npub or hex pubkey above',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: Colors.grey),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -293,21 +302,22 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                       final entry = _invitees[index];
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundColor:
-                              theme.colorScheme.secondaryContainer,
+                          backgroundColor: theme.colorScheme.secondaryContainer,
                           child: Text(
                             entry.input.substring(0, 2).toUpperCase(),
                             style: TextStyle(
-                                color: theme
-                                    .colorScheme.onSecondaryContainer,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold),
+                              color: theme.colorScheme.onSecondaryContainer,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         title: Text(
                           _truncateKey(entry.input),
                           style: const TextStyle(
-                              fontFamily: 'monospace', fontSize: 13),
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                          ),
                         ),
                         subtitle: _buildStatusText(entry),
                         trailing: IconButton(
@@ -315,8 +325,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                           onPressed: _sending
                               ? null
                               : () {
-                                  setState(
-                                      () => _invitees.removeAt(index));
+                                  setState(() => _invitees.removeAt(index));
                                 },
                         ),
                       );
@@ -328,18 +337,22 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton.icon(
-              onPressed:
-                  _sending || _invitees.isEmpty ? null : _sendInvites,
+              onPressed: _sending || _invitees.isEmpty ? null : _sendInvites,
               icon: _sending
                   ? const SizedBox(
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.send),
-              label: Text(_sending
-                  ? 'Sending invites...'
-                  : 'Send Invite${_invitees.length > 1 ? 's' : ''} (${_invitees.length})'),
+              label: Text(
+                _sending
+                    ? 'Sending invites...'
+                    : 'Send Invite${_invitees.length > 1 ? 's' : ''} (${_invitees.length})',
+              ),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
               ),
@@ -355,14 +368,20 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       case _InviteStatus.pending:
         return null;
       case _InviteStatus.fetching:
-        return const Text('Fetching KeyPackage...',
-            style: TextStyle(fontSize: 11, color: Colors.amber));
+        return const Text(
+          'Fetching KeyPackage...',
+          style: TextStyle(fontSize: 11, color: Colors.amber),
+        );
       case _InviteStatus.ready:
-        return const Text('Ready',
-            style: TextStyle(fontSize: 11, color: Colors.green));
+        return const Text(
+          'Ready',
+          style: TextStyle(fontSize: 11, color: Colors.green),
+        );
       case _InviteStatus.error:
-        return Text('Error: ${entry.error ?? "Unknown"}',
-            style: const TextStyle(fontSize: 11, color: Colors.red));
+        return Text(
+          'Error: ${entry.error ?? "Unknown"}',
+          style: const TextStyle(fontSize: 11, color: Colors.red),
+        );
     }
   }
 
@@ -379,12 +398,8 @@ enum _InviteStatus { pending, fetching, ready, error }
 class _InviteEntry {
   final String input;
   final String hexKey;
-  _InviteStatus status;
+  _InviteStatus status = _InviteStatus.pending;
   String? error;
 
-  _InviteEntry({
-    required this.input,
-    required this.hexKey,
-    this.status = _InviteStatus.pending,
-  });
+  _InviteEntry({required this.input, required this.hexKey});
 }

@@ -49,7 +49,7 @@ Future<List<GroupInfo>> listGroups() =>
 Future<GroupInfo> getGroup({required String mlsGroupIdHex}) =>
     RustLib.instance.api.crateApiGroupGetGroup(mlsGroupIdHex: mlsGroupIdHex);
 
-/// Get members of a group.
+/// Get members of a group, enriched with cached profile data.
 Future<List<MemberInfo>> getGroupMembers({required String mlsGroupIdHex}) =>
     RustLib.instance.api.crateApiGroupGetGroupMembers(
       mlsGroupIdHex: mlsGroupIdHex,
@@ -124,6 +124,21 @@ class GroupInfo {
   /// Group state: "active", "pending", or "inactive".
   final String state;
 
+  /// Number of members in the group.
+  final int memberCount;
+
+  /// Whether this is a 1:1 direct message group (2 members, including self).
+  final bool isDirectMessage;
+
+  /// For DMs: the peer's display name (from profile cache). None for groups.
+  final String? dmPeerDisplayName;
+
+  /// For DMs: the peer's profile picture URL. None for groups.
+  final String? dmPeerPicture;
+
+  /// For DMs: the peer's pubkey hex. None for groups.
+  final String? dmPeerPubkeyHex;
+
   const GroupInfo({
     required this.mlsGroupIdHex,
     required this.nostrGroupIdHex,
@@ -132,6 +147,11 @@ class GroupInfo {
     required this.adminPubkeys,
     required this.epoch,
     required this.state,
+    required this.memberCount,
+    required this.isDirectMessage,
+    this.dmPeerDisplayName,
+    this.dmPeerPicture,
+    this.dmPeerPubkeyHex,
   });
 
   @override
@@ -142,7 +162,12 @@ class GroupInfo {
       description.hashCode ^
       adminPubkeys.hashCode ^
       epoch.hashCode ^
-      state.hashCode;
+      state.hashCode ^
+      memberCount.hashCode ^
+      isDirectMessage.hashCode ^
+      dmPeerDisplayName.hashCode ^
+      dmPeerPicture.hashCode ^
+      dmPeerPubkeyHex.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -155,25 +180,39 @@ class GroupInfo {
           description == other.description &&
           adminPubkeys == other.adminPubkeys &&
           epoch == other.epoch &&
-          state == other.state;
+          state == other.state &&
+          memberCount == other.memberCount &&
+          isDirectMessage == other.isDirectMessage &&
+          dmPeerDisplayName == other.dmPeerDisplayName &&
+          dmPeerPicture == other.dmPeerPicture &&
+          dmPeerPubkeyHex == other.dmPeerPubkeyHex;
 }
 
-/// Member information for FFI.
+/// Member information for FFI, enriched with cached profile data.
 class MemberInfo {
   /// Hex-encoded public key of the member.
   final String pubkeyHex;
 
-  const MemberInfo({required this.pubkeyHex});
+  /// Display name from cached profile (if available).
+  final String? displayName;
+
+  /// Profile picture URL from cached profile (if available).
+  final String? picture;
+
+  const MemberInfo({required this.pubkeyHex, this.displayName, this.picture});
 
   @override
-  int get hashCode => pubkeyHex.hashCode;
+  int get hashCode =>
+      pubkeyHex.hashCode ^ displayName.hashCode ^ picture.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is MemberInfo &&
           runtimeType == other.runtimeType &&
-          pubkeyHex == other.pubkeyHex;
+          pubkeyHex == other.pubkeyHex &&
+          displayName == other.displayName &&
+          picture == other.picture;
 }
 
 /// Result of a group update operation (add/remove members, leave, etc.).

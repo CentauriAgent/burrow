@@ -5,12 +5,9 @@ library;
 
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:burrow_app/src/rust/api/call_signaling.dart'
-    as rust_signaling;
-import 'package:burrow_app/src/rust/api/call_session.dart'
-    as rust_session;
-import 'package:burrow_app/src/rust/api/call_webrtc.dart'
-    as rust_webrtc;
+import 'package:burrow_app/src/rust/api/call_signaling.dart' as rust_signaling;
+import 'package:burrow_app/src/rust/api/call_session.dart' as rust_session;
+import 'package:burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
 import 'webrtc_service.dart';
 
 /// Manages the full lifecycle of audio/video calls.
@@ -75,10 +72,9 @@ class CallManager {
   }) async {
     _activeCallId = callId;
 
-    _callStateController.add(CallStateEvent(
-      callId: callId,
-      state: 'initiating',
-    ));
+    _callStateController.add(
+      CallStateEvent(callId: callId, state: 'initiating'),
+    );
 
     // 1. Create session in Rust
     await rust_session.createSession(
@@ -111,7 +107,7 @@ class CallManager {
     final offer = await _webrtcService.createOffer(remotePubkeyHex);
 
     // 6. Send offer via Rust signaling (gift-wrapped)
-    final _wrappedEvent = await rust_signaling.initiateCall(
+    await rust_signaling.initiateCall(
       sdpOffer: offer.sdp!,
       callId: callId,
       callType: isVideo ? 'video' : 'audio',
@@ -120,10 +116,9 @@ class CallManager {
 
     // TODO: Publish wrappedEvent to Nostr relays
 
-    _callStateController.add(CallStateEvent(
-      callId: callId,
-      state: 'connecting',
-    ));
+    _callStateController.add(
+      CallStateEvent(callId: callId, state: 'connecting'),
+    );
 
     await rust_session.updateSessionState(callId: callId, state: 'connecting');
 
@@ -172,11 +167,13 @@ class CallManager {
 
     // 5. Create answer from remote offer
     final remoteOffer = RTCSessionDescription(remoteSdpOffer, 'offer');
-    final answer =
-        await _webrtcService.createAnswer(callerPubkeyHex, remoteOffer);
+    final answer = await _webrtcService.createAnswer(
+      callerPubkeyHex,
+      remoteOffer,
+    );
 
     // 6. Send answer via Rust signaling
-    final _wrappedEvent = await rust_signaling.acceptCall(
+    await rust_signaling.acceptCall(
       sdpAnswer: answer.sdp!,
       callId: callId,
       callerPubkeyHex: callerPubkeyHex,
@@ -184,10 +181,9 @@ class CallManager {
 
     // TODO: Publish wrappedEvent to Nostr relays
 
-    _callStateController.add(CallStateEvent(
-      callId: callId,
-      state: 'connecting',
-    ));
+    _callStateController.add(
+      CallStateEvent(callId: callId, state: 'connecting'),
+    );
 
     await rust_session.updateSessionState(callId: callId, state: 'connecting');
   }
@@ -198,16 +194,13 @@ class CallManager {
   Future<void> endCall(String callId) async {
     if (_activeCallId != callId) return;
 
-    _callStateController.add(CallStateEvent(
-      callId: callId,
-      state: 'ending',
-    ));
+    _callStateController.add(CallStateEvent(callId: callId, state: 'ending'));
 
     // Get session to find remote pubkey
     final session = await rust_session.getSession(callId: callId);
     if (session != null) {
       // Signal hangup via Rust
-      final _wrappedEvent = await rust_signaling.endCall(
+      await rust_signaling.endCall(
         callId: callId,
         remotePubkeyHex: session.remotePubkeyHex,
       );
@@ -225,23 +218,23 @@ class CallManager {
 
     _activeCallId = null;
 
-    _callStateController.add(CallStateEvent(
-      callId: callId,
-      state: 'ended',
-    ));
+    _callStateController.add(CallStateEvent(callId: callId, state: 'ended'));
   }
 
   /// Handle an incoming signaling event (called when a gift-wrapped event is received).
   Future<void> handleSignalingEvent(
-      rust_signaling.CallSignalingEvent event) async {
+    rust_signaling.CallSignalingEvent event,
+  ) async {
     switch (event.kind) {
       case 25050: // Call offer
-        _incomingCallController.add(IncomingCallEvent(
-          callId: event.callId,
-          callerPubkeyHex: event.senderPubkeyHex,
-          callType: event.callType ?? 'audio',
-          sdpOffer: event.content,
-        ));
+        _incomingCallController.add(
+          IncomingCallEvent(
+            callId: event.callId,
+            callerPubkeyHex: event.senderPubkeyHex,
+            callType: event.callType ?? 'audio',
+            sdpOffer: event.content,
+          ),
+        );
         break;
 
       case 25051: // Call answer
@@ -281,7 +274,9 @@ class CallManager {
     final enabled = _webrtcService.toggleCamera();
     if (_activeCallId != null) {
       await rust_session.setVideoEnabled(
-          callId: _activeCallId!, enabled: enabled);
+        callId: _activeCallId!,
+        enabled: enabled,
+      );
     }
     return enabled;
   }
@@ -305,8 +300,9 @@ class CallManager {
         break;
       case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
         stateStr = 'connected';
-        _callStateController
-            .add(CallStateEvent(callId: callId, state: 'active'));
+        _callStateController.add(
+          CallStateEvent(callId: callId, state: 'active'),
+        );
         rust_session.updateSessionState(callId: callId, state: 'active');
         break;
       case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
@@ -314,8 +310,9 @@ class CallManager {
         break;
       case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
         stateStr = 'failed';
-        _callStateController
-            .add(CallStateEvent(callId: callId, state: 'failed'));
+        _callStateController.add(
+          CallStateEvent(callId: callId, state: 'failed'),
+        );
         rust_session.updateSessionState(callId: callId, state: 'failed');
         break;
       case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
@@ -335,13 +332,10 @@ class CallManager {
     final callId = _activeCallId;
     if (callId == null) return;
 
-    final _wrappedEvent = await rust_signaling.sendIceCandidate(
+    await rust_signaling.sendIceCandidate(
       candidate: event.candidate.candidate!,
       sdpMid: event.candidate.sdpMid,
-      sdpMLineIndex:
-          event.candidate.sdpMLineIndex != null
-              ? event.candidate.sdpMLineIndex!
-              : null,
+      sdpMLineIndex: event.candidate.sdpMLineIndex,
       callId: callId,
       remotePubkeyHex: event.remotePubkeyHex,
     );

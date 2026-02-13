@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 
 class ImportIdentityScreen extends ConsumerStatefulWidget {
   const ImportIdentityScreen({super.key});
@@ -29,13 +30,15 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
     setState(() => _isImporting = true);
     try {
       await ref.read(authProvider.notifier).importIdentity(key);
+      // Bootstrap: connect default relays, fetch own profile + relay list
+      await rust_identity.bootstrapIdentity();
       if (mounted) context.go('/home');
     } catch (e) {
       setState(() => _isImporting = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid key: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Invalid key: $e')));
       }
     }
   }
@@ -73,9 +76,9 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
               prefixIcon: const Icon(Icons.vpn_key_outlined),
               suffixIcon: IconButton(
                 icon: Icon(
-                    _obscureKey ? Icons.visibility_off : Icons.visibility),
-                onPressed: () =>
-                    setState(() => _obscureKey = !_obscureKey),
+                  _obscureKey ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () => setState(() => _obscureKey = !_obscureKey),
               ),
             ),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
@@ -86,8 +89,7 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
           OutlinedButton.icon(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('QR scanner coming soon')),
+                const SnackBar(content: Text('QR scanner coming soon')),
               );
             },
             icon: const Icon(Icons.qr_code_scanner),
@@ -116,8 +118,11 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.shield_outlined,
-                    size: 20, color: theme.colorScheme.error),
+                Icon(
+                  Icons.shield_outlined,
+                  size: 20,
+                  color: theme.colorScheme.error,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

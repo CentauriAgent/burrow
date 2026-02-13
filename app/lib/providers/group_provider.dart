@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
-import 'package:burrow_app/src/rust/api/keypackage.dart';
 import 'package:burrow_app/providers/groups_provider.dart' as ui_groups;
 
 class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
@@ -48,7 +47,10 @@ class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
     return result;
   }
 
-  Future<UpdateGroupResult> updateName(String mlsGroupIdHex, String name) async {
+  Future<UpdateGroupResult> updateName(
+    String mlsGroupIdHex,
+    String name,
+  ) async {
     final result = await updateGroupName(
       mlsGroupIdHex: mlsGroupIdHex,
       name: name,
@@ -62,7 +64,6 @@ class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
   }
 }
 
-final groupProvider =
-    AsyncNotifierProvider<GroupNotifier, List<GroupInfo>>(() {
+final groupProvider = AsyncNotifierProvider<GroupNotifier, List<GroupInfo>>(() {
   return GroupNotifier();
 });

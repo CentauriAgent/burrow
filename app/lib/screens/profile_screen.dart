@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
 import 'package:burrow_app/src/rust/api/identity.dart';
-import 'package:burrow_app/src/rust/api/relay.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -33,15 +32,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         profile: ProfileData(displayName: name, name: name),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile updated')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
     setState(() => _saving = false);
@@ -76,8 +75,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: CircleAvatar(
               radius: 40,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.person, size: 40,
-                  color: theme.colorScheme.onPrimaryContainer),
+              child: Icon(
+                Icons.person,
+                size: 40,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -97,7 +99,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: Text(
                     npub,
                     style: const TextStyle(
-                        fontFamily: 'monospace', fontSize: 12),
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,
                   ),
@@ -136,8 +140,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onPressed: _saving ? null : _saveProfile,
                 child: _saving
                     ? const SizedBox(
-                        height: 16, width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Save'),
               ),
             ],
@@ -150,27 +156,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           relays.when(
             data: (list) => Column(
               children: [
-                ...list.map((r) => ListTile(
-                      dense: true,
-                      leading: Icon(
-                        Icons.circle,
-                        size: 10,
-                        color: r.connected ? Colors.green : Colors.red,
+                ...list.map(
+                  (r) => ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: r.connected ? Colors.green : Colors.red,
+                    ),
+                    title: Text(
+                      r.url,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
                       ),
-                      title: Text(r.url,
-                          style: const TextStyle(
-                              fontFamily: 'monospace', fontSize: 13)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () =>
-                            ref.read(relayProvider.notifier).remove(r.url),
-                      ),
-                    )),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () =>
+                          ref.read(relayProvider.notifier).remove(r.url),
+                    ),
+                  ),
+                ),
                 if (list.isEmpty)
                   const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text('No relays configured',
-                        style: TextStyle(color: Colors.grey)),
+                    child: Text(
+                      'No relays configured',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ),
               ],
             ),

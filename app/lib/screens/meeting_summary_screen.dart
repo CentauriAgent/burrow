@@ -66,16 +66,18 @@ class MeetingSummaryScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: notes.keyPoints
-                    .map((p) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('•  '),
-                              Expanded(child: Text(p)),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (p) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('•  '),
+                            Expanded(child: Text(p)),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -85,8 +87,7 @@ class MeetingSummaryScreen extends ConsumerWidget {
           // Action Items
           if (notes.actionItems.isNotEmpty) ...[
             _SectionCard(
-              title:
-                  'Action Items (${notes.pendingActionItems} pending)',
+              title: 'Action Items (${notes.pendingActionItems} pending)',
               icon: Icons.checklist,
               child: Column(
                 children: notes.actionItems.map((item) {
@@ -112,15 +113,19 @@ class MeetingSummaryScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: notes.decisions
-                    .map((d) => ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.check_circle_outline,
-                              size: 20),
-                          title: Text(d.description),
-                          subtitle: d.proposedBy.isNotEmpty
-                              ? Text('Proposed by ${d.proposedBy}')
-                              : null,
-                        ))
+                    .map(
+                      (d) => ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.check_circle_outline,
+                          size: 20,
+                        ),
+                        title: Text(d.description),
+                        subtitle: d.proposedBy.isNotEmpty
+                            ? Text('Proposed by ${d.proposedBy}')
+                            : null,
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -135,18 +140,21 @@ class MeetingSummaryScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: notes.openQuestions
-                    .map((q) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('?  ',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.bold)),
-                              Expanded(child: Text(q)),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (q) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '?  ',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Expanded(child: Text(q)),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -163,16 +171,12 @@ class _MetadataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            _MetaItem(
-              icon: Icons.timer,
-              label: notes.formattedDuration,
-            ),
+            _MetaItem(icon: Icons.timer, label: notes.formattedDuration),
             const SizedBox(width: 24),
             _MetaItem(
               icon: Icons.people,

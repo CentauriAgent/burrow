@@ -76,24 +76,17 @@ class _NewDmScreenState extends ConsumerState<NewDmScreen> {
 
       // Create a 1:1 group behind the scenes
       final dmName = 'DM-${_shortenKey(pubkey)}';
-      final result = await ref.read(groupProvider.notifier).createNewGroup(
+      final result = await ref
+          .read(groupProvider.notifier)
+          .createNewGroup(
             name: dmName,
             description: '__dm__', // marker for DM groups
             adminPubkeysHex: [auth.account.pubkeyHex],
             relayUrls: relayUrls,
           );
 
-      // Add to the UI groups provider as a DM
-      ref.read(groupsProvider.notifier).addGroup(GroupInfo(
-            mlsGroupIdHex: result.mlsGroupIdHex,
-            nostrGroupIdHex: result.group.nostrGroupIdHex,
-            name: dmName,
-            description: '__dm__',
-            memberCount: 2,
-            isDirectMessage: true,
-            dmPeerPubkey: pubkey,
-            dmPeerDisplayName: _shortenKey(pubkey),
-          ));
+      // Refresh groups from Rust to pick up the new DM
+      await ref.read(groupsProvider.notifier).refresh();
 
       if (mounted) {
         // Navigate to the new chat
@@ -114,9 +107,7 @@ class _NewDmScreenState extends ConsumerState<NewDmScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Message'),
-      ),
+      appBar: AppBar(title: const Text('New Message')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

@@ -9,6 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `global`
 // These functions are ignored because they have generic arguments: `with_state_mut`, `with_state`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BurrowState`
 
 /// Initialize the global state with a keypair.
 Future<void> initState({required Keys keys}) =>
@@ -21,26 +22,5 @@ Future<bool> isInitialized() =>
 /// Destroy the global state (logout).
 Future<void> destroyState() => RustLib.instance.api.crateApiStateDestroyState();
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BurrowState>>
-abstract class BurrowState implements RustOpaqueInterface {
-  Client get client;
-
-  Keys get keys;
-
-  MdkMdkMemoryStorage get mdk;
-
-  set client(Client client);
-
-  set keys(Keys keys);
-
-  set mdk(MdkMdkMemoryStorage mdk);
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Client>>
-abstract class Client implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>
 abstract class Keys implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MDK < MdkMemoryStorage >>>
-abstract class MdkMdkMemoryStorage implements RustOpaqueInterface {}

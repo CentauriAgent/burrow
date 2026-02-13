@@ -8,6 +8,7 @@ import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `best_name`, `from_metadata`, `is_empty`, `to_metadata`
 
 /// Export the secret key as nsec bech32 string.
 Future<String> exportNsec() =>
@@ -25,9 +26,35 @@ Future<String> exportPubkeyHex() =>
 Future<void> setProfile({required ProfileData profile}) =>
     RustLib.instance.api.crateApiIdentitySetProfile(profile: profile);
 
-/// Fetch the metadata for a given pubkey from connected relays.
-Future<ProfileData> fetchProfile({required String pubkeyHex}) =>
-    RustLib.instance.api.crateApiIdentityFetchProfile(pubkeyHex: pubkeyHex);
+/// Fetch the metadata for a given pubkey.
+///
+/// - `blocking_sync = false`: return cached data immediately (may be empty).
+/// - `blocking_sync = true`: query connected relays and wait up to 10 seconds.
+///
+/// Follows the White Noise two-step pattern: Flutter calls with false first,
+/// then with true only if the result is empty.
+Future<ProfileData> fetchProfile({
+  required String pubkeyHex,
+  required bool blockingSync,
+}) => RustLib.instance.api.crateApiIdentityFetchProfile(
+  pubkeyHex: pubkeyHex,
+  blockingSync: blockingSync,
+);
+
+/// Fetch relay list (NIP-65 kind 10002) for a given pubkey.
+/// Returns a list of relay URLs.
+Future<List<String>> fetchUserRelays({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiIdentityFetchUserRelays(pubkeyHex: pubkeyHex);
+
+/// Bootstrap a newly imported identity: connect default relays, fetch own
+/// profile (kind 0) and relay list (NIP-65 kind 10002), then add user's
+/// relays if found.
+Future<ProfileData> bootstrapIdentity() =>
+    RustLib.instance.api.crateApiIdentityBootstrapIdentity();
+
+/// Look up a cached profile without any relay queries. Returns empty if not cached.
+Future<ProfileData> getCachedProfile({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiIdentityGetCachedProfile(pubkeyHex: pubkeyHex);
 
 /// Nostr profile metadata (kind 0), FFI-friendly.
 class ProfileData {

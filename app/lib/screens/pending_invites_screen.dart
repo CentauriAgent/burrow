@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 
@@ -24,24 +23,30 @@ class PendingInvitesScreen extends ConsumerWidget {
       ),
       body: invites.when(
         data: (list) {
-          final pending =
-              list.where((w) => w.state == 'pending').toList();
+          final pending = list.where((w) => w.state == 'pending').toList();
           if (pending.isEmpty) {
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.mail_outline,
-                      size: 56, color: theme.colorScheme.outline),
+                  Icon(
+                    Icons.mail_outline,
+                    size: 56,
+                    color: theme.colorScheme.outline,
+                  ),
                   const SizedBox(height: 12),
-                  Text('No pending invitations',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(color: Colors.grey)),
+                  Text(
+                    'No pending invitations',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.grey,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'When someone invites you to a group,\nit will appear here.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -49,8 +54,7 @@ class PendingInvitesScreen extends ConsumerWidget {
             );
           }
           return RefreshIndicator(
-            onRefresh: () =>
-                ref.read(inviteProvider.notifier).refresh(),
+            onRefresh: () => ref.read(inviteProvider.notifier).refresh(),
             child: ListView.builder(
               itemCount: pending.length,
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -61,8 +65,7 @@ class PendingInvitesScreen extends ConsumerWidget {
             ),
           );
         },
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
@@ -87,7 +90,8 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
       builder: (ctx) => AlertDialog(
         title: const Text('Join Group'),
         content: Text(
-            'Join "${widget.invite.groupName}"? You\'ll become a member of this encrypted group.'),
+          'Join "${widget.invite.groupName}"? You\'ll become a member of this encrypted group.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -110,16 +114,14 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
       ref.read(groupProvider.notifier).refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text('Joined "${widget.invite.groupName}"!')),
+          SnackBar(content: Text('Joined "${widget.invite.groupName}"!')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
     if (mounted) setState(() => _accepting = false);
@@ -131,7 +133,8 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
       builder: (ctx) => AlertDialog(
         title: const Text('Decline Invitation'),
         content: Text(
-            'Decline the invitation to "${widget.invite.groupName}"? You can\'t undo this.'),
+          'Decline the invitation to "${widget.invite.groupName}"? You can\'t undo this.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -139,8 +142,7 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Decline'),
           ),
         ],
@@ -154,15 +156,15 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
           .read(inviteProvider.notifier)
           .declineInvite(widget.invite.welcomeEventId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invitation declined')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invitation declined')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
     if (mounted) setState(() => _declining = false);
@@ -193,8 +195,10 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Icon(Icons.group,
-                      color: theme.colorScheme.onPrimaryContainer),
+                  child: Icon(
+                    Icons.group,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -205,15 +209,19 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
                         invite.groupName.isNotEmpty
                             ? invite.groupName
                             : 'Unnamed Group',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       if (invite.groupDescription.isNotEmpty)
-                        Text(invite.groupDescription,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
+                        Text(
+                          invite.groupDescription,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
                 ),
@@ -224,28 +232,26 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
             // Invite details
             Row(
               children: [
-                Icon(Icons.person_outline,
-                    size: 14, color: Colors.grey),
+                Icon(Icons.person_outline, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(
                   'From: ${_truncateHex(invite.welcomerPubkeyHex)}',
                   style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      color: Colors.grey),
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.people_outline,
-                    size: 14, color: Colors.grey),
+                Icon(Icons.people_outline, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(
                   '${invite.memberCount} member${invite.memberCount != 1 ? 's' : ''}',
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -256,29 +262,28 @@ class _InviteCardState extends ConsumerState<_InviteCard> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 OutlinedButton(
-                  onPressed:
-                      _accepting || _declining ? null : _decline,
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red),
+                  onPressed: _accepting || _declining ? null : _decline,
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
                   child: _declining
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Text('Decline'),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed:
-                      _accepting || _declining ? null : _accept,
+                  onPressed: _accepting || _declining ? null : _accept,
                   icon: _accepting
                       ? const SizedBox(
                           height: 16,
                           width: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white))
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Icon(Icons.check, size: 18),
                   label: const Text('Accept'),
                 ),

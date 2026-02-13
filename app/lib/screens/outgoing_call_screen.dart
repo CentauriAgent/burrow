@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:burrow_app/providers/call_provider.dart';
@@ -113,10 +112,7 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                 // "Calling..." text
                 const Text(
                   'Calling...',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: Colors.white54, fontSize: 16),
                 ),
 
                 const Spacer(flex: 3),

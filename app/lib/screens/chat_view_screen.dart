@@ -44,11 +44,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final messagesManager = ref.watch(messagesProvider(widget.groupId));
     final messages = messagesManager.messages;
     final groups = ref.watch(groupsProvider).value ?? [];
-    final group = groups.where((g) => g.mlsGroupIdHex == widget.groupId).firstOrNull;
+    final group = groups
+        .where((g) => g.mlsGroupIdHex == widget.groupId)
+        .firstOrNull;
     final isDm = group?.isDirectMessage ?? false;
     final auth = ref.watch(authProvider);
-    // TODO: Use account.pubkeyHex when FFI bindings are generated
-    final selfPubkey = 'self';
+    final selfPubkey = auth.value?.account.pubkeyHex ?? 'self';
 
     return Scaffold(
       appBar: AppBar(
@@ -68,8 +69,11 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                     ? theme.colorScheme.tertiaryContainer
                     : theme.colorScheme.primaryContainer,
                 child: isDm
-                    ? Icon(Icons.person, size: 18,
-                        color: theme.colorScheme.onTertiaryContainer)
+                    ? Icon(
+                        Icons.person,
+                        size: 18,
+                        color: theme.colorScheme.onTertiaryContainer,
+                      )
                     : Text(
                         _initials(group?.displayName ?? 'Chat'),
                         style: TextStyle(
@@ -86,7 +90,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                   children: [
                     Text(
                       group?.displayName ?? 'Chat',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -135,33 +142,39 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           Expanded(
             child: messages.isEmpty
                 ? _buildEmptyChat(theme)
-                : Builder(builder: (context) {
-                    final isGroup = (group?.memberCount ?? 0) > 2;
-                    return ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        final isSent = msg.authorPubkeyHex == selfPubkey ||
-                            msg.authorPubkeyHex == 'self';
-                        final showName = isGroup && !isSent;
-                        final prevMsg =
-                            index < messages.length - 1 ? messages[index + 1] : null;
-                        final showNameForThis = showName &&
-                            (prevMsg == null ||
-                                prevMsg.authorPubkeyHex != msg.authorPubkeyHex);
-                        return ChatBubble(
-                          content: msg.content,
-                          timestamp: msg.createdAtDateTime,
-                          isSent: isSent,
-                          senderName: _shortenPubkey(msg.authorPubkeyHex),
-                          showSenderName: showNameForThis,
-                        );
-                      },
-                    );
-                  }),
+                : Builder(
+                    builder: (context) {
+                      final isGroup = (group?.memberCount ?? 0) > 2;
+                      return ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          final isSent =
+                              msg.authorPubkeyHex == selfPubkey ||
+                              msg.authorPubkeyHex == 'self';
+                          final showName = isGroup && !isSent;
+                          final prevMsg = index < messages.length - 1
+                              ? messages[index + 1]
+                              : null;
+                          final showNameForThis =
+                              showName &&
+                              (prevMsg == null ||
+                                  prevMsg.authorPubkeyHex !=
+                                      msg.authorPubkeyHex);
+                          return ChatBubble(
+                            content: msg.content,
+                            timestamp: msg.createdAtDateTime,
+                            isSent: isSent,
+                            senderName: _shortenPubkey(msg.authorPubkeyHex),
+                            showSenderName: showNameForThis,
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
 
           // E2E encryption notice
@@ -170,8 +183,11 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock_outline,
-                    size: 12, color: theme.colorScheme.onSurface.withAlpha(80)),
+                Icon(
+                  Icons.lock_outline,
+                  size: 12,
+                  color: theme.colorScheme.onSurface.withAlpha(80),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'End-to-end encrypted • Marmot Protocol',
@@ -198,8 +214,11 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.lock_outline,
-                size: 56, color: theme.colorScheme.primary.withAlpha(120)),
+            Icon(
+              Icons.lock_outline,
+              size: 56,
+              color: theme.colorScheme.primary.withAlpha(120),
+            ),
             const SizedBox(height: 16),
             Text(
               'End-to-end encrypted',
@@ -268,8 +287,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Message',
                   border: InputBorder.none,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
@@ -308,14 +329,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _messageController.clear();
 
     try {
-      ref
-          .read(messagesProvider(widget.groupId))
-          .sendMessage(content);
+      ref.read(messagesProvider(widget.groupId)).sendMessage(content);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -359,10 +378,14 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
-                leading: Icon(Icons.exit_to_app,
-                    color: theme.colorScheme.error),
-                title: Text('Leave Group',
-                    style: TextStyle(color: theme.colorScheme.error)),
+                leading: Icon(
+                  Icons.exit_to_app,
+                  color: theme.colorScheme.error,
+                ),
+                title: Text(
+                  'Leave Group',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
                 onTap: () => Navigator.pop(context),
               ),
               const SizedBox(height: 8),
@@ -379,10 +402,13 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
     // For 1:1 calls we need the remote pubkey — for now use group members
     // TODO: resolve remote pubkey from group member list
+    // ignore: unused_local_variable
     final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(isVideo ? 'Starting video call...' : 'Starting audio call...'),
+        content: Text(
+          isVideo ? 'Starting video call...' : 'Starting audio call...',
+        ),
         duration: const Duration(seconds: 2),
       ),
     );

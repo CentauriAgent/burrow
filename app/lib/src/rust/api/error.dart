@@ -23,7 +23,4 @@ class BurrowError implements FrbException {
       other is BurrowError &&
           runtimeType == other.runtimeType &&
           message == other.message;
-
-  @override
-  String toString() => message;
 }
