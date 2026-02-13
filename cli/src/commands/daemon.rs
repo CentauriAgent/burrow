@@ -84,6 +84,50 @@ pub async fn run(
     let client = pool::connect(&keys, &all_relays).await?;
     let mdk = MDK::new(MdkMemoryStorage::default());
 
+    // Generate a KeyPackage so MDK has the private key material for processing Welcomes.
+    // Without this, process_welcome fails with "No matching key package was found in the key store."
+    {
+        let relay_parsed: Vec<RelayUrl> = all_relays.iter()
+            .filter_map(|u| RelayUrl::parse(u).ok())
+            .collect();
+        match mdk.create_key_package_for_event(&keys.public_key(), relay_parsed) {
+            Ok((kp_base64, kp_tags)) => {
+                // Publish the fresh KeyPackage to relays
+                let nostr_tags: Vec<Tag> = kp_tags.iter()
+                    .filter_map(|t| {
+                        let s = t.as_slice();
+                        if s.len() >= 2 {
+                            Some(Tag::custom(TagKind::from(s[0].as_str()), s[1..].to_vec()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let builder = EventBuilder::new(Kind::MlsKeyPackage, &kp_base64).tags(nostr_tags);
+                match client.send_event_builder(builder).await {
+                    Ok(output) => {
+                        let entry = DaemonLogEntry {
+                            entry_type: "keygen".into(),
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            group_id: None,
+                            sender_pubkey: None,
+                            content: Some(format!("KeyPackage published: {}", output.id().to_hex())),
+                            allowed: None,
+                            error: None,
+                        };
+                        write_jsonl(&log_path, &entry);
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ Failed to publish KeyPackage: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("⚠️ Failed to generate KeyPackage: {}", e);
+            }
+        }
+    }
+
     // Subscribe to kind 445 for all groups
     let mut filter = Filter::new().kind(Kind::MlsGroupMessage);
     for g in &groups {
@@ -93,7 +137,7 @@ pub async fn run(
     // Subscribe to kind 1059 (NIP-59 gift wraps) tagged with our pubkey for welcomes
     let gift_wrap_filter = Filter::new()
         .kind(Kind::GiftWrap)
-        .pubkey(keys.public_key());
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::P), keys.public_key().to_hex());
 
     let startup = DaemonLogEntry {
         entry_type: "startup".into(),

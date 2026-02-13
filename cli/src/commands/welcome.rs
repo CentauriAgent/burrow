@@ -30,7 +30,7 @@ pub async fn list(
 
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
-        .pubkey(keys.public_key())
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::P), keys.public_key().to_hex())
         .limit(50);
 
     let events = client
