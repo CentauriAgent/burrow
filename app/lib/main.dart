@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:burrow_app/src/rust/api/simple.dart';
 import 'package:burrow_app/src/rust/frb_generated.dart';
+import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/screens/onboarding_screen.dart';
+import 'package:burrow_app/screens/create_identity_screen.dart';
+import 'package:burrow_app/screens/import_identity_screen.dart';
+import 'package:burrow_app/screens/home_screen.dart';
+import 'package:burrow_app/screens/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,20 +15,50 @@ Future<void> main() async {
   runApp(const ProviderScope(child: BurrowApp()));
 }
 
-final _router = GoRouter(
-  routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomeScreen(),
-    ),
-  ],
-);
-
-class BurrowApp extends StatelessWidget {
+class BurrowApp extends ConsumerWidget {
   const BurrowApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loggedIn = ref.watch(isLoggedInProvider);
+
+    final router = GoRouter(
+      initialLocation: loggedIn ? '/home' : '/onboarding',
+      redirect: (context, state) {
+        final path = state.uri.path;
+        final authPaths = ['/onboarding', '/create-identity', '/import-identity'];
+        if (!loggedIn && !authPaths.contains(path)) {
+          return '/onboarding';
+        }
+        if (loggedIn && path == '/onboarding') {
+          return '/home';
+        }
+        return null;
+      },
+      routes: [
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const OnboardingScreen(),
+        ),
+        GoRoute(
+          path: '/create-identity',
+          builder: (context, state) => const CreateIdentityScreen(),
+        ),
+        GoRoute(
+          path: '/import-identity',
+          builder: (context, state) => const ImportIdentityScreen(),
+        ),
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const HomeScreen(),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen(),
+        ),
+      ],
+    );
+
     return MaterialApp.router(
       title: 'Burrow',
       theme: ThemeData(
@@ -33,44 +68,7 @@ class BurrowApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      routerConfig: _router,
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final greeting = greet(name: "World");
-    final version = rustLibVersion();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Burrow 🦫'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              greeting,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Rust core v$version',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Marmot Protocol • MLS + Nostr',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
+      routerConfig: router,
     );
   }
 }
