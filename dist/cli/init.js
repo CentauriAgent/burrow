@@ -1,6 +1,7 @@
 /**
  * `burrow init` — Initialize Burrow identity and publish a KeyPackage.
  */
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadIdentity, generateIdentity } from '../crypto/index.js';
 import { generateMarmotKeyPackage } from '../mls/index.js';
@@ -56,6 +57,49 @@ export async function initCommand(opts) {
         createdAt: event.created_at,
         isLastResort: true,
     });
+    // 6. Generate access-control.json if it doesn't exist
+    const aclPath = join(dataDir, 'access-control.json');
+    if (!existsSync(aclPath)) {
+        const ownerHex = process.env.BURROW_OWNER_HEX || '';
+        const ownerNpub = process.env.BURROW_OWNER_NPUB || '';
+        if (ownerHex || ownerNpub) {
+            let resolvedHex = ownerHex;
+            if (!resolvedHex && ownerNpub) {
+                try {
+                    const { execSync } = require('node:child_process');
+                    resolvedHex = execSync(`nak decode ${ownerNpub} 2>/dev/null`, { encoding: 'utf-8' }).trim();
+                }
+                catch { /* user will need to set manually */ }
+            }
+            const acl = {
+                version: 1,
+                owner: {
+                    npub: ownerNpub,
+                    hex: resolvedHex,
+                    note: 'Set from environment variables during init',
+                },
+                defaultPolicy: 'ignore',
+                allowedContacts: [],
+                allowedGroups: [],
+                settings: { logRejectedContent: false, auditEnabled: true },
+            };
+            writeFileSync(aclPath, JSON.stringify(acl, null, 2) + '\n', { mode: 0o600 });
+            console.log('\n🔐 Access control initialized from BURROW_OWNER_HEX/BURROW_OWNER_NPUB');
+        }
+        else {
+            const acl = {
+                version: 1,
+                owner: { npub: '', hex: '', note: 'Set BURROW_OWNER_HEX or edit this file' },
+                defaultPolicy: 'ignore',
+                allowedContacts: [],
+                allowedGroups: [],
+                settings: { logRejectedContent: false, auditEnabled: true },
+            };
+            writeFileSync(aclPath, JSON.stringify(acl, null, 2) + '\n', { mode: 0o600 });
+            console.log('\n⚠️  Access control created but NO OWNER SET.');
+            console.log('   Set BURROW_OWNER_HEX env var or edit ~/.burrow/access-control.json');
+        }
+    }
     console.log('\n✅ Burrow initialized! Your KeyPackage is published.');
     console.log(`   Public key: ${identity.publicKeyHex}`);
     console.log(`   KeyPackage event: ${event.id}`);

@@ -52,11 +52,36 @@ export class AccessControl {
       this.config.settings = { logRejectedContent: false, auditEnabled: true };
     }
 
+    // Environment variables override config file — lets any agent run Burrow
+    // without hardcoding their owner's pubkey in the config
+    const envHex = process.env.BURROW_OWNER_HEX;
+    const envNpub = process.env.BURROW_OWNER_NPUB;
+    if (envHex) {
+      this.config.owner = {
+        hex: envHex,
+        npub: envNpub || this.config.owner?.npub || '',
+        note: 'Set via BURROW_OWNER_HEX environment variable',
+      };
+    } else if (envNpub && !this.config.owner?.hex) {
+      // Have npub but no hex — try to decode
+      try {
+        const { execSync } = require('node:child_process');
+        const hex = execSync(`nak decode ${envNpub} 2>/dev/null`, { encoding: 'utf-8' }).trim();
+        if (/^[0-9a-f]{64}$/i.test(hex)) {
+          this.config.owner = { hex, npub: envNpub, note: 'Set via BURROW_OWNER_NPUB environment variable' };
+        }
+      } catch {
+        // fall through to validation below
+      }
+    }
+
     const ownerHex = this.config.owner?.hex;
     if (!ownerHex || ownerHex === 'DEREK_HEX_PUBKEY_REQUIRED') {
       throw new Error(
-        'Owner pubkey not configured in access-control.json. ' +
-        'Set the owner.hex field before running.'
+        'Owner pubkey not configured. Either:\n' +
+        '  1. Set BURROW_OWNER_HEX (and optionally BURROW_OWNER_NPUB) environment variables, or\n' +
+        '  2. Set owner.hex in ~/.burrow/access-control.json\n' +
+        'Burrow WILL NOT operate without an owner.'
       );
     }
   }
