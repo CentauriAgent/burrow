@@ -16,6 +16,9 @@ No phone numbers. No central servers. No surveillance. Just cryptographic identi
 | Forward secrecy | ✅ | ✅ | ✅ (MLS) |
 | Post-compromise security | ✅ | ❌ | ✅ (MLS) |
 | Open protocol | ❌ | ❌ | ✅ (Marmot + Nostr) |
+| Audio/video calls | ✅ | ✅ | ✅ (WebRTC) |
+| Meeting transcription | ❌ | ❌ | ✅ (Whisper) |
+| AI meeting summaries | ❌ | ❌ | ✅ Built-in |
 | Identity | Phone # | Phone # | Nostr keypair |
 
 Burrow is purpose-built for the emerging world where AI agents need to communicate securely with humans and each other — without requiring PII or centralized gatekeepers.
@@ -26,10 +29,12 @@ Burrow is purpose-built for the emerging world where AI agents need to communica
 
 A cross-platform mobile and desktop app with a Rust cryptography engine.
 
-- **UI:** Flutter (Dart) with Material 3 dark theme
+- **UI:** Flutter (Dart) with Material 3 dark theme, Signal-style split-pane desktop layout
 - **Crypto:** Rust via [MDK (Marmot Developer Kit)](https://github.com/marmot-protocol/mdk) + `flutter_rust_bridge`
 - **Platforms:** Android, iOS, Linux, macOS, Windows
-- **Features:** Identity management, group chat, member invites, encrypted media (Blossom/MIP-04), real-time messaging
+- **Calls:** 1:1 and group audio/video calls via WebRTC with E2EE signaling over Nostr
+- **Meeting Intelligence:** Real-time transcription (Whisper), speaker diarization, post-call summaries with action items
+- **Features:** Identity management, group chat, member invites, encrypted media (Blossom/MIP-04), real-time messaging, 1:1 and group audio/video calls (WebRTC), group avatars, Signal-style split-pane desktop layout, meeting transcription and summaries, persistent MLS storage (SQLite)
 
 ### 💻 Rust CLI
 
@@ -173,9 +178,30 @@ For the full technical deep-dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 **Ciphersuite:** `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` (128-bit security)
 
-## Roadmap
+## Current Status
 
-See [ROADMAP.md](ROADMAP.md) for the full plan.
+Burrow has completed **four phases** of development:
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **Phase 1** | CLI Messenger (Rust) | ✅ Complete |
+| **Phase 2** | Flutter Cross-Platform App | ✅ Complete |
+| **Phase 3** | Audio & Video Calls (WebRTC) | ✅ Core complete |
+| **Phase 4** | AI Meeting Assistant | ✅ Core complete |
+
+### Recently Completed
+- 🎨 **Group avatars** — Pick, display, and change across all screens (Signal-style)
+- 💬 **End-to-end group messaging** — Send, receive, and sync from relays
+- 💾 **Persistent MLS storage** — SQLite-backed instead of in-memory
+- 📞 **Call signaling** — WebRTC call events wired end-to-end
+- 🖥️ **Desktop layout** — Signal-style split-pane for desktop platforms
+- 🤖 **OpenClaw bridge** — Rust binary connecting Burrow MLS to AI chat completions
+- 📝 **Meeting intelligence** — Transcription, speaker diarization, summaries, and action item extraction
+- 🔐 **Full MIP-02 invite flow** — Publish evolution + gift-wrap welcomes
+
+### Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full plan, including deferred items (push notifications, screen sharing, persistent encrypted storage).
 
 ## Contributing
 
@@ -186,9 +212,10 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for development workflow, code 
 ```
 burrow/
 ├── app/                    # Flutter cross-platform app
-│   ├── lib/                # Dart source
-│   ├── rust/               # Rust crypto engine (MDK)
+│   ├── lib/                # Dart source (screens, providers, services)
+│   ├── rust/               # Rust crypto engine (MDK + flutter_rust_bridge)
 │   └── test/               # Tests
+├── bridge/                 # OpenClaw integration (Rust binary)
 ├── cli/                    # Rust CLI
 │   ├── src/                # CLI source code
 │   └── Cargo.toml          # CLI dependencies
