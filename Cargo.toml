@@ -1,6 +1,4 @@
 [workspace]
-members = ["mls-engine"]
+members = ["cli"]
+exclude = ["app/rust", "mls-engine"]
 resolver = "2"
-
-# Don't include app/rust — it has flutter_rust_bridge complications.
-# Both crates use the same MDK rev independently.

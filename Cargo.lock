@@ -274,24 +274,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burrow-mls"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "clap",
- "hex",
- "mdk-core",
- "mdk-memory-storage",
- "mdk-storage-traits",
- "nostr-sdk",
- "openmls",
- "openmls_traits",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "bytemuck"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
