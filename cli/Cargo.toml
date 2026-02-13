@@ -1,0 +1,26 @@
+[package]
+name = "burrow"
+version = "0.1.0"
+edition = "2021"
+description = "Marmot Protocol encrypted messaging CLI"
+
+[[bin]]
+name = "burrow"
+path = "src/main.rs"
+
+[dependencies]
+# Marmot protocol — same rev as Flutter app
+mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
+mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
+mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
+
+nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+hex = "0.4"
+chrono = "0.4"
+anyhow = "1"
+dirs = "6"
+bech32 = "0.11"
