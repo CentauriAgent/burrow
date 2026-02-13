@@ -25,6 +25,13 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
     required String mlsGroupIdHex,
     required List<String> keyPackageEventsJson,
   }) async {
+    // Clear any stale pending commit from a previous failed invite
+    try {
+      await rust_group.mergePendingCommit(mlsGroupIdHex: mlsGroupIdHex);
+    } catch (_) {
+      // No pending commit — that's fine
+    }
+
     // 1. Create the MLS commit + welcome messages
     final result = await addMembers(
       mlsGroupIdHex: mlsGroupIdHex,
