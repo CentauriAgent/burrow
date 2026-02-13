@@ -45,6 +45,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final messages = messagesManager.messages;
     final groups = ref.watch(groupsProvider).value ?? [];
     final group = groups.where((g) => g.mlsGroupIdHex == widget.groupId).firstOrNull;
+    final isDm = group?.isDirectMessage ?? false;
     final auth = ref.watch(authProvider);
     // TODO: Use account.pubkeyHex when FFI bindings are generated
     final selfPubkey = 'self';
@@ -63,15 +64,20 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Text(
-                  _initials(group?.name ?? 'Chat'),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
+                backgroundColor: isDm
+                    ? theme.colorScheme.tertiaryContainer
+                    : theme.colorScheme.primaryContainer,
+                child: isDm
+                    ? Icon(Icons.person, size: 18,
+                        color: theme.colorScheme.onTertiaryContainer)
+                    : Text(
+                        _initials(group?.displayName ?? 'Chat'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -79,14 +85,22 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      group?.name ?? 'Chat',
+                      group?.displayName ?? 'Chat',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (group != null && group.memberCount > 0)
+                    if (!isDm && group != null && group.memberCount > 0)
                       Text(
                         '${group.memberCount} members',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurface.withAlpha(150),
+                        ),
+                      ),
+                    if (isDm)
+                      Text(
+                        'Encrypted direct message',
                         style: TextStyle(
                           fontSize: 12,
                           color: theme.colorScheme.onSurface.withAlpha(150),

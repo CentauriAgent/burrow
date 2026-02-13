@@ -7,6 +7,7 @@ class ChatListTile extends StatelessWidget {
   final DateTime? lastMessageTime;
   final int unreadCount;
   final int memberCount;
+  final bool isDirectMessage;
   final VoidCallback? onTap;
 
   const ChatListTile({
@@ -16,6 +17,7 @@ class ChatListTile extends StatelessWidget {
     this.lastMessageTime,
     this.unreadCount = 0,
     this.memberCount = 0,
+    this.isDirectMessage = false,
     this.onTap,
   });
 
@@ -26,15 +28,23 @@ class ChatListTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(
         radius: 26,
-        backgroundColor: theme.colorScheme.primaryContainer,
-        child: Text(
-          _initials(name),
-          style: TextStyle(
-            color: theme.colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
-        ),
+        backgroundColor: isDirectMessage
+            ? theme.colorScheme.tertiaryContainer
+            : theme.colorScheme.primaryContainer,
+        child: isDirectMessage
+            ? Icon(
+                Icons.person,
+                color: theme.colorScheme.onTertiaryContainer,
+                size: 24,
+              )
+            : Text(
+                _initials(name),
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
       ),
       title: Text(
         name,
@@ -60,7 +70,9 @@ class ChatListTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             )
           : Text(
-              memberCount > 0 ? '$memberCount members' : 'No messages yet',
+              isDirectMessage
+                  ? 'No messages yet'
+                  : (memberCount > 0 ? '$memberCount members' : 'No messages yet'),
               style: TextStyle(
                 color: theme.colorScheme.onSurface.withAlpha(120),
                 fontSize: 14,

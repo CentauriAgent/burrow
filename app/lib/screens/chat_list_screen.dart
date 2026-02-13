@@ -124,6 +124,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ? groups
         : groups
             .where((g) =>
+                g.displayName.toLowerCase().contains(_searchQuery) ||
                 g.name.toLowerCase().contains(_searchQuery) ||
                 (g.lastMessage?.toLowerCase().contains(_searchQuery) ?? false))
             .toList();
@@ -144,11 +145,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         itemBuilder: (context, index) {
           final group = filtered[index];
           return ChatListTile(
-            name: group.name,
+            name: group.displayName,
             lastMessage: group.lastMessage,
             lastMessageTime: group.lastMessageTime,
             unreadCount: group.unreadCount,
             memberCount: group.memberCount,
+            isDirectMessage: group.isDirectMessage,
             onTap: () => context.go('/chat/${group.mlsGroupIdHex}'),
           );
         },
@@ -297,7 +299,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: const Text('Start a 1:1 encrypted chat'),
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: Navigate to contact picker / npub entry
+                  context.go('/new-dm');
                 },
               ),
               ListTile(
@@ -309,7 +311,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 subtitle: const Text('Create an encrypted group chat'),
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: Navigate to group creation flow
+                  context.go('/create-group');
                 },
               ),
               const SizedBox(height: 16),

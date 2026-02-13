@@ -19,6 +19,8 @@ import 'package:burrow_app/providers/call_provider.dart';
 import 'package:burrow_app/screens/transcript_screen.dart';
 import 'package:burrow_app/screens/meeting_summary_screen.dart';
 import 'package:burrow_app/screens/transcript_history_screen.dart';
+import 'package:burrow_app/screens/new_dm_screen.dart';
+import 'package:burrow_app/screens/chat_view_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +86,16 @@ class BurrowApp extends ConsumerWidget {
         GoRoute(
           path: '/group-info/:groupId',
           builder: (context, state) => GroupInfoScreen(
+            groupId: state.pathParameters['groupId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/new-dm',
+          builder: (context, state) => const NewDmScreen(),
+        ),
+        GoRoute(
+          path: '/chat/:groupId',
+          builder: (context, state) => ChatViewScreen(
             groupId: state.pathParameters['groupId']!,
           ),
         ),

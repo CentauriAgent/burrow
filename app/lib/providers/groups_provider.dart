@@ -17,6 +17,11 @@ class GroupInfo {
   final int unreadCount;
   final int memberCount;
 
+  // Direct message fields
+  final bool isDirectMessage;
+  final String? dmPeerPubkey; // hex pubkey of the other person in a 1:1 chat
+  final String? dmPeerDisplayName; // npub or petname for display
+
   GroupInfo({
     required this.mlsGroupIdHex,
     required this.nostrGroupIdHex,
@@ -29,7 +34,18 @@ class GroupInfo {
     this.lastMessageTime,
     this.unreadCount = 0,
     this.memberCount = 0,
+    this.isDirectMessage = false,
+    this.dmPeerPubkey,
+    this.dmPeerDisplayName,
   });
+
+  /// Display name: for DMs show peer name, otherwise group name.
+  String get displayName {
+    if (isDirectMessage && dmPeerDisplayName != null && dmPeerDisplayName!.isNotEmpty) {
+      return dmPeerDisplayName!;
+    }
+    return name;
+  }
 }
 
 /// Groups list provider — fetches all groups for the current user.
@@ -37,8 +53,6 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   @override
   Future<List<GroupInfo>> build() async {
     // TODO: Call Rust FFI list_groups() when bindings are generated
-    // final rustGroups = await listGroups();
-    // return rustGroups.map((g) => GroupInfo(...)).toList();
     return [];
   }
 
@@ -52,6 +66,14 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   void addGroup(GroupInfo group) {
     final current = state.value ?? [];
     state = AsyncData([group, ...current]);
+  }
+
+  /// Remove a group from the local list (e.g. after leaving).
+  void removeGroup(String mlsGroupIdHex) {
+    final current = state.value ?? [];
+    state = AsyncData(
+      current.where((g) => g.mlsGroupIdHex != mlsGroupIdHex).toList(),
+    );
   }
 }
 
