@@ -43,25 +43,56 @@ pub async fn login(secret_key: String) -> Result<AccountInfo, BurrowError> {
     Ok(info)
 }
 
-/// Save the current secret key to a file (encrypted path recommended).
+/// Save the current secret key to a file with restrictive permissions (0o600).
 /// The caller should provide a secure filesystem path.
+/// Path traversal is prevented by rejecting paths containing `..`.
 #[frb]
 pub async fn save_secret_key(file_path: String) -> Result<(), BurrowError> {
+    // Reject path traversal attempts
+    if file_path.contains("..") {
+        return Err(BurrowError::from("Invalid file path: path traversal detected".to_string()));
+    }
     state::with_state(|s| {
         let nsec = s
             .keys
             .secret_key()
             .to_bech32()
             .map_err(|e| BurrowError::from(e.to_string()))?;
-        std::fs::write(Path::new(&file_path), nsec.as_bytes())
-            .map_err(BurrowError::from)
+        let path = Path::new(&file_path);
+
+        // Ensure parent directory exists with restrictive permissions
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(BurrowError::from)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+                    .map_err(BurrowError::from)?;
+            }
+        }
+
+        std::fs::write(path, nsec.as_bytes()).map_err(BurrowError::from)?;
+
+        // Set file permissions to owner-only read/write
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .map_err(BurrowError::from)?;
+        }
+
+        Ok(())
     })
     .await
 }
 
 /// Load a secret key from a file and initialize the account.
+/// Path traversal is prevented by rejecting paths containing `..`.
 #[frb]
 pub async fn load_account_from_file(file_path: String) -> Result<AccountInfo, BurrowError> {
+    if file_path.contains("..") {
+        return Err(BurrowError::from("Invalid file path: path traversal detected".to_string()));
+    }
     let content = std::fs::read_to_string(Path::new(&file_path))
         .map_err(BurrowError::from)?;
     login(content.trim().to_string()).await

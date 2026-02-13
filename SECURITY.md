@@ -1,136 +1,125 @@
 # Burrow Security Review
 
-**Date:** 2026-02-12  
+## Phase 1 Review (2026-02-12) — TypeScript CLI
+
 **Reviewer:** Centauri (automated security agent)  
 **Scope:** Full source review of `src/`, `test/`, `package.json`, dependency audit  
 **Version:** 0.1.0
 
----
+### Summary
 
-## Summary
-
-Burrow is an early-stage E2EE messaging CLI implementing the Marmot protocol (MLS over Nostr). The crypto foundations are sound — it uses reputable libraries (`@noble/curves`, `@noble/hashes`, `nostr-tools`, `ts-mls`) and follows the MIP specifications correctly. However, several issues need attention before any production use.
+Burrow is an early-stage E2EE messaging CLI implementing the Marmot protocol (MLS over Nostr). The crypto foundations are sound — it uses reputable libraries (`@noble/curves`, `@noble/hashes`, `nostr-tools`, `ts-mls`) and follows the MIP specifications correctly.
 
 **Critical:** 1 | **High:** 3 | **Medium:** 4 | **Low:** 3 | **Info:** 2
 
----
+### Phase 1 Findings (see git history for full detail)
 
-## Critical
-
-### C-1: Private KeyPackage init_key stored as plaintext JSON on disk
-**File:** `src/store/index.ts`, `src/cli/init.ts`  
-**Description:** `StoredKeyPackage.privateKey` contains the MLS private init key material, stored as plaintext base64 in a JSON file under `~/.burrow/keypackages/`. The data directory (`~/.burrow/`) is created with default permissions (0o775), meaning other users on a shared system can read private key material. Only the secret key file itself is written with `mode: 0o600`.  
-**Impact:** Any local user or process can read MLS private keys, enabling decryption of Welcome messages and impersonation.  
-**Remediation:**
-1. Set `~/.burrow/` directory permissions to `0o700` on creation
-2. Write all files containing key material with `mode: 0o600`
-3. Consider encrypting key material at rest (e.g., using a passphrase-derived key)
-
----
-
-## High
-
-### H-1: No zeroization of secret key material in memory
-**Files:** `src/crypto/identity.ts`, `src/crypto/nip44.ts`, `src/mls/group.ts`  
-**Description:** Secret keys (`secretKey`, `exporterSecret`, ephemeral keys) are held in `Uint8Array` buffers that are never zeroed after use. JavaScript's GC will eventually collect them, but the memory may persist for an indeterminate time. The `NostrIdentity` object stores both `secretKey` and `secretKeyHex` as long-lived properties.  
-**Impact:** Secret key material remains in process memory longer than necessary, increasing exposure window for memory dumps or side-channel attacks.  
-**Remediation:**
-1. Zero `Uint8Array` buffers after use: `secretKey.fill(0)`
-2. Avoid storing `secretKeyHex` as a persistent property — derive on demand
-3. Consider using `crypto.subtle` for key operations where possible (keys stay in secure memory)
-
-### H-2: Ephemeral key for group events not truly ephemeral — leaks via `randomBytes`
-**File:** `src/nostr/relay.ts` → `createEphemeralSignedEvent()`  
-**Description:** The ephemeral secret key is generated and returned from the function but never zeroed. The caller (`buildGroupEvent`) returns it as part of the result, and `sendCommand` never zeros it. Additionally, `randomBytes` from Node.js crypto is CSPRNG-quality, but the key is unnecessarily kept alive.  
-**Impact:** Ephemeral keys meant for single-use metadata protection remain in memory.  
-**Remediation:** Zero the ephemeral secret after event signing. Do not return it from `buildGroupEvent` unless needed.
-
-### H-3: `node_modules/` committed to git repository
-**File:** `.gitignore` (missing), `node_modules/`  
-**Description:** 2,614 files from `node_modules/` are tracked in git. No `.gitignore` file exists. This bloats the repository, may include platform-specific binaries, and makes dependency auditing harder.  
-**Impact:** Repository bloat, potential inclusion of vulnerable dependency versions without lockfile-based auditing, harder code review.  
-**Remediation:** ✅ **Fixed in this commit** — added `.gitignore` and removed `node_modules` from git tracking.
+| ID | Severity | Issue | Phase 2 Status |
+|---|---|---|---|
+| C-1 | Critical | Private KeyPackage init_key stored as plaintext JSON | **Mitigated** — Phase 2 uses `MdkMemoryStorage` (in-memory only); file save now uses 0o600 perms |
+| H-1 | High | No zeroization of secret key material in memory | **Open** — Rust `Keys` struct does not implement `Zeroize`; see P2-H1 |
+| H-2 | High | Ephemeral key not zeroed after use | **Mitigated** — MDK handles ephemeral keys internally |
+| H-3 | High | `node_modules/` committed to git | **Fixed** in Phase 1 |
+| M-1 | Medium | Store directory permissions too permissive (0o755) | **Fixed** — `save_secret_key` now sets 0o700 on dir, 0o600 on file |
+| M-2 | Medium | No input validation on group ID / pubkey (path traversal) | **Mitigated** — Phase 2 validates hex in all ID params; path traversal blocked on file ops |
+| M-3 | Medium | MLS group state stored unencrypted | **Mitigated** — Phase 2 uses `MdkMemoryStorage` (RAM only, no disk persistence yet) |
+| M-4 | Medium | Mixed ESM/CJS `require()` | **N/A** — Phase 2 is Rust, not TypeScript |
+| L-1 | Low | No KeyPackage expiration/rotation | **Open** — not yet implemented |
+| L-2 | Low | No signature verification on incoming events | **Delegated** — `nostr-sdk` verifies signatures on fetch; MDK handles MLS auth |
+| L-3 | Low | Inner event sender not verified against MLS leaf | **Delegated** — MDK `process_message` handles sender binding |
 
 ---
 
-## Medium
+## Phase 2 Review (2026-02-12) — Flutter + Rust (MDK)
 
-### M-1: Store directory permissions too permissive
-**File:** `src/store/index.ts`  
-**Description:** `BurrowStore` constructor creates directories with `mkdirSync(..., { recursive: true })` using default permissions (typically 0o755). The `groups/`, `keypackages/`, `mls-state/`, and `messages/` directories contain sensitive data including MLS group state (which contains epoch secrets).  
-**Remediation:** Pass `{ recursive: true, mode: 0o700 }` to all `mkdirSync` calls in the store.
+**Reviewer:** Centauri (automated security agent)  
+**Scope:** Full source review of `app/rust/src/api/`, `app/lib/`, `Cargo.toml`, CI pipeline  
+**Version:** 0.1.0 (Flutter + Rust rewrite using Marmot Developer Kit)
 
-### M-2: No input validation on invitee pubkey or group ID
-**Files:** `src/cli/invite.ts`, `src/cli/send.ts`, `src/cli/read.ts`  
-**Description:** User-supplied `groupId` and `inviteePubkey` are used directly in file paths (`store.getGroup(opts.groupId)`) and relay queries without validation. A crafted group ID like `../../etc/passwd` could potentially cause path traversal in the store.  
-**Impact:** Path traversal in file-based store; malformed pubkeys could cause cryptographic errors.  
-**Remediation:**
-1. Validate group IDs are hex strings of expected length
-2. Validate pubkeys are 64-char hex strings
-3. Sanitize file paths in `BurrowStore` (reject `/`, `..`, etc.)
+### Architecture Changes
 
-### M-3: MLS group state stored unencrypted
-**File:** `src/store/index.ts` → `saveMlsState()`  
-**Description:** The serialized MLS `GroupState` is written as raw binary to `~/.burrow/mls-state/<groupId>.bin`. This state contains the full MLS key schedule including `encryption_secret`, `exporter_secret`, and `epoch_secret`. Anyone who can read this file can decrypt all group messages for the current epoch.  
-**Remediation:** Encrypt MLS state at rest using a key derived from the user's Nostr secret key.
+Phase 2 replaces the TypeScript CLI with a Flutter app backed by Rust via `flutter_rust_bridge`. The core MLS protocol logic is now delegated to **MDK (Marmot Developer Kit)** — a Rust library implementing the Marmot protocol. This significantly improves the security posture:
 
-### M-4: `require()` used in ESM module for dynamic imports
-**Files:** `src/crypto/identity.ts` (line with `require('nostr-tools')`), `src/nostr/relay.ts`  
-**Description:** Mixed ESM (`import`) and CJS (`require()`) patterns. While not directly a security issue, this can cause module resolution failures in strict ESM environments and makes the codebase harder to audit. The `require('nostr-tools')` in `identity.ts` for nsec decoding is a runtime dynamic import that bypasses static analysis.  
-**Remediation:** Replace `require()` with dynamic `await import()` consistently.
+- MLS state management, key schedules, and message encryption/decryption are handled by MDK
+- Storage is currently `MdkMemoryStorage` (in-memory only — no disk persistence of MLS state)
+- Nostr event handling uses `nostr-sdk` (mature, well-tested)
 
----
+### Findings
 
-## Low
+#### P2-H1: No memory zeroization of `Keys` on logout [HIGH]
+**File:** `app/rust/src/api/state.rs` → `destroy_state()`  
+**Description:** `destroy_state()` sets the global state to `None`, which drops the `BurrowState` struct. However, the `nostr_sdk::Keys` struct holds the secret key in memory and does not implement the `Zeroize` trait. When dropped, the memory containing the secret key is deallocated but not zeroed — it may persist until overwritten by new allocations.  
+**Impact:** Secret key material remains in process memory after logout.  
+**Status:** **Open** — `nostr_sdk::Keys` does not expose zeroization. Filed as upstream concern. The `MdkMemoryStorage` also holds MLS key material that is not zeroed on drop.  
+**Mitigation:** This is a defense-in-depth issue. On mobile, app process isolation limits the attack surface. Consider contributing `Zeroize` support upstream to `nostr-sdk`.
 
-### L-1: No KeyPackage expiration or rotation
-**Files:** `src/mls/keypackage.ts`, `src/cli/init.ts`  
-**Description:** KeyPackages are generated with `defaultLifetime` from ts-mls but there's no mechanism to rotate or expire them. Old KeyPackages remain valid indefinitely on relays. The "last resort" flag is always set, meaning the same KeyPackage can be reused for multiple group invitations.  
-**Impact:** Reduced forward secrecy; compromised init_key affects all groups joined with that KeyPackage.  
-**Remediation:** Implement KeyPackage rotation (publish new, delete old). Generate non-last-resort packages for normal use.
+#### P2-H2: Blossom media upload has no authentication [HIGH]
+**File:** `app/rust/src/api/media.rs` → `upload_media()`  
+**Description:** The HTTP PUT to the Blossom server includes no authentication header. NIP-98 HTTP Auth should be used to prove the uploader's identity and prevent unauthorized uploads or content injection.  
+**Impact:** Any client can upload content to the Blossom server; no proof of authorship.  
+**Status:** **Open** — requires NIP-98 event creation and inclusion as `Authorization` header.
 
-### L-2: No signature verification on incoming events in `listenCommand`
-**File:** `src/cli/read.ts` → `listenCommand()`  
-**Description:** Incoming kind 445 events from relays are processed without verifying the Nostr signature. While the MLS layer provides its own authentication, an attacker could craft events that cause unnecessary MLS processing or error logging.  
-**Remediation:** Verify event signatures before attempting MLS decryption.
+#### P2-M1: Downloaded media not verified against content hash [MEDIUM]
+**File:** `app/rust/src/api/media.rs` → `download_media()`  
+**Description:** Encrypted media downloaded from Blossom URLs was not verified against the expected SHA-256 hash before decryption.  
+**Impact:** A MITM or compromised Blossom server could serve tampered ciphertext. While ChaCha20-Poly1305 would reject tampered data during decryption, verifying the hash first provides defense in depth and clearer error messages.  
+**Status:** ✅ **Fixed** — Added SHA-256 hash verification of downloaded data against URL hash before decryption.
 
-### L-3: Inner event sender pubkey not verified against MLS leaf
-**File:** `src/cli/read.ts` → `listenCommand()`  
-**Description:** After decrypting an MLS application message, the inner kind 9 event's `pubkey` field is trusted without verifying it matches the MLS leaf node credential of the sender. A compromised group member could forge messages appearing to come from another member.  
-**Impact:** Message attribution spoofing within a group.  
-**Remediation:** After MLS decryption, verify `innerEvent.pubkey` matches the sender's MLS BasicCredential identity.
+#### P2-M2: `save_secret_key` wrote file with default permissions [MEDIUM]
+**File:** `app/rust/src/api/account.rs`  
+**Description:** `save_secret_key` used `std::fs::write()` which creates files with default permissions (typically 0o644), exposing the nsec to other users on the system.  
+**Status:** ✅ **Fixed** — Now sets 0o600 on file and 0o700 on parent directory. Also added path traversal rejection.
 
----
+#### P2-M3: No path traversal protection on file operations [MEDIUM]
+**Files:** `app/rust/src/api/account.rs` → `save_secret_key`, `load_account_from_file`  
+**Description:** User-supplied file paths were used directly without validation.  
+**Status:** ✅ **Fixed** — Both functions now reject paths containing `..`.
 
-## Info
+#### P2-L1: No `cargo audit` in CI pipeline [LOW]
+**File:** `.github/workflows/ci.yml`  
+**Description:** CI runs fmt, clippy, and tests but does not audit dependencies for known vulnerabilities.  
+**Status:** ✅ **Fixed** — Added `rust-audit` job to CI pipeline.
 
-### I-1: Dependency audit — all crypto dependencies are reputable
-**Assessment:**
-| Dependency | Version | Status |
+#### P2-L2: No KeyPackage rotation mechanism [LOW]
+**File:** `app/rust/src/api/keypackage.rs`  
+**Description:** KeyPackages are generated and published but there's no mechanism for rotation or expiration enforcement.  
+**Status:** **Open** — deferred to Phase 3.
+
+#### P2-L3: `fetch_key_package` uses `block_on` inside async context [LOW]
+**File:** `app/rust/src/api/invite.rs` → `fetch_key_package()`  
+**Description:** Uses `rt.block_on()` inside `with_state()` which holds an async `RwLock` read guard. This could deadlock if the tokio runtime has limited threads. Same pattern in `relay.rs`.  
+**Status:** **Open** — works with multi-thread runtime but should be refactored to use proper async flow.
+
+### Positive Findings
+
+1. **MDK delegation** — Core MLS protocol logic (key schedules, encryption, state management) is handled by MDK, reducing custom crypto code
+2. **`MdkMemoryStorage`** — No MLS state written to disk (yet), eliminating disk-based key exposure
+3. **`rustls-tls`** — reqwest configured with `rustls-tls` feature, ensuring TLS for all HTTP connections with proper certificate validation
+4. **`nostr-sdk` handles Nostr crypto** — Key parsing, event signing, and signature verification use the well-tested `nostr-sdk` library
+5. **Flutter nsec input uses `obscureText`** — Import identity screen properly obscures the secret key field
+6. **No key logging** — No `print`/`log`/`debug` statements expose key material in Dart or Rust code
+7. **ChaCha20-Poly1305 for media** — MIP-04 v2 media encryption uses authenticated encryption (AEAD)
+8. **imeta tag validation** — `parse_imeta_tag` validates hash length (32 bytes) and nonce length (12 bytes)
+9. **Hex validation on all IDs** — Group IDs, pubkeys, and event IDs are parsed through proper hex/bech32 decoders
+10. **Default relays use WSS** — All default relay URLs use `wss://` (TLS)
+
+### Dependency Assessment
+
+| Dependency | Version | Assessment |
 |---|---|---|
-| `@noble/curves` | ^2.0.1 | ✅ Audited, widely used, by paulmillr |
-| `@noble/hashes` | ^2.0.1 | ✅ Audited, widely used, by paulmillr |
-| `nostr-tools` | ^2.23.1 | ✅ Standard Nostr library, active maintenance |
-| `ts-mls` | ^1.6.1 | ⚠️ Smaller project, less audit history — monitor |
-| `websocket-polyfill` | ^1.0.0 | ✅ Utility, no crypto |
-| `commander` | ^14.0.3 | ✅ CLI framework, no crypto |
+| `mdk-core` | git pin (5ef0c60) | ⚠️ Pinned to specific rev — good for reproducibility. MDK is by the Marmot protocol team. Less audit history than nostr-sdk. |
+| `nostr-sdk` | 0.44 | ✅ Widely used, actively maintained |
+| `reqwest` | 0.12 (rustls-tls) | ✅ Standard HTTP client, using rustls for TLS |
+| `flutter_rust_bridge` | 2.11.1 (pinned) | ✅ Active project, pinned exact version |
+| `sha2` | 0.10 | ✅ RustCrypto, widely audited |
+| `hex` | 0.4 | ✅ Utility crate |
 
-All crypto deps use `^` semver ranges. Consider pinning exact versions for reproducible builds. `ts-mls` is the least audited dependency — its correctness is critical for MLS security.
+### Recommendations for Phase 3
 
-### I-2: Test coverage is good but lacks adversarial tests
-**Assessment:** Tests cover happy-path crypto roundtrips, extension encoding, event building, and store operations. Missing:
-- Malformed input handling (truncated ciphertext, invalid base64, oversized messages)
-- Boundary conditions (max message size, empty groups)
-- Adversarial MLS messages (replayed commits, out-of-order epochs)
-
----
-
-## Positive Findings
-
-1. **NIP-44 usage is correct** — conversation keys derived properly, random nonces used (no reuse risk)
-2. **Ephemeral keys for group events** — good metadata protection per MIP-03
-3. **Inner events unsigned** — correctly follows MIP-03 security requirement (prevents signature correlation)
-4. **Secret key file written with 0o600** — correct for the key file itself
-5. **NIP-70 tag on KeyPackage events** — prevents relay tampering
-6. **Gift-wrapping for Welcome events** — proper NIP-59 privacy for invitations
-7. **Ciphersuite choice** — X25519/AES-128-GCM/SHA-256/Ed25519 is the standard MLS ciphersuite
+1. **Persistent storage encryption** — When moving from `MdkMemoryStorage` to disk-backed storage, encrypt at rest using a key derived from the user's secret key or platform keychain
+2. **NIP-98 auth for Blossom** — Add HTTP Auth headers to media uploads
+3. **Upstream `Zeroize`** — Request/contribute `Zeroize` trait implementation for `nostr_sdk::Keys`
+4. **KeyPackage rotation** — Implement automatic rotation with configurable lifetime
+5. **Refactor async patterns** — Remove `block_on` inside async RwLock guards to prevent potential deadlocks
+6. **Platform keychain integration** — Use iOS Keychain / Android Keystore for secret key storage instead of plain files
+7. **Add adversarial tests** — Malformed events, truncated ciphertext, replayed messages

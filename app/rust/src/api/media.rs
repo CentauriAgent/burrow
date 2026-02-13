@@ -7,7 +7,7 @@
 use flutter_rust_bridge::frb;
 use mdk_core::prelude::*;
 use nostr_sdk::prelude::*;
-
+use sha2::{Sha256, Digest};
 
 use crate::api::error::BurrowError;
 use crate::api::state;
@@ -276,6 +276,18 @@ pub async fn download_media(
         .await
         .map_err(|e| BurrowError::from(format!("Failed to read download body: {}", e)))?
         .to_vec();
+
+    // Step 1.5: Verify encrypted data hash matches URL hash (Blossom content-addressing)
+    let actual_hash = hex::encode(Sha256::digest(&encrypted_data));
+    // Extract expected hash from URL (last path segment is typically the SHA-256 hash)
+    if let Some(url_hash) = url.split('/').last() {
+        if url_hash.len() == 64 && hex::decode(url_hash).is_ok() && actual_hash != url_hash {
+            return Err(BurrowError::from(format!(
+                "Download integrity check failed: expected hash {}, got {}",
+                url_hash, actual_hash
+            )));
+        }
+    }
 
     // Step 2: Decrypt
     decrypt_file(

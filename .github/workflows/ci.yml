@@ -37,6 +37,20 @@ jobs:
       - name: Tests
         run: cargo test --all-targets
 
+  rust-audit:
+    name: Rust dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Audit dependencies
+        run: cargo audit
+
   flutter-analyze:
     name: Flutter (analyze + test)
     runs-on: ubuntu-latest
