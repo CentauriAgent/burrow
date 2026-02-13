@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
+import 'package:burrow_app/src/rust/api/invite.dart' as rust_invite;
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
 
@@ -201,11 +202,34 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         return;
       }
 
-      // Send the invites
-      await inviteNotifier.sendInvite(
-        mlsGroupIdHex: widget.groupId,
-        keyPackageEventsJson: keyPackageJsons,
-      );
+      // Send the invites (with retry on duplicate member)
+      try {
+        await inviteNotifier.sendInvite(
+          mlsGroupIdHex: widget.groupId,
+          keyPackageEventsJson: keyPackageJsons,
+        );
+      } catch (e) {
+        final msg = e is BurrowError ? e.message : e.toString();
+        if (msg.contains('Duplicate signature key') ||
+            msg.contains('duplicate')) {
+          // Member was added in a previous failed attempt — remove and retry
+          for (final invitee in _invitees) {
+            try {
+              await rust_invite.removeMembers(
+                mlsGroupIdHex: widget.groupId,
+                pubkeysHex: [invitee.hexKey],
+              );
+            } catch (_) {}
+          }
+          // Retry the invite
+          await inviteNotifier.sendInvite(
+            mlsGroupIdHex: widget.groupId,
+            keyPackageEventsJson: keyPackageJsons,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -213,7 +237,6 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
             content: Text('Invited ${keyPackageJsons.length} member(s)!'),
           ),
         );
-        // Refresh group data and go back to group info
         ref.read(groupProvider.notifier).refresh();
         final wide = MediaQuery.of(context).size.width >= 700;
         if (wide) {
@@ -229,6 +252,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         if (raw.contains('EndOfStream') || raw.contains('tls_codec')) {
           errorMsg =
               'Invalid KeyPackage format. The user may not be using a Marmot-compatible app, or their KeyPackage is corrupted.';
+        } else if (raw.contains('Duplicate signature key')) {
+          errorMsg =
+              'This member was already added. Try removing them from the group first, then re-invite.';
         } else {
           errorMsg = raw;
         }
