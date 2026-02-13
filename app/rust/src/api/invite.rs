@@ -239,6 +239,30 @@ pub async fn list_pending_welcomes() -> Result<Vec<WelcomeInfo>, BurrowError> {
     .await
 }
 
+/// Gift-wrap a welcome rumor for a specific recipient and return the
+/// serialized kind 1059 event for relay publication.
+///
+/// `welcome_rumor_json`: JSON-serialized unsigned welcome rumor event.
+/// `recipient_pubkey_hex`: Hex-encoded pubkey of the welcome recipient.
+#[frb]
+pub async fn gift_wrap_welcome(
+    welcome_rumor_json: String,
+    recipient_pubkey_hex: String,
+) -> Result<String, BurrowError> {
+    let rumor: UnsignedEvent = serde_json::from_str(&welcome_rumor_json)
+        .map_err(|e| BurrowError::from(format!("Failed to parse welcome rumor: {e}")))?;
+    let recipient = PublicKey::from_hex(&recipient_pubkey_hex)
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    let keys = state::with_state(|s| Ok(s.keys.clone())).await?;
+
+    let gift_wrap = EventBuilder::gift_wrap(&keys, &recipient, rumor, Vec::<Tag>::new())
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    serde_json::to_string(&gift_wrap).map_err(|e| BurrowError::from(e.to_string()))
+}
+
 /// Fetch a user's KeyPackage from relays (kind 443).
 ///
 /// Queries connected relays for the most recent KeyPackage event published by the given pubkey.

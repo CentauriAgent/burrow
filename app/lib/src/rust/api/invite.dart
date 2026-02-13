@@ -66,6 +66,19 @@ Future<void> declineWelcome({required String welcomeEventIdHex}) => RustLib
 Future<List<WelcomeInfo>> listPendingWelcomes() =>
     RustLib.instance.api.crateApiInviteListPendingWelcomes();
 
+/// Gift-wrap a welcome rumor for a specific recipient and return the
+/// serialized kind 1059 event for relay publication.
+///
+/// `welcome_rumor_json`: JSON-serialized unsigned welcome rumor event.
+/// `recipient_pubkey_hex`: Hex-encoded pubkey of the welcome recipient.
+Future<String> giftWrapWelcome({
+  required String welcomeRumorJson,
+  required String recipientPubkeyHex,
+}) => RustLib.instance.api.crateApiInviteGiftWrapWelcome(
+  welcomeRumorJson: welcomeRumorJson,
+  recipientPubkeyHex: recipientPubkeyHex,
+);
+
 /// Fetch a user's KeyPackage from relays (kind 443).
 ///
 /// Queries connected relays for the most recent KeyPackage event published by the given pubkey.
