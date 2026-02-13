@@ -77,13 +77,22 @@ Future<UpdateGroupResult> updateGroupRelays({
   relayUrls: relayUrls,
 );
 
-/// Update group metadata (name, description). Admin-only.
+/// Update group name. Admin-only.
 Future<UpdateGroupResult> updateGroupName({
   required String mlsGroupIdHex,
   required String name,
 }) => RustLib.instance.api.crateApiGroupUpdateGroupName(
   mlsGroupIdHex: mlsGroupIdHex,
   name: name,
+);
+
+/// Update group description. Admin-only.
+Future<UpdateGroupResult> updateGroupDescription({
+  required String mlsGroupIdHex,
+  required String description,
+}) => RustLib.instance.api.crateApiGroupUpdateGroupDescription(
+  mlsGroupIdHex: mlsGroupIdHex,
+  description: description,
 );
 
 /// Result of creating a group, including welcome events for invited members.

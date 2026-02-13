@@ -82,7 +82,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1383976764;
+  int get rustContentHash => 1047469352;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -541,6 +541,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<TranscriptionConfig> crateApiTranscriptionTranscriptionConfigDefault();
+
+  Future<UpdateGroupResult> crateApiGroupUpdateGroupDescription({
+    required String mlsGroupIdHex,
+    required String description,
+  });
 
   Future<UpdateGroupResult> crateApiGroupUpdateGroupName({
     required String mlsGroupIdHex,
@@ -4463,6 +4468,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<UpdateGroupResult> crateApiGroupUpdateGroupDescription({
+    required String mlsGroupIdHex,
+    required String description,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(mlsGroupIdHex, serializer);
+          sse_encode_String(description, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 118,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_update_group_result,
+          decodeErrorData: sse_decode_burrow_error,
+        ),
+        constMeta: kCrateApiGroupUpdateGroupDescriptionConstMeta,
+        argValues: [mlsGroupIdHex, description],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGroupUpdateGroupDescriptionConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_group_description",
+        argNames: ["mlsGroupIdHex", "description"],
+      );
+
+  @override
   Future<UpdateGroupResult> crateApiGroupUpdateGroupName({
     required String mlsGroupIdHex,
     required String name,
@@ -4476,7 +4516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 119,
             port: port_,
           );
         },
@@ -4511,7 +4551,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 120,
             port: port_,
           );
         },
@@ -4548,7 +4588,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 121,
             port: port_,
           );
         },
@@ -4583,7 +4623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 122,
             port: port_,
           );
         },
@@ -4624,7 +4664,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 123,
             port: port_,
           );
         },

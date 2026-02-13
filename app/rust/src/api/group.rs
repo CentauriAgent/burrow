@@ -342,7 +342,7 @@ pub async fn update_group_relays(
     .await
 }
 
-/// Update group metadata (name, description). Admin-only.
+/// Update group name. Admin-only.
 #[frb]
 pub async fn update_group_name(
     mls_group_id_hex: String,
@@ -353,6 +353,34 @@ pub async fn update_group_name(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
         );
         let update = mdk_core::groups::NostrGroupDataUpdate::new().name(name);
+        let result = s
+            .mdk
+            .update_group_data(&group_id, update)
+            .map_err(BurrowError::from)?;
+
+        let evolution_json =
+            serde_json::to_string(&result.evolution_event).unwrap_or_default();
+
+        Ok(UpdateGroupResult {
+            evolution_event_json: evolution_json,
+            welcome_rumors_json: vec![],
+            mls_group_id_hex: hex::encode(result.mls_group_id.as_slice()),
+        })
+    })
+    .await
+}
+
+/// Update group description. Admin-only.
+#[frb]
+pub async fn update_group_description(
+    mls_group_id_hex: String,
+    description: String,
+) -> Result<UpdateGroupResult, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+        let update = mdk_core::groups::NostrGroupDataUpdate::new().description(description);
         let result = s
             .mdk
             .update_group_data(&group_id, update)

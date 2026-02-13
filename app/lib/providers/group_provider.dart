@@ -59,6 +59,18 @@ class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
     return result;
   }
 
+  Future<UpdateGroupResult> updateDescription(
+    String mlsGroupIdHex,
+    String description,
+  ) async {
+    final result = await updateGroupDescription(
+      mlsGroupIdHex: mlsGroupIdHex,
+      description: description,
+    );
+    state = AsyncData(await listGroups());
+    return result;
+  }
+
   Future<void> refresh() async {
     state = AsyncData(await listGroups());
   }

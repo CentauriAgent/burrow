@@ -179,6 +179,52 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
+  Future<void> _editGroupDescription() async {
+    if (!_isAdmin()) return;
+    final controller = TextEditingController(text: _group?.description ?? '');
+    final newDesc = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Description'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'Description',
+            hintText: 'Add a group description...',
+          ),
+          autofocus: true,
+          maxLines: 3,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newDesc != null && newDesc != _group?.description) {
+      try {
+        await ref
+            .read(groupProvider.notifier)
+            .updateDescription(widget.groupId, newDesc);
+        _loadGroupInfo();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: ${_errorMsg(e)}')));
+        }
+      }
+    }
+  }
+
   Future<void> _editGroupName() async {
     if (!_isAdmin()) return;
     final controller = TextEditingController(text: _group?.name ?? '');
@@ -487,19 +533,31 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     ),
                   ),
                 ),
-                if (group.description.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Padding(
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: isAdmin ? _editGroupDescription : null,
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      group.description,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                    child: group.description.isNotEmpty
+                        ? Text(
+                            group.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey,
+                            ),
+                            textAlign: TextAlign.center,
+                          )
+                        : isAdmin
+                        ? Text(
+                            'Tap to add description',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey.withAlpha(120),
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          )
+                        : const SizedBox.shrink(),
                   ),
-                ],
+                ),
                 const SizedBox(height: 20),
 
                 // --- Action buttons row (Signal-style) ---
