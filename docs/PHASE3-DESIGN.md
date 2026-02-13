@@ -183,9 +183,64 @@ No formal NIP exists for WebRTC signaling on Nostr. Burrow should author one:
 
 ---
 
-## Open Questions
+## Refined Architecture (Post-Research)
 
-1. **SFU hosting** — Who runs it? Community-operated? Paid tier?
-2. **TURN costs** — Relay bandwidth isn't free. Lightning micropayments for TURN?
-3. **Call history** — Store call metadata (duration, participants) in Marmot group or local only?
-4. **Interoperability** — Should other Nostr clients be able to call Burrow users? (Yes, if we author a NIP)
+> Updated 2026-02-12 after comprehensive research. See `PHASE3-RESEARCH.md` for full findings.
+
+### Key Decisions
+
+1. **SFU: LiveKit** — Apache 2.0, Go-based, first-class Flutter SDK (`livekit_client`), built-in E2EE support, self-hostable. LiveKit sponsors flutter_webrtc, so the stack is aligned.
+
+2. **Hybrid Topology:**
+   - 2 peers: P2P (DTLS-SRTP, zero infrastructure)
+   - 3-4 peers: Full mesh (DTLS-SRTP, zero infrastructure)
+   - 5+ peers: LiveKit SFU with frame-level encryption (MLS-derived keys)
+
+3. **E2EE for SFU Mode:** Derive media encryption keys from MLS `exporter_secret`:
+   ```
+   media_key = MLS.export_secret("burrow-media-v1", call_id, 32)
+   ```
+   Applied via flutter_webrtc's `FrameCryptor` API (AES-128-GCM). SFU forwards opaque encrypted frames.
+
+4. **NIP Authorship:** Kinds 25050-25059 for call signaling. No existing NIP covers this — Burrow defines the standard. All events gift-wrapped (NIP-59) with NIP-40 expiration tags.
+
+5. **WhiteNoise Interop:** WhiteNoise has no call features. Our design should allow any Marmot client to adopt calls later. Coordinate `exporter_secret` label conventions.
+
+6. **STUN/TURN:** Public STUN (Google), self-hosted coturn for TURN. Short-lived HMAC credentials per call.
+
+7. **Native Call Integration:** CallKit (iOS) + ConnectionService (Android) for lock-screen answering, audio routing, system call log.
+
+### Dependencies
+
+```yaml
+dependencies:
+  flutter_webrtc: ^0.12.7        # P2P WebRTC
+  livekit_client: ^latest         # SFU mode (wraps flutter_webrtc)
+  # Signaling via existing Rust/Marmot bridge
+```
+
+### Implementation Order
+
+1. **Phase 3a:** 1:1 audio calls (P2P, gift-wrapped signaling)
+2. **Phase 3b:** 1:1 video calls (camera UI, bandwidth adaptation)
+3. **Phase 3c:** Group calls — mesh mode (≤4 participants)
+4. **Phase 3d:** Group calls — SFU mode (LiveKit, frame encryption)
+5. **Phase 3e:** Native call integration (CallKit/ConnectionService)
+6. **Phase 3f:** NIP submission and interop testing
+
+## Open Questions (Resolved + Remaining)
+
+| Question | Resolution |
+|----------|-----------|
+| SFU hosting | LiveKit self-hosted initially; LiveKit Cloud as fallback |
+| TURN costs | Self-hosted coturn; future: Lightning micropayments |
+| Call history | Local-only storage (call log in SQLite), not on Nostr |
+| Interoperability | Yes — NIP-XX defines open standard for any Nostr client |
+| WhiteNoise coordination | Their Rust crate is messaging-only; calls are new territory |
+
+### Remaining Open Questions
+
+1. **LiveKit room provisioning** — Who creates rooms? Caller's device? Dedicated provisioner?
+2. **TURN region expansion** — When to add more regions? Usage-based?
+3. **Screen sharing** — Phase 3 scope or Phase 4?
+4. **Recording** — Should we support call recording? Privacy implications?
