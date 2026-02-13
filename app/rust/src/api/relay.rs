@@ -86,5 +86,6 @@ pub fn default_relay_urls() -> Vec<String> {
         "wss://relay.ditto.pub".to_string(),
         "wss://nos.lol".to_string(),
         "wss://relay.damus.io".to_string(),
+        "wss://relay.primal.net".to_string(),
     ]
 }

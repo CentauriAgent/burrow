@@ -6,6 +6,7 @@ pub fn default_relays() -> Vec<String> {
         "wss://relay.damus.io".into(),
         "wss://nos.lol".into(),
         "wss://relay.primal.net".into(),
+        "wss://relay.ditto.pub".into(),
     ]
 }
 
@@ -14,7 +15,9 @@ pub fn data_dir(custom: Option<&str>) -> PathBuf {
     if let Some(d) = custom {
         PathBuf::from(d)
     } else {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join(".burrow")
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".burrow")
     }
 }
 
