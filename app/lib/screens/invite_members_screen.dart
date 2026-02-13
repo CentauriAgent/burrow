@@ -7,6 +7,7 @@ import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
+import 'package:burrow_app/services/user_service.dart';
 
 /// Decode an npub1... bech32 string to a 64-char hex pubkey.
 /// Returns null if decoding fails.
@@ -112,10 +113,26 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       return;
     }
 
+    final entry = _InviteEntry(input: input, hexKey: hexKey);
     setState(() {
-      _invitees.add(_InviteEntry(input: input, hexKey: hexKey));
+      _invitees.add(entry);
       _npubController.clear();
     });
+
+    // Fetch profile in background
+    _resolveProfile(entry);
+  }
+
+  Future<void> _resolveProfile(_InviteEntry entry) async {
+    try {
+      final profile = await UserService(pubkeyHex: entry.hexKey).fetchProfile();
+      if (mounted) {
+        setState(() {
+          entry.displayName = UserService.presentName(profile);
+          entry.picture = profile.picture;
+        });
+      }
+    } catch (_) {}
   }
 
   /// Paste from clipboard.
@@ -330,24 +347,43 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     itemBuilder: (context, index) {
                       final entry = _invitees[index];
+                      final hasName =
+                          entry.displayName != null &&
+                          entry.displayName!.isNotEmpty;
+                      final initials = hasName
+                          ? entry.displayName!.substring(0, 1).toUpperCase()
+                          : entry.hexKey.substring(0, 2).toUpperCase();
+
                       return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: theme.colorScheme.secondaryContainer,
-                          child: Text(
-                            entry.input.substring(0, 2).toUpperCase(),
-                            style: TextStyle(
-                              color: theme.colorScheme.onSecondaryContainer,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        leading: entry.picture != null
+                            ? CircleAvatar(
+                                backgroundImage: NetworkImage(entry.picture!),
+                                backgroundColor:
+                                    theme.colorScheme.secondaryContainer,
+                              )
+                            : CircleAvatar(
+                                backgroundColor:
+                                    theme.colorScheme.secondaryContainer,
+                                child: Text(
+                                  initials,
+                                  style: TextStyle(
+                                    color:
+                                        theme.colorScheme.onSecondaryContainer,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                         title: Text(
-                          _truncateKey(entry.input),
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                          ),
+                          hasName
+                              ? entry.displayName!
+                              : _truncateKey(entry.input),
+                          style: hasName
+                              ? null
+                              : const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                ),
                         ),
                         subtitle: _buildStatusText(entry),
                         trailing: IconButton(
@@ -430,6 +466,8 @@ class _InviteEntry {
   final String hexKey;
   _InviteStatus status = _InviteStatus.pending;
   String? error;
+  String? displayName;
+  String? picture;
 
   _InviteEntry({required this.input, required this.hexKey});
 }
