@@ -13,6 +13,7 @@ import {
   sendCommand,
   readCommand,
   listenCommand,
+  daemonCommand,
 } from './cli/index.js';
 
 const program = new Command();
@@ -128,6 +129,23 @@ program
       groupId,
       keyPath: opts.keyPath,
       dataDir: opts.dataDir,
+    });
+  });
+
+// --- burrow daemon ---
+program
+  .command('daemon')
+  .description('Run persistent listener on ALL groups (JSONL output, auto-reconnect)')
+  .option('-k, --key-path <path>', 'Path to Nostr secret key')
+  .option('-d, --data-dir <path>', 'Data directory')
+  .option('-l, --log-file <path>', 'Path to JSONL log file for OpenClaw integration')
+  .option('--reconnect-delay <ms>', 'Reconnect delay in ms', '5000')
+  .action(async (opts) => {
+    await daemonCommand({
+      keyPath: opts.keyPath,
+      dataDir: opts.dataDir,
+      logFile: opts.logFile,
+      reconnectDelay: parseInt(opts.reconnectDelay),
     });
   });
 

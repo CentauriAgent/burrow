@@ -3,3 +3,4 @@ export { createGroupCommand, listGroupsCommand } from './group.js';
 export { inviteCommand } from './invite.js';
 export { sendCommand } from './send.js';
 export { readCommand, listenCommand } from './read.js';
+export { daemonCommand } from './daemon.js';

@@ -182,5 +182,14 @@ export function serializeGroupState(state: GroupState): Uint8Array {
 export function deserializeGroupState(data: Uint8Array): GroupState {
   const decoded = decodeGroupState(data, 0);
   if (!decoded) throw new Error('Failed to decode group state');
-  return decoded[0] as any;
+  const state = decoded[0] as any;
+
+  // ts-mls encodeGroupState doesn't persist clientConfig — restore defaults
+  if (!state.clientConfig) {
+    state.clientConfig = {
+      paddingConfig: { type: 'none' },
+    };
+  }
+
+  return state as GroupState;
 }

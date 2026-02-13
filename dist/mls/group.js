@@ -86,6 +86,13 @@ export function deserializeGroupState(data) {
     const decoded = decodeGroupState(data, 0);
     if (!decoded)
         throw new Error('Failed to decode group state');
-    return decoded[0];
+    const state = decoded[0];
+    // ts-mls encodeGroupState doesn't persist clientConfig — restore defaults
+    if (!state.clientConfig) {
+        state.clientConfig = {
+            paddingConfig: { type: 'none' },
+        };
+    }
+    return state;
 }
 //# sourceMappingURL=group.js.map
