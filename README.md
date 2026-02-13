@@ -22,7 +22,7 @@ Burrow is purpose-built for the emerging world where AI agents need to communica
 
 ## Two Implementations
 
-### 📱 Phase 2: Flutter App (Current)
+### 📱 Flutter App
 
 A cross-platform mobile and desktop app with a Rust cryptography engine.
 
@@ -31,12 +31,12 @@ A cross-platform mobile and desktop app with a Rust cryptography engine.
 - **Platforms:** Android, iOS, Linux, macOS, Windows
 - **Features:** Identity management, group chat, member invites, encrypted media (Blossom/MIP-04), real-time messaging
 
-### 💻 Phase 1: TypeScript CLI
+### 💻 Rust CLI
 
 A command-line messenger for scripting and agent use.
 
-- **Runtime:** Node.js ≥ 20
-- **Protocol:** `ts-mls` + `nostr-tools`
+- **Language:** Rust
+- **Protocol:** MLS + Nostr
 - **Use case:** Automation, CI/CD, agent-to-agent messaging
 
 ---
@@ -67,71 +67,57 @@ flutter run
 
 For detailed platform-specific build instructions, see **[docs/BUILD.md](docs/BUILD.md)**.
 
-### App Screens
-
-| Screen | Description |
-|--------|-------------|
-| **Onboarding** | Create new identity or import existing nsec |
-| **Chat List** | All your encrypted group conversations |
-| **Chat View** | Send/receive messages with real-time updates |
-| **Create Group** | Start a new encrypted group |
-| **Invite Members** | Add members by npub/hex pubkey |
-| **Pending Invites** | Accept incoming group invitations |
-| **Group Info** | View group details and members |
-| **Profile** | Your Nostr identity and settings |
-
-<!-- ### Screenshots
-*Coming soon — placeholder for app screenshots* -->
-
 ---
 
 ## Quick Start — CLI
 
 ```bash
-# Install
+# Build from source
 git clone https://github.com/CentauriAgent/burrow.git
 cd burrow
-npm install
-npm run build
+cargo build --release
+
+# The binary is at target/release/burrow
 
 # Initialize (uses existing Nostr key or generates a new one)
-npx burrow init --generate
+burrow init --generate
 
 # Create a group
-npx burrow create-group "My Secure Group"
+burrow group create "My Secure Group"
+
+# List groups
+burrow groups
 
 # Invite someone (they must have run `burrow init` first)
-npx burrow invite <group-id> <their-hex-pubkey>
+burrow invite <group-id> <their-hex-pubkey>
 
 # Send a message
-npx burrow send <group-id> "Hello from the burrow! 🦫"
+burrow send <group-id> "Hello from the burrow! 🦫"
 
 # Read messages
-npx burrow read <group-id>
+burrow read <group-id>
 
 # Listen for new messages in real-time
-npx burrow listen <group-id>
+burrow listen <group-id>
+
+# Run persistent daemon (JSONL output)
+burrow daemon
 ```
-
-### CLI Requirements
-
-- **Node.js** ≥ 20.0.0
-- **npm** ≥ 9
-- A Nostr secret key (hex or nsec format) — Burrow can generate one for you
 
 ### CLI Commands
 
 | Command | Description |
 |---------|-------------|
 | `burrow init` | Initialize identity and publish MLS KeyPackage |
-| `burrow create-group <name>` | Create a new encrypted group |
+| `burrow group create <name>` | Create a new encrypted group |
 | `burrow groups` | List all groups you belong to |
 | `burrow invite <group-id> <pubkey>` | Invite a user to a group |
 | `burrow send <group-id> <message>` | Send an encrypted message |
 | `burrow read <group-id>` | Read stored messages |
 | `burrow listen <group-id>` | Subscribe to real-time messages |
-
-All commands support `--key-path`, `--data-dir`, and `--relay` options.
+| `burrow daemon` | Run persistent daemon on all groups |
+| `burrow welcome` | Manage NIP-59 welcome invitations |
+| `burrow acl` | Access control management |
 
 ---
 
@@ -183,18 +169,13 @@ For the full technical deep-dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | MIP-01 | Group Management (extension 0xF2EE) | ✅ Implemented |
 | MIP-02 | Welcome Events (kind 444 + NIP-59) | ✅ Implemented |
 | MIP-03 | Group Messages (kind 445 + NIP-44) | ✅ Implemented |
-| MIP-04 | Encrypted Media (Blossom + ChaCha20-Poly1305) | ✅ Implemented (Phase 2) |
+| MIP-04 | Encrypted Media (Blossom + ChaCha20-Poly1305) | ✅ Implemented |
 
 **Ciphersuite:** `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` (128-bit security)
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full plan:
-
-- **Phase 1** ✅ TypeScript CLI messenger
-- **Phase 2** ✅ Flutter cross-platform app (iOS, Android, desktop)
-- **Phase 3**: Audio & video calls over WebRTC + Nostr signaling
-- **Phase 4**: AI meeting assistant (transcription, summaries, action items)
+See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## Contributing
 
@@ -204,31 +185,19 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for development workflow, code 
 
 ```
 burrow/
-├── app/                    # Phase 2: Flutter app
+├── app/                    # Flutter cross-platform app
 │   ├── lib/                # Dart source
-│   │   ├── main.dart       # App entry point
-│   │   ├── screens/        # UI screens
-│   │   ├── providers/      # Riverpod state management
-│   │   ├── widgets/        # Reusable widgets
-│   │   └── src/rust/       # Generated FRB bindings
-│   ├── rust/               # Rust crypto engine
-│   │   ├── src/api/        # MDK-backed API modules
-│   │   └── Cargo.toml      # Rust dependencies
-│   ├── test/               # Dart unit tests
-│   └── integration_test/   # Integration tests
-├── src/                    # Phase 1: TypeScript CLI
-│   ├── cli/                # Command handlers
-│   ├── crypto/             # Identity, NIP-44 encryption
-│   ├── mls/                # MLS operations
-│   ├── nostr/              # Relay communication
-│   ├── store/              # File-based persistence
-│   └── types/              # Protocol constants
+│   ├── rust/               # Rust crypto engine (MDK)
+│   └── test/               # Tests
+├── cli/                    # Rust CLI
+│   ├── src/                # CLI source code
+│   └── Cargo.toml          # CLI dependencies
+├── mls-engine/             # MLS engine crate
+├── scripts/                # Shell scripts
 ├── ARCHITECTURE.md         # Technical architecture
 ├── ROADMAP.md              # Project roadmap
 ├── SECURITY.md             # Security review
 └── docs/                   # Additional documentation
-    ├── BUILD.md            # Detailed build guide
-    └── CONTRIBUTING.md     # How to contribute
 ```
 
 ## Links

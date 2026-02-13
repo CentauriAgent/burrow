@@ -1,7 +1,4 @@
-node_modules/
-dist/
-*.tsbuildinfo
-.DS_Store
-*.log
 target/
 *.deb
+.DS_Store
+*.log

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
+use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
@@ -34,7 +34,11 @@ pub async fn run(
         anyhow::bail!("ACL: not allowed to send to this group");
     }
 
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    // Use SQLite storage (same as daemon) instead of in-memory
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
+        .context("Failed to open MLS SQLite database")?;
+    let mdk = MDK::new(mdk_storage);
     let mls_group_id = mdk_core::prelude::GroupId::from_slice(
         &hex::decode(&group.mls_group_id_hex)?
     );
