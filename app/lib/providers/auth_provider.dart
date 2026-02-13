@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/api/account.dart';
+import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 
 /// Auth state: null means not logged in.
 class AuthState {
@@ -18,6 +19,8 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
     if (File(path).existsSync()) {
       try {
         final info = await loadAccountFromFile(filePath: path);
+        // Bootstrap: connect default + NIP-65 relays, fetch own profile
+        rust_identity.bootstrapIdentity().ignore();
         return AuthState(account: info);
       } catch (_) {
         // Corrupt key file — delete it

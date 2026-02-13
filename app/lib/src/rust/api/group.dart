@@ -61,6 +61,22 @@ Future<List<MemberInfo>> getGroupMembers({required String mlsGroupIdHex}) =>
 Future<UpdateGroupResult> leaveGroup({required String mlsGroupIdHex}) =>
     RustLib.instance.api.crateApiGroupLeaveGroup(mlsGroupIdHex: mlsGroupIdHex);
 
+/// Get the relay URLs configured for a group.
+Future<List<String>> getGroupRelays({required String mlsGroupIdHex}) => RustLib
+    .instance
+    .api
+    .crateApiGroupGetGroupRelays(mlsGroupIdHex: mlsGroupIdHex);
+
+/// Update the relay URLs for a group. Admin-only.
+/// Returns an evolution event to publish to the old and new relays.
+Future<UpdateGroupResult> updateGroupRelays({
+  required String mlsGroupIdHex,
+  required List<String> relayUrls,
+}) => RustLib.instance.api.crateApiGroupUpdateGroupRelays(
+  mlsGroupIdHex: mlsGroupIdHex,
+  relayUrls: relayUrls,
+);
+
 /// Update group metadata (name, description). Admin-only.
 Future<UpdateGroupResult> updateGroupName({
   required String mlsGroupIdHex,

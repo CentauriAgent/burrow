@@ -44,63 +44,63 @@ pub async fn generate_key_package(relay_urls: Vec<String>) -> Result<KeyPackageD
     .await
 }
 
-/// Publish a KeyPackage as a kind 443 event to the given relays.
-/// This signs and sends the event via the Nostr client.
+/// Publish a KeyPackage as a kind 443 event to connected relays.
+/// Signs and sends the event, returns the event ID hex.
 #[frb]
 pub async fn publish_key_package(relay_urls: Vec<String>) -> Result<String, BurrowError> {
-    // Generate the key package
-    let kp_data = generate_key_package(relay_urls.clone()).await?;
+    let kp_data = generate_key_package(relay_urls).await?;
 
-    state::with_state(|s| {
-        // Reconstruct tags
-        let tags: Vec<Tag> = kp_data
-            .tags
-            .iter()
-            .filter_map(|t| {
-                if t.len() >= 2 {
-                    Some(Tag::custom(
-                        TagKind::from(t[0].as_str()),
-                        t[1..].to_vec(),
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect();
+    // Reconstruct tags
+    let tags: Vec<Tag> = kp_data
+        .tags
+        .iter()
+        .filter_map(|t| {
+            if t.len() >= 2 {
+                Some(Tag::custom(
+                    TagKind::from(t[0].as_str()),
+                    t[1..].to_vec(),
+                ))
+            } else {
+                None
+            }
+        })
+        .collect();
 
-        // Build the kind 443 (MlsKeyPackage) event
-        let builder = EventBuilder::new(Kind::MlsKeyPackage, &kp_data.key_package_base64)
-            .tags(tags);
+    // Build and publish the kind 443 event
+    let builder = EventBuilder::new(Kind::MlsKeyPackage, &kp_data.key_package_base64)
+        .tags(tags);
 
-        // We return the builder info — actual signing + publishing happens
-        // when relay connections are wired up
-        let _builder = builder;
-        let _keys = &s.keys;
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+    let output = client
+        .send_event_builder(builder)
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
 
-        Ok("key_package_generated".to_string())
-    })
-    .await
+    Ok(output.id().to_hex())
 }
 
-/// Build a kind 10051 (KeyPackage relay list) event content.
-/// Returns the relay URLs that would be published.
+/// Publish a kind 10051 (KeyPackage relay list) event to connected relays.
+/// This tells other users which relays to find our key packages on.
 #[frb]
-pub async fn set_key_package_relays(relay_urls: Vec<String>) -> Result<Vec<String>, BurrowError> {
-    state::with_state(|_s| {
-        // Validate all URLs parse as relay URLs
-        let valid_urls: Vec<String> = relay_urls
-            .iter()
-            .filter_map(|u| RelayUrl::parse(u).ok().map(|r| r.to_string()))
-            .collect();
+pub async fn publish_key_package_relays(relay_urls: Vec<String>) -> Result<String, BurrowError> {
+    let tags: Vec<Tag> = relay_urls
+        .iter()
+        .filter_map(|u| RelayUrl::parse(u).ok())
+        .map(|r| Tag::relay(r))
+        .collect();
 
-        if valid_urls.is_empty() {
-            return Err(BurrowError::from(
-                "No valid relay URLs provided".to_string(),
-            ));
-        }
+    if tags.is_empty() {
+        return Err(BurrowError::from("No valid relay URLs provided".to_string()));
+    }
 
-        // Kind 10051 event will be built and published when relay module is connected
-        Ok(valid_urls)
-    })
-    .await
+    let builder = EventBuilder::new(Kind::Custom(10051), "")
+        .tags(tags);
+
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+    let output = client
+        .send_event_builder(builder)
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    Ok(output.id().to_hex())
 }

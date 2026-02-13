@@ -16,17 +16,17 @@ Future<KeyPackageData> generateKeyPackage({required List<String> relayUrls}) =>
       relayUrls: relayUrls,
     );
 
-/// Publish a KeyPackage as a kind 443 event to the given relays.
-/// This signs and sends the event via the Nostr client.
+/// Publish a KeyPackage as a kind 443 event to connected relays.
+/// Signs and sends the event, returns the event ID hex.
 Future<String> publishKeyPackage({required List<String> relayUrls}) => RustLib
     .instance
     .api
     .crateApiKeypackagePublishKeyPackage(relayUrls: relayUrls);
 
-/// Build a kind 10051 (KeyPackage relay list) event content.
-/// Returns the relay URLs that would be published.
-Future<List<String>> setKeyPackageRelays({required List<String> relayUrls}) =>
-    RustLib.instance.api.crateApiKeypackageSetKeyPackageRelays(
+/// Publish a kind 10051 (KeyPackage relay list) event to connected relays.
+/// This tells other users which relays to find our key packages on.
+Future<String> publishKeyPackageRelays({required List<String> relayUrls}) =>
+    RustLib.instance.api.crateApiKeypackagePublishKeyPackageRelays(
       relayUrls: relayUrls,
     );
 

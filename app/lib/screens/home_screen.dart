@@ -138,7 +138,7 @@ class HomeScreen extends ConsumerWidget {
                     size: 10,
                     color: group.state == 'active' ? Colors.green : Colors.grey,
                   ),
-                  onTap: () => context.go('/group-info/${group.mlsGroupIdHex}'),
+                  onTap: () => context.go('/chat/${group.mlsGroupIdHex}'),
                 );
               },
             ),

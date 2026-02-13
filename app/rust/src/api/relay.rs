@@ -83,8 +83,8 @@ pub async fn publish_event_json(event_json: String) -> Result<String, BurrowErro
 #[frb(sync)]
 pub fn default_relay_urls() -> Vec<String> {
     vec![
-        "wss://relay.damus.io".to_string(),
+        "wss://relay.ditto.pub".to_string(),
         "wss://nos.lol".to_string(),
-        "wss://relay.primal.net".to_string(),
+        "wss://relay.damus.io".to_string(),
     ]
 }

@@ -295,6 +295,53 @@ pub async fn leave_group(mls_group_id_hex: String) -> Result<UpdateGroupResult, 
     .await
 }
 
+/// Get the relay URLs configured for a group.
+#[frb]
+pub async fn get_group_relays(mls_group_id_hex: String) -> Result<Vec<String>, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+        let relays = s.mdk.get_relays(&group_id).map_err(BurrowError::from)?;
+        Ok(relays.iter().map(|r| r.to_string()).collect())
+    })
+    .await
+}
+
+/// Update the relay URLs for a group. Admin-only.
+/// Returns an evolution event to publish to the old and new relays.
+#[frb]
+pub async fn update_group_relays(
+    mls_group_id_hex: String,
+    relay_urls: Vec<String>,
+) -> Result<UpdateGroupResult, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+        let relays: Vec<RelayUrl> = relay_urls
+            .iter()
+            .filter_map(|u| RelayUrl::parse(u).ok())
+            .collect();
+
+        let update = mdk_core::groups::NostrGroupDataUpdate::new().relays(relays);
+        let result = s
+            .mdk
+            .update_group_data(&group_id, update)
+            .map_err(BurrowError::from)?;
+
+        let evolution_json =
+            serde_json::to_string(&result.evolution_event).unwrap_or_default();
+
+        Ok(UpdateGroupResult {
+            evolution_event_json: evolution_json,
+            welcome_rumors_json: vec![],
+            mls_group_id_hex: hex::encode(result.mls_group_id.as_slice()),
+        })
+    })
+    .await
+}
+
 /// Update group metadata (name, description). Admin-only.
 #[frb]
 pub async fn update_group_name(

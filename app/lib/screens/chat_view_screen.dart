@@ -58,9 +58,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           onPressed: () => context.go('/home'),
         ),
         title: InkWell(
-          onTap: () {
-            // TODO: Navigate to group info screen
-          },
+          onTap: () => context.go('/group-info/${widget.groupId}'),
           child: Row(
             children: [
               CircleAvatar(
