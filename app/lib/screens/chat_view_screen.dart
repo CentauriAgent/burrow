@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
+import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 
@@ -58,7 +59,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           onPressed: () => context.go('/home'),
         ),
         title: InkWell(
-          onTap: () => context.go('/group-info/${widget.groupId}'),
+          onTap: () => context.push('/group-info/${widget.groupId}'),
           child: Row(
             children: [
               CircleAvatar(
@@ -128,9 +129,61 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             tooltip: 'Video Call',
             onPressed: () => _startCall(context, isVideo: true),
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onPressed: () => _showGroupMenu(context),
+            onSelected: (value) => _onMenuAction(context, value),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'group_settings',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.settings_outlined, size: 20),
+                  title: Text('Group settings'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'search',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.search, size: 20),
+                  title: Text('Search'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'mute',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.notifications_off_outlined, size: 20),
+                  title: Text('Mute notifications'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'archive',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.archive_outlined, size: 20),
+                  title: Text('Archive'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'leave',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.exit_to_app, size: 20, color: Colors.red),
+                  title: Text(
+                    'Leave group',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -341,57 +394,61 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _focusNode.requestFocus();
   }
 
-  void _showGroupMenu(BuildContext context) {
-    showModalBottomSheet(
+  void _onMenuAction(BuildContext context, String action) {
+    final groupId = widget.groupId;
+    switch (action) {
+      case 'group_settings':
+        context.push('/group-info/$groupId');
+      case 'search':
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Search coming soon')));
+      case 'mute':
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Mute coming soon')));
+      case 'archive':
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Archive coming soon')));
+      case 'leave':
+        _confirmLeaveGroup(context, groupId);
+    }
+  }
+
+  Future<void> _confirmLeaveGroup(BuildContext context, String groupId) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withAlpha(60),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.group_outlined),
-                title: const Text('Group Info'),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.person_add_outlined),
-                title: const Text('Add Members'),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications_outlined),
-                title: const Text('Mute Notifications'),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.exit_to_app,
-                  color: theme.colorScheme.error,
-                ),
-                title: Text(
-                  'Leave Group',
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-                onTap: () => Navigator.pop(context),
-              ),
-              const SizedBox(height: 8),
-            ],
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Leave Group'),
+        content: const Text(
+          'Are you sure? You\'ll need a new invitation to rejoin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
           ),
-        );
-      },
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
     );
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref.read(groupProvider.notifier).leaveFromGroup(groupId);
+        if (context.mounted) context.go('/home');
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
   }
 
   void _startCall(BuildContext context, {required bool isVideo}) {

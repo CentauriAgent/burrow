@@ -191,7 +191,14 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final errorMsg = e is BurrowError ? e.message : e.toString();
+        final raw = e is BurrowError ? e.message : e.toString();
+        String errorMsg;
+        if (raw.contains('EndOfStream') || raw.contains('tls_codec')) {
+          errorMsg =
+              'Invalid KeyPackage format. The user may not be using a Marmot-compatible app, or their KeyPackage is corrupted.';
+        } else {
+          errorMsg = raw;
+        }
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $errorMsg')));
