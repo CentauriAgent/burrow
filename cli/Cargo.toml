@@ -25,3 +25,5 @@ chrono = "0.4"
 anyhow = "1"
 dirs = "6"
 bech32 = "0.11"
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+sha2 = "0.10"

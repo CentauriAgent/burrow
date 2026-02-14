@@ -32,6 +32,10 @@ pub struct StoredMessage {
     pub mls_group_id_hex: String,
     pub wrapper_event_id_hex: String,
     pub epoch: u64,
+    /// Tags from the inner rumor, stored as arrays of strings.
+    /// Used for imeta (media attachment) tags.
+    #[serde(default)]
+    pub tags: Vec<Vec<String>>,
 }
 
 /// File-based persistence for groups, messages, and MLS state.
@@ -52,7 +56,10 @@ impl FileStore {
     // --- Groups ---
 
     pub fn save_group(&self, group: &StoredGroup) -> Result<()> {
-        let path = self.base.join("groups").join(format!("{}.json", group.nostr_group_id_hex));
+        let path = self
+            .base
+            .join("groups")
+            .join(format!("{}.json", group.nostr_group_id_hex));
         fs::write(&path, serde_json::to_string_pretty(group)?)?;
         Ok(())
     }
@@ -94,7 +101,11 @@ impl FileStore {
         Ok(())
     }
 
-    pub fn load_messages(&self, mls_group_id_hex: &str, limit: usize) -> Result<Vec<StoredMessage>> {
+    pub fn load_messages(
+        &self,
+        mls_group_id_hex: &str,
+        limit: usize,
+    ) -> Result<Vec<StoredMessage>> {
         let dir = self.base.join("messages").join(mls_group_id_hex);
         let mut msgs = Vec::new();
         if dir.exists() {
@@ -118,7 +129,10 @@ impl FileStore {
     // --- MLS state (raw bytes) ---
 
     pub fn save_mls_state(&self, identity: &str, data: &[u8]) -> Result<()> {
-        let path = self.base.join("mls-state").join(format!("{}.bin", identity));
+        let path = self
+            .base
+            .join("mls-state")
+            .join(format!("{}.bin", identity));
         fs::write(&path, data)?;
         // Restrict permissions
         #[cfg(unix)]
@@ -130,7 +144,10 @@ impl FileStore {
     }
 
     pub fn load_mls_state(&self, identity: &str) -> Result<Option<Vec<u8>>> {
-        let path = self.base.join("mls-state").join(format!("{}.bin", identity));
+        let path = self
+            .base
+            .join("mls-state")
+            .join(format!("{}.bin", identity));
         if path.exists() {
             Ok(Some(fs::read(&path)?))
         } else {

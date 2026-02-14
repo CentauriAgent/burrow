@@ -51,7 +51,13 @@ pub async fn run(
                                 .map(|t| t.format("%H:%M:%S").to_string())
                                 .unwrap_or_else(|| "?".into());
                             let sender = &msg.pubkey.to_hex()[..12];
-                            println!("[{}] {}.. : {}", time, sender, msg.content);
+                            let tags: Vec<Vec<String>> = msg.tags.iter()
+                                .map(|t| t.as_slice().to_vec())
+                                .collect();
+                            let display = crate::media::format_message_with_media(
+                                &msg.content, &tags, None,
+                            );
+                            println!("[{}] {}.. : {}", time, sender, display);
 
                             // Persist
                             let stored = StoredMessage {
@@ -62,6 +68,7 @@ pub async fn run(
                                 mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
                                 wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
                                 epoch: msg.epoch.unwrap_or(0),
+                                tags,
                             };
                             let _ = store.save_message(&stored);
                         }

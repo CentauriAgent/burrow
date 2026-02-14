@@ -338,18 +338,33 @@ pub async fn run(
                                 audit::log_message(&data_clone, &sender_hex, nostr_gid, allowed, None);
                             }
 
+                            let tags: Vec<Vec<String>> = msg.tags.iter()
+                                .map(|t| t.as_slice().to_vec())
+                                .collect();
+                            let media_dir = data_clone.join("media");
+                            let display_content = if allowed {
+                                Some(crate::media::format_message_with_media(
+                                    &msg.content, &tags, Some(&media_dir),
+                                ))
+                            } else {
+                                None
+                            };
+
                             let entry = DaemonLogEntry {
                                 entry_type: "message".into(),
                                 timestamp: chrono::Utc::now().to_rfc3339(),
                                 group_id: Some(nostr_gid.to_string()),
                                 sender_pubkey: Some(sender_hex.clone()),
-                                content: if allowed { Some(msg.content.clone()) } else { None },
+                                content: display_content,
                                 allowed: Some(allowed),
                                 error: None,
                             };
                             write_jsonl(&log_path_clone, &entry);
 
                             if allowed {
+                                let tags: Vec<Vec<String>> = msg.tags.iter()
+                                    .map(|t| t.as_slice().to_vec())
+                                    .collect();
                                 let stored = StoredMessage {
                                     event_id_hex: msg.id.to_hex(),
                                     author_pubkey_hex: sender_hex,
@@ -358,6 +373,7 @@ pub async fn run(
                                     mls_group_id_hex: group_hex,
                                     wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
                                     epoch: msg.epoch.unwrap_or(0),
+                                    tags,
                                 };
                                 let _ = store_clone.save_message(&stored);
                             }
