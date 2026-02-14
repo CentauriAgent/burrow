@@ -37,6 +37,8 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
     final info = await createAccount();
     await saveSecretKey(filePath: await _keyFilePath());
     state = AsyncData(AuthState(account: info));
+    // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
+    rust_identity.bootstrapIdentity().ignore();
     return info;
   }
 
@@ -44,6 +46,8 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
     final info = await login(secretKey: secretKey);
     await saveSecretKey(filePath: await _keyFilePath());
     state = AsyncData(AuthState(account: info));
+    // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
+    rust_identity.bootstrapIdentity().ignore();
     return info;
   }
 
