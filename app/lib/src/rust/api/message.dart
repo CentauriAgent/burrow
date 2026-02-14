@@ -40,6 +40,23 @@ Future<String> sendMessageWithMedia({
   imetaTagsJson: imetaTagsJson,
 );
 
+/// Send an encrypted reaction to a message in a group (NIP-25 over MLS).
+///
+/// Creates a kind 7 rumor with the emoji as content and an `e` tag referencing
+/// the target message's event ID. The rumor is MLS-encrypted and published
+/// as a kind 445 event, same as regular messages.
+///
+/// Returns JSON-serialized signed Event (kind 445).
+Future<String> sendReaction({
+  required String mlsGroupIdHex,
+  required String targetEventIdHex,
+  required String emoji,
+}) => RustLib.instance.api.crateApiMessageSendReaction(
+  mlsGroupIdHex: mlsGroupIdHex,
+  targetEventIdHex: targetEventIdHex,
+  emoji: emoji,
+);
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

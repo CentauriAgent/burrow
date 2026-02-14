@@ -127,6 +127,42 @@ pub async fn send_message_with_media(
     .await
 }
 
+/// Send an encrypted reaction to a message in a group (NIP-25 over MLS).
+///
+/// Creates a kind 7 rumor with the emoji as content and an `e` tag referencing
+/// the target message's event ID. The rumor is MLS-encrypted and published
+/// as a kind 445 event, same as regular messages.
+///
+/// Returns JSON-serialized signed Event (kind 445).
+#[frb]
+pub async fn send_reaction(
+    mls_group_id_hex: String,
+    target_event_id_hex: String,
+    emoji: String,
+) -> Result<String, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let target_id = EventId::from_hex(&target_event_id_hex)
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+
+        // Kind 7 = Reaction (NIP-25)
+        let rumor = EventBuilder::new(Kind::Reaction, &emoji)
+            .tag(Tag::event(target_id))
+            .build(s.keys.public_key());
+
+        let event = s
+            .mdk
+            .create_message(&group_id, rumor)
+            .map_err(BurrowError::from)?;
+
+        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+    })
+    .await
+}
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

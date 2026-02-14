@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
+import 'package:burrow_app/providers/messages_provider.dart';
+
+/// Default reaction emojis shown in the quick-react bar.
+const kDefaultReactions = ['❤️', '👍', '👎', '😂', '😮', '😢'];
 
 class ChatBubble extends StatelessWidget {
   final String content;
@@ -12,6 +16,9 @@ class ChatBubble extends StatelessWidget {
   final bool showSenderName;
   final List<MediaAttachment> attachments;
   final String? groupId;
+  final List<Reaction> reactions;
+  final String? selfPubkey;
+  final void Function(String emoji)? onReact;
 
   const ChatBubble({
     super.key,
@@ -22,6 +29,9 @@ class ChatBubble extends StatelessWidget {
     this.showSenderName = false,
     this.attachments = const [],
     this.groupId,
+    this.reactions = const [],
+    this.selfPubkey,
+    this.onReact,
   });
 
   @override
@@ -37,106 +47,276 @@ class ChatBubble extends StatelessWidget {
         ? theme.colorScheme.onPrimary.withAlpha(180)
         : theme.colorScheme.onSurface.withAlpha(140);
 
-    // Check if content is just a filename matching an attachment
     final isMediaOnly =
         attachments.isNotEmpty && attachments.any((a) => a.filename == content);
 
     return Align(
       alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        margin: EdgeInsets.only(
+      child: Padding(
+        padding: EdgeInsets.only(
           left: isSent ? 64 : 12,
           right: isSent ? 12 : 64,
           top: 2,
-          bottom: 2,
+          bottom: reactions.isEmpty ? 2 : 0,
         ),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isSent ? 18 : 4),
-            bottomRight: Radius.circular(isSent ? 4 : 18),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: isSent
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
-            // Media attachments
-            for (final attachment in attachments)
-              if (attachment.isImage)
-                _ImageAttachmentWidget(
-                  attachment: attachment,
-                  groupId: groupId,
+            // The bubble itself — long press to show reaction bar
+            GestureDetector(
+              onLongPressStart: onReact != null
+                  ? (details) => _showReactionBar(context, details)
+                  : null,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
                 ),
-
-            // Text content area
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showSenderName && senderName != null) ...[
-                    Text(
-                      senderName!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _senderColor(senderName!),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                  ],
-                  // Show text content unless it's just the filename
-                  if (!isMediaOnly)
-                    SelectableText(
-                      content,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 15,
-                        height: 1.3,
-                      ),
-                    ),
-                  // Non-image attachments shown as file chips
-                  for (final attachment in attachments)
-                    if (!attachment.isImage)
-                      _FileAttachmentChip(
-                        attachment: attachment,
-                        groupId: groupId,
-                        textColor: textColor,
-                      ),
-                  const SizedBox(height: 3),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(timestamp),
-                        style: TextStyle(fontSize: 11, color: timeColor),
-                      ),
-                      if (isSent) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.done_all, size: 14, color: timeColor),
-                      ],
-                    ],
+                decoration: BoxDecoration(
+                  color: bubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isSent ? 18 : 4),
+                    bottomRight: Radius.circular(isSent ? 4 : 18),
                   ),
-                ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final attachment in attachments)
+                      if (attachment.isImage)
+                        _ImageAttachmentWidget(
+                          attachment: attachment,
+                          groupId: groupId,
+                        ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showSenderName && senderName != null) ...[
+                            Text(
+                              senderName!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _senderColor(senderName!),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                          ],
+                          if (!isMediaOnly)
+                            SelectableText(
+                              content,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 15,
+                                height: 1.3,
+                              ),
+                            ),
+                          for (final attachment in attachments)
+                            if (!attachment.isImage)
+                              _FileAttachmentChip(
+                                attachment: attachment,
+                                groupId: groupId,
+                                textColor: textColor,
+                              ),
+                          const SizedBox(height: 3),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _formatTime(timestamp),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: timeColor,
+                                ),
+                              ),
+                              if (isSent) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.done_all,
+                                  size: 14,
+                                  color: timeColor,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+
+            // Reaction pills below the bubble
+            if (reactions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: _ReactionPills(
+                  reactions: reactions,
+                  selfPubkey: selfPubkey,
+                  onTap: onReact,
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  String _formatTime(DateTime dt) {
-    return DateFormat.jm().format(dt);
+  void _showReactionBar(BuildContext context, LongPressStartDetails details) {
+    final overlay = Overlay.of(context);
+    final renderBox = context.findRenderObject() as RenderBox;
+    final bubblePos = renderBox.localToGlobal(Offset.zero);
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) => Stack(
+        children: [
+          // Dismiss on tap anywhere
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => entry.remove(),
+              behavior: HitTestBehavior.opaque,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          // Reaction bar positioned above the bubble
+          Positioned(
+            left: isSent ? null : bubblePos.dx,
+            right: isSent
+                ? MediaQuery.of(context).size.width -
+                      bubblePos.dx -
+                      renderBox.size.width
+                : null,
+            top: bubblePos.dy - 48,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(24),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final emoji in kDefaultReactions)
+                      _ReactionButton(
+                        emoji: emoji,
+                        onTap: () {
+                          entry.remove();
+                          onReact?.call(emoji);
+                        },
+                      ),
+                    // Emoji picker button
+                    _ReactionButton(
+                      emoji: '➕',
+                      onTap: () {
+                        entry.remove();
+                        _showEmojiPicker(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(entry);
   }
+
+  void _showEmojiPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SizedBox(
+        height: 300,
+        child: GridView.count(
+          crossAxisCount: 8,
+          padding: const EdgeInsets.all(16),
+          children:
+              [
+                    '❤️',
+                    '🧡',
+                    '💛',
+                    '💚',
+                    '💙',
+                    '💜',
+                    '🖤',
+                    '🤍',
+                    '👍',
+                    '👎',
+                    '👏',
+                    '🙌',
+                    '🤝',
+                    '✌️',
+                    '🤞',
+                    '💪',
+                    '😀',
+                    '😂',
+                    '🤣',
+                    '😍',
+                    '🥰',
+                    '😘',
+                    '😮',
+                    '😢',
+                    '😡',
+                    '🤔',
+                    '🙄',
+                    '😱',
+                    '🥳',
+                    '🤯',
+                    '😎',
+                    '🤓',
+                    '🔥',
+                    '⭐',
+                    '💯',
+                    '✅',
+                    '❌',
+                    '⚡',
+                    '🎉',
+                    '💎',
+                    '🚀',
+                    '🌙',
+                    '☀️',
+                    '🌈',
+                    '🍕',
+                    '🎵',
+                    '📌',
+                    '🏆',
+                  ]
+                  .map(
+                    (emoji) => InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        onReact?.call(emoji);
+                      },
+                      child: Center(
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 28),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dt) => DateFormat.jm().format(dt);
 
   Color _senderColor(String name) {
     final colors = [
@@ -150,6 +330,91 @@ class ChatBubble extends StatelessWidget {
       Colors.cyanAccent,
     ];
     return colors[name.hashCode.abs() % colors.length];
+  }
+}
+
+/// Quick-react button in the reaction bar.
+class _ReactionButton extends StatelessWidget {
+  final String emoji;
+  final VoidCallback onTap;
+
+  const _ReactionButton({required this.emoji, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Text(emoji, style: const TextStyle(fontSize: 24)),
+      ),
+    );
+  }
+}
+
+/// Reaction pills displayed below a bubble (grouped by emoji with count).
+class _ReactionPills extends StatelessWidget {
+  final List<Reaction> reactions;
+  final String? selfPubkey;
+  final void Function(String emoji)? onTap;
+
+  const _ReactionPills({required this.reactions, this.selfPubkey, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    // Group by emoji, count occurrences
+    final groups = <String, int>{};
+    final selfReacted = <String>{};
+    for (final r in reactions) {
+      groups[r.emoji] = (groups[r.emoji] ?? 0) + 1;
+      if (r.authorPubkeyHex == selfPubkey) {
+        selfReacted.add(r.emoji);
+      }
+    }
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: groups.entries.map((e) {
+        final isMine = selfReacted.contains(e.key);
+        return GestureDetector(
+          onTap: () => onTap?.call(e.key),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isMine
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              border: isMine
+                  ? Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 1.5,
+                    )
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(e.key, style: const TextStyle(fontSize: 14)),
+                if (e.value > 1) ...[
+                  const SizedBox(width: 2),
+                  Text(
+                    '${e.value}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 }
 

@@ -6,11 +6,29 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
+/// A reaction to a message: emoji + who sent it.
+class Reaction {
+  final String emoji;
+  final String authorPubkeyHex;
+  final String eventIdHex;
+
+  const Reaction({
+    required this.emoji,
+    required this.authorPubkeyHex,
+    required this.eventIdHex,
+  });
+}
+
 /// Manages messages for a single group. Loads history from MDK on creation
 /// and accepts real-time messages from the global [messageListenerProvider].
+/// Separates kind 7 reactions from kind 1 text messages.
 class MessagesNotifier extends ChangeNotifier {
   final String groupId;
   List<rust_message.GroupMessage> messages = [];
+
+  /// Reactions indexed by target event ID.
+  Map<String, List<Reaction>> reactions = {};
+
   bool _loading = false;
   bool get loading => _loading;
 
@@ -22,20 +40,80 @@ class MessagesNotifier extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     try {
-      messages = await rust_message.getMessages(
+      final all = await rust_message.getMessages(
         mlsGroupIdHex: groupId,
-        limit: 50,
+        limit: 100,
         offset: null,
       );
-    } catch (_) {
-      // MDK may not have messages yet
-    }
+      _categorize(all);
+    } catch (_) {}
     _loading = false;
     notifyListeners();
   }
 
+  void _categorize(List<rust_message.GroupMessage> all) {
+    final msgs = <rust_message.GroupMessage>[];
+    final rxns = <String, List<Reaction>>{};
+
+    for (final m in all) {
+      if (m.kind == BigInt.from(7)) {
+        // Kind 7 = reaction — find the target event ID from e-tag
+        final targetId = _extractETag(m.tags);
+        if (targetId != null) {
+          rxns.putIfAbsent(targetId, () => []);
+          rxns[targetId]!.add(
+            Reaction(
+              emoji: m.content,
+              authorPubkeyHex: m.authorPubkeyHex,
+              eventIdHex: m.eventIdHex,
+            ),
+          );
+        }
+      } else {
+        msgs.add(m);
+      }
+    }
+
+    messages = msgs;
+    reactions = rxns;
+  }
+
+  String? _extractETag(List<List<String>> tags) {
+    for (final tag in tags) {
+      if (tag.length >= 2 && tag[0] == 'e') {
+        return tag[1];
+      }
+    }
+    return null;
+  }
+
+  /// Get reactions for a specific message event ID.
+  List<Reaction> reactionsFor(String eventIdHex) {
+    return reactions[eventIdHex] ?? [];
+  }
+
   /// Add a real-time message from the relay listener stream.
   void addIncomingMessage(rust_message.GroupMessage message) {
+    if (message.kind == BigInt.from(7)) {
+      final targetId = _extractETag(message.tags);
+      if (targetId != null) {
+        reactions.putIfAbsent(targetId, () => []);
+        if (!reactions[targetId]!.any(
+          (r) => r.eventIdHex == message.eventIdHex,
+        )) {
+          reactions[targetId]!.add(
+            Reaction(
+              emoji: message.content,
+              authorPubkeyHex: message.authorPubkeyHex,
+              eventIdHex: message.eventIdHex,
+            ),
+          );
+          notifyListeners();
+        }
+      }
+      return;
+    }
+
     if (messages.any((m) => m.eventIdHex == message.eventIdHex)) return;
     messages = [message, ...messages];
     notifyListeners();
@@ -45,16 +123,24 @@ class MessagesNotifier extends ChangeNotifier {
   Future<void> sendMessage(String content) async {
     if (content.trim().isEmpty) return;
 
-    // 1. MLS-encrypt and get kind 445 event JSON
     final eventJson = await rust_message.sendMessage(
       mlsGroupIdHex: groupId,
       content: content,
     );
 
-    // 2. Publish to connected relays
     await rust_relay.publishEventJson(eventJson: eventJson);
+    await _loadHistory();
+  }
 
-    // 3. Reload from MDK to get the stored message with correct metadata
+  /// Send a reaction to a message.
+  Future<void> sendReaction(String targetEventIdHex, String emoji) async {
+    final eventJson = await rust_message.sendReaction(
+      mlsGroupIdHex: groupId,
+      targetEventIdHex: targetEventIdHex,
+      emoji: emoji,
+    );
+
+    await rust_relay.publishEventJson(eventJson: eventJson);
     await _loadHistory();
   }
 
@@ -103,23 +189,15 @@ class MessageListener {
   Future<void> start() async {
     await stop();
 
-    // Catch-up: fetch messages sent while the app was offline
     try {
       await rust_message.syncGroupMessages();
-    } catch (_) {
-      // Sync failure is non-fatal — continue to live listener
-    }
+    } catch (_) {}
 
-    _subscription = rust_message.listenForGroupMessages().listen(
-      (message) {
-        _ref
-            .read(messagesProvider(message.mlsGroupIdHex).notifier)
-            .addIncomingMessage(message);
-      },
-      onError: (_) {
-        // Stream error — relay disconnected or similar
-      },
-    );
+    _subscription = rust_message.listenForGroupMessages().listen((message) {
+      _ref
+          .read(messagesProvider(message.mlsGroupIdHex).notifier)
+          .addIncomingMessage(message);
+    }, onError: (_) {});
   }
 
   Future<void> stop() async {

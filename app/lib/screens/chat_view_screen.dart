@@ -243,6 +243,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                       msg.authorPubkeyHex);
                           final attachments =
                               MediaAttachmentService.parseAttachments(msg.tags);
+                          final msgReactions = messagesNotifier.reactionsFor(
+                            msg.eventIdHex,
+                          );
                           return ChatBubble(
                             content: msg.content,
                             timestamp: DateTime.fromMillisecondsSinceEpoch(
@@ -253,6 +256,15 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                             showSenderName: showNameForThis,
                             attachments: attachments,
                             groupId: widget.groupId,
+                            reactions: msgReactions,
+                            selfPubkey: selfPubkey,
+                            onReact: (emoji) {
+                              ref
+                                  .read(
+                                    messagesProvider(widget.groupId).notifier,
+                                  )
+                                  .sendReaction(msg.eventIdHex, emoji);
+                            },
                           );
                         },
                       );
