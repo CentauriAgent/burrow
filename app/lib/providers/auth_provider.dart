@@ -8,8 +8,7 @@ import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 /// Auth state: null means not logged in.
 class AuthState {
   final AccountInfo account;
-  final bool bootstrapped;
-  AuthState({required this.account, this.bootstrapped = false});
+  AuthState({required this.account});
 }
 
 class AuthNotifier extends AsyncNotifier<AuthState?> {
@@ -20,11 +19,11 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
 
     try {
       final info = await loadAccountFromFile(filePath: path);
-      // Await bootstrap so relays are connected before UI loads
+      // Bootstrap: connect relays + fetch profile. Non-fatal if it fails.
       try {
         await rust_identity.bootstrapIdentity();
       } catch (_) {}
-      return AuthState(account: info, bootstrapped: true);
+      return AuthState(account: info);
     } catch (_) {
       return null;
     }
@@ -33,22 +32,20 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
   Future<AccountInfo> createNewIdentity() async {
     final info = await createAccount();
     await saveSecretKey(filePath: await _keyFilePath());
-    // Await bootstrap so relays are connected
     try {
       await rust_identity.bootstrapIdentity();
     } catch (_) {}
-    state = AsyncData(AuthState(account: info, bootstrapped: true));
+    state = AsyncData(AuthState(account: info));
     return info;
   }
 
   Future<AccountInfo> importIdentity(String secretKey) async {
     final info = await login(secretKey: secretKey);
     await saveSecretKey(filePath: await _keyFilePath());
-    // Await bootstrap so relays are connected
     try {
       await rust_identity.bootstrapIdentity();
     } catch (_) {}
-    state = AsyncData(AuthState(account: info, bootstrapped: true));
+    state = AsyncData(AuthState(account: info));
     return info;
   }
 

@@ -21,9 +21,13 @@ mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56c
 mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 sha2 = "0.10"
 base64 = "0.22"
+
+# Use ring-based rustls for Android compatibility (matches WhiteNoise)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "0.26"
 
 # Force vendored OpenSSL for SQLCipher cross-compilation (Android)
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }

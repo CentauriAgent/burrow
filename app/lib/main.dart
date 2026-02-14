@@ -30,7 +30,16 @@ Future<void> main() async {
   // Set the data directory for persistent MLS storage before auth loads
   final appDir = await getApplicationSupportDirectory();
   rust_state.setDataDir(path: appDir.path);
-  runApp(const ProviderScope(child: BurrowApp()));
+
+  // Pre-resolve auth state before runApp to prevent onboarding flash.
+  // This follows the WhiteNoise pattern: auth is definitively known before
+  // the first frame renders.
+  final container = ProviderContainer();
+  await container.read(authProvider.future);
+
+  runApp(
+    UncontrolledProviderScope(container: container, child: const BurrowApp()),
+  );
 }
 
 class BurrowApp extends ConsumerWidget {

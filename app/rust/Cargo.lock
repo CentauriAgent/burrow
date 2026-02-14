@@ -2666,7 +2666,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.26.11",
  "winreg",
 ]
 
@@ -2727,11 +2726,13 @@ dependencies = [
  "nostr-sdk",
  "reqwest",
  "rusqlite",
+ "rustls 0.23.36",
  "serde",
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
  "tokio",
+ "webpki-roots 0.26.11",
  "windows-native-keyring-store",
 ]
 
