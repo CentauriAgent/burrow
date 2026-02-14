@@ -1,20 +1,44 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
 class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
+  Future<void> _log(String msg) async {
+    final dir = await getApplicationSupportDirectory();
+    final file = File('${dir.path}/invite_debug.log');
+    final ts = DateTime.now().toIso8601String();
+    await file.writeAsString('[$ts] $msg\n', mode: FileMode.append);
+  }
+
   @override
   Future<List<WelcomeInfo>> build() async {
     // Sync welcomes from relays before listing
     try {
-      await syncWelcomes();
-    } catch (_) {}
+      // Log connected relays first
+      try {
+        final relays = await rust_relay.listRelays();
+        final connected = relays.where((r) => r.connected).toList();
+        await _log(
+          'connected relays: ${connected.length}/${relays.length} - ${connected.map((r) => r.url).join(', ')}',
+        );
+      } catch (_) {}
+      await _log('calling syncWelcomes...');
+      final count = await syncWelcomes();
+      await _log('syncWelcomes found $count new welcomes');
+    } catch (e) {
+      await _log('syncWelcomes error: $e');
+    }
     try {
-      return await listPendingWelcomes();
-    } catch (_) {
+      final pending = await listPendingWelcomes();
+      await _log('listPendingWelcomes returned ${pending.length} items');
+      return pending;
+    } catch (e) {
+      await _log('listPendingWelcomes error: $e');
       return [];
     }
   }

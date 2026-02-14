@@ -254,6 +254,10 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
     })
     .await?;
 
+    // Ensure relays are connected before querying
+    // (on Android, fire-and-forget connect may not have finished yet)
+    client.connect().await;
+
     // Query for gift wraps addressed to us (NIP-59: recipient is in the p-tag)
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
@@ -264,7 +268,7 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
         .limit(100);
 
     let events = client
-        .fetch_events(filter, std::time::Duration::from_secs(10))
+        .fetch_events(filter, std::time::Duration::from_secs(15))
         .await
         .map_err(|e| BurrowError::from(e.to_string()))?;
 
