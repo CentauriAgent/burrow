@@ -158,6 +158,26 @@ pub async fn download_and_decrypt<S: mdk_storage_traits::MdkStorageProvider>(
     Ok(out_path)
 }
 
+/// Auto-download and decrypt all media attachments in a message's tags.
+/// Silently skips any attachments that fail to download.
+pub async fn auto_download_attachments<S: mdk_storage_traits::MdkStorageProvider>(
+    mdk: &MDK<S>,
+    group_id: &GroupId,
+    tags: &[Vec<String>],
+    media_dir: &Path,
+) {
+    let attachments = parse_imeta_tags(tags);
+    for att in &attachments {
+        let path = media_dir.join(&att.filename);
+        if path.exists() {
+            continue;
+        }
+        if let Err(e) = download_and_decrypt(mdk, group_id, att, media_dir).await {
+            eprintln!("⚠️ media download failed for {}: {}", att.filename, e);
+        }
+    }
+}
+
 /// Format a message for CLI display, including media attachment info.
 pub fn format_message_with_media(
     content: &str,

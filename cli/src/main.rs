@@ -190,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
             commands::send::run(group_id, message, key_path, data_dir).await?;
         }
         Commands::Read { group_id, limit, data_dir } => {
-            commands::read::run(group_id, limit, data_dir)?;
+            commands::read::run(group_id, limit, data_dir).await?;
         }
         Commands::Listen { group_id, key_path, data_dir } => {
             commands::listen::run(group_id, key_path, data_dir).await?;

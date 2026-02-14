@@ -54,8 +54,15 @@ pub async fn run(
                             let tags: Vec<Vec<String>> = msg.tags.iter()
                                 .map(|t| t.as_slice().to_vec())
                                 .collect();
+                            let media_dir = data.join("media");
+
+                            // Auto-download encrypted media attachments
+                            crate::media::auto_download_attachments(
+                                &mdk, &msg.mls_group_id, &tags, &media_dir,
+                            ).await;
+
                             let display = crate::media::format_message_with_media(
-                                &msg.content, &tags, None,
+                                &msg.content, &tags, Some(&media_dir),
                             );
                             println!("[{}] {}.. : {}", time, sender, display);
 
