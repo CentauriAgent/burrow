@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
-import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 
 class ImportIdentityScreen extends ConsumerStatefulWidget {
   const ImportIdentityScreen({super.key});
@@ -30,8 +29,6 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
     setState(() => _isImporting = true);
     try {
       await ref.read(authProvider.notifier).importIdentity(key);
-      // Bootstrap: connect default relays, fetch own profile + relay list
-      await rust_identity.bootstrapIdentity();
       if (mounted) context.go('/home');
     } catch (e) {
       setState(() => _isImporting = false);

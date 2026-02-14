@@ -20,7 +20,7 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
       try {
         final info = await loadAccountFromFile(filePath: path);
         // Bootstrap: connect default + NIP-65 relays, fetch own profile
-        rust_identity.bootstrapIdentity().ignore();
+        await rust_identity.bootstrapIdentity();
         return AuthState(account: info);
       } catch (_) {
         // Corrupt key file — delete it
@@ -36,18 +36,18 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
   Future<AccountInfo> createNewIdentity() async {
     final info = await createAccount();
     await saveSecretKey(filePath: await _keyFilePath());
-    state = AsyncData(AuthState(account: info));
     // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
-    rust_identity.bootstrapIdentity().ignore();
+    await rust_identity.bootstrapIdentity();
+    state = AsyncData(AuthState(account: info));
     return info;
   }
 
   Future<AccountInfo> importIdentity(String secretKey) async {
     final info = await login(secretKey: secretKey);
     await saveSecretKey(filePath: await _keyFilePath());
-    state = AsyncData(AuthState(account: info));
     // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
-    rust_identity.bootstrapIdentity().ignore();
+    await rust_identity.bootstrapIdentity();
+    state = AsyncData(AuthState(account: info));
     return info;
   }
 
