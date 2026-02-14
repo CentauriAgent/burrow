@@ -23,6 +23,10 @@ mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5e
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 sha2 = "0.10"
+base64 = "0.22"
+
+# Force vendored OpenSSL for SQLCipher cross-compilation (Android)
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
 
 # Keyring for MdkSqliteStorage encryption key management
 keyring-core = "0.7"
