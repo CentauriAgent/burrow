@@ -254,10 +254,13 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
     })
     .await?;
 
-    // Query for gift wraps addressed to us
+    // Query for gift wraps addressed to us (NIP-59: recipient is in the p-tag)
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
-        .pubkey(keys.public_key())
+        .custom_tag(
+            SingleLetterTag::lowercase(Alphabet::P),
+            keys.public_key().to_hex(),
+        )
         .limit(100);
 
     let events = client
