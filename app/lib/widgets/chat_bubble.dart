@@ -95,7 +95,7 @@ class ChatBubble extends StatelessWidget {
                   ],
                   // Show text content unless it's just the filename
                   if (!isMediaOnly)
-                    Text(
+                    SelectableText(
                       content,
                       style: TextStyle(
                         color: textColor,
