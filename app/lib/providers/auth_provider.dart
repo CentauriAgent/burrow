@@ -8,46 +8,47 @@ import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 /// Auth state: null means not logged in.
 class AuthState {
   final AccountInfo account;
-  AuthState({required this.account});
+  final bool bootstrapped;
+  AuthState({required this.account, this.bootstrapped = false});
 }
 
 class AuthNotifier extends AsyncNotifier<AuthState?> {
   @override
   Future<AuthState?> build() async {
-    // Try to restore from persisted key file
     final path = await _keyFilePath();
-    if (File(path).existsSync()) {
+    if (!File(path).existsSync()) return null;
+
+    try {
+      final info = await loadAccountFromFile(filePath: path);
+      // Await bootstrap so relays are connected before UI loads
       try {
-        final info = await loadAccountFromFile(filePath: path);
-        // Bootstrap: connect default + NIP-65 relays, fetch own profile
         await rust_identity.bootstrapIdentity();
-        return AuthState(account: info);
-      } catch (_) {
-        // Corrupt key file — delete it
-        try {
-          File(path).deleteSync();
-        } catch (_) {}
-        return null;
-      }
+      } catch (_) {}
+      return AuthState(account: info, bootstrapped: true);
+    } catch (_) {
+      return null;
     }
-    return null;
   }
 
   Future<AccountInfo> createNewIdentity() async {
     final info = await createAccount();
     await saveSecretKey(filePath: await _keyFilePath());
-    // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
-    await rust_identity.bootstrapIdentity();
-    state = AsyncData(AuthState(account: info));
+    // Await bootstrap so relays are connected
+    try {
+      await rust_identity.bootstrapIdentity();
+    } catch (_) {}
+    state = AsyncData(AuthState(account: info, bootstrapped: true));
     return info;
   }
 
   Future<AccountInfo> importIdentity(String secretKey) async {
     final info = await login(secretKey: secretKey);
     await saveSecretKey(filePath: await _keyFilePath());
-    // Bootstrap: connect relays, fetch profile, discover NIP-65 relays
-    await rust_identity.bootstrapIdentity();
-    state = AsyncData(AuthState(account: info));
+    // Await bootstrap so relays are connected
+    try {
+      await rust_identity.bootstrapIdentity();
+    } catch (_) {}
+    state = AsyncData(AuthState(account: info, bootstrapped: true));
     return info;
   }
 
