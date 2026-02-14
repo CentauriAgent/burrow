@@ -258,6 +258,18 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
     // (on Android, fire-and-forget connect may not have finished yet)
     client.connect().await;
 
+    // Wait for at least one relay to actually be connected (up to 10s).
+    // nostr-sdk's connect() is fire-and-forget; on cold-start Android the
+    // relay handshakes may still be in progress.
+    for _ in 0..20 {
+        let relays = client.relays().await;
+        let any_connected = relays.values().any(|r| r.is_connected());
+        if any_connected {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
     // Query for gift wraps addressed to us (NIP-59: recipient is in the p-tag)
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
@@ -267,22 +279,45 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
         )
         .limit(100);
 
+    // Log relay connectivity details
+    {
+        let relays = client.relays().await;
+        let connected: Vec<_> = relays.iter().filter(|(_, r)| r.is_connected()).collect();
+        println!(
+            "syncWelcomes: querying {}/{} connected relays: {:?}",
+            connected.len(),
+            relays.len(),
+            connected.iter().map(|(url, _)| url.to_string()).collect::<Vec<_>>()
+        );
+    }
+
     let events = client
         .fetch_events(filter, std::time::Duration::from_secs(15))
         .await
         .map_err(|e| BurrowError::from(e.to_string()))?;
 
+    let total_events = events.len();
+    println!("syncWelcomes: fetched {} gift-wrap events from relays", total_events);
+
     let mut welcome_count: u32 = 0;
+    let mut skipped_count: u32 = 0;
+    let mut unwrap_errors: u32 = 0;
 
     for event in events.iter() {
         // Unwrap NIP-59 gift wrap
         let rumor = match client.unwrap_gift_wrap(event).await {
             Ok(unwrapped) => unwrapped.rumor,
-            Err(_) => continue,
+            Err(e) => {
+                unwrap_errors += 1;
+                eprintln!("syncWelcomes: failed to unwrap event {}: {}", event.id.to_hex(), e);
+                continue;
+            }
         };
 
         // Only process kind 444 (MLS Welcome) rumors
         if rumor.kind != Kind::Custom(444) {
+            skipped_count += 1;
+            println!("syncWelcomes: skipping non-444 rumor kind={} from event {}", rumor.kind.as_u16(), event.id.to_hex());
             continue;
         }
 
@@ -292,7 +327,7 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
             Err(_) => continue,
         };
 
-        // Process through MDK
+        // Process through MDK (joins MLS group)
         let result = state::with_state(|s| {
             let unsigned: UnsignedEvent = serde_json::from_str(&rumor_json)
                 .map_err(|e| BurrowError::from(e.to_string()))?;
@@ -302,10 +337,46 @@ pub async fn sync_welcomes() -> Result<u32, BurrowError> {
         })
         .await;
 
-        if result.is_ok() {
-            welcome_count += 1;
+        match &result {
+            Ok(welcome) => {
+                println!(
+                    "syncWelcomes: processed welcome {} for group '{}' (mls_group={})",
+                    wrapper_event_id.to_hex(),
+                    welcome.group_name,
+                    hex::encode(welcome.mls_group_id.as_slice())
+                );
+
+                // Auto-accept: immediately join the group so it appears in the chat list.
+                // This matches White Noise's pattern where MLS join happens automatically
+                // and accept/decline is a UI-level preference.
+                let accept_result = state::with_state(|s| {
+                    let w = s.mdk.get_welcome(&wrapper_event_id)
+                        .map_err(BurrowError::from)?
+                        .ok_or_else(|| BurrowError::from("Welcome not found after process".to_string()))?;
+                    s.mdk.accept_welcome(&w).map_err(BurrowError::from)
+                }).await;
+
+                match accept_result {
+                    Ok(_) => {
+                        println!("syncWelcomes: auto-accepted welcome {}", wrapper_event_id.to_hex());
+                    }
+                    Err(e) => {
+                        eprintln!("syncWelcomes: auto-accept failed for {}: {}", wrapper_event_id.to_hex(), e);
+                    }
+                }
+
+                welcome_count += 1;
+            }
+            Err(e) => {
+                eprintln!("syncWelcomes: failed to process welcome {}: {}", wrapper_event_id.to_hex(), e);
+            }
         }
     }
+
+    println!(
+        "syncWelcomes: done — {} new welcomes, {} skipped (non-444), {} unwrap errors, {} total events",
+        welcome_count, skipped_count, unwrap_errors, total_events
+    );
 
     Ok(welcome_count)
 }

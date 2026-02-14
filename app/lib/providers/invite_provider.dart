@@ -36,6 +36,26 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
     try {
       final pending = await listPendingWelcomes();
       await _log('listPendingWelcomes returned ${pending.length} items');
+
+      // If no invites found on first load, schedule a background retry
+      // after relays have had more time to connect (Android cold-start).
+      if (pending.isEmpty) {
+        Future.delayed(const Duration(seconds: 8), () async {
+          try {
+            await _log('retry syncWelcomes after delay...');
+            final retryCount = await syncWelcomes();
+            await _log('retry syncWelcomes found $retryCount new welcomes');
+            if (retryCount > 0) {
+              final updated = await listPendingWelcomes();
+              await _log('retry listPendingWelcomes returned ${updated.length} items');
+              state = AsyncData(updated);
+            }
+          } catch (e) {
+            await _log('retry syncWelcomes error: $e');
+          }
+        });
+      }
+
       return pending;
     } catch (e) {
       await _log('listPendingWelcomes error: $e');
@@ -98,8 +118,50 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
         recipientPubkeyHex: recipientHex,
       );
 
-      // Publish the gift-wrapped welcome to relays
+      // Publish the gift-wrapped welcome to relays and verify
       await rust_relay.publishEventJson(eventJson: wrappedJson);
+
+      // Extract event ID from the wrapped event for verification
+      final wrappedEvent = jsonDecode(wrappedJson) as Map<String, dynamic>;
+      final wrappedEventId = wrappedEvent['id'] as String?;
+
+      if (wrappedEventId != null) {
+        // Wait briefly for relay propagation
+        await Future.delayed(const Duration(seconds: 2));
+
+        final verified = await rust_relay.verifyEventPublished(
+          eventIdHex: wrappedEventId,
+        );
+
+        if (!verified) {
+          await _log('Welcome event $wrappedEventId not verified on relays, retrying individually...');
+
+          // Retry on each relay individually
+          final relays = await rust_relay.listRelays();
+          final connectedRelays = relays.where((r) => r.connected).toList();
+          bool anySuccess = false;
+
+          for (final relay in connectedRelays) {
+            try {
+              await rust_relay.publishEventJsonToRelay(
+                eventJson: wrappedJson,
+                relayUrl: relay.url,
+              );
+              anySuccess = true;
+              await _log('Retry succeeded on ${relay.url}');
+            } catch (e) {
+              await _log('Retry failed on ${relay.url}: $e');
+            }
+          }
+
+          if (!anySuccess) {
+            throw Exception(
+              'Failed to publish welcome event to any relay after retries. '
+              'The invite may not have been delivered.',
+            );
+          }
+        }
+      }
     }
   }
 

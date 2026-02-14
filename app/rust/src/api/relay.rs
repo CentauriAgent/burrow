@@ -79,6 +79,44 @@ pub async fn publish_event_json(event_json: String) -> Result<String, BurrowErro
     Ok(output.id().to_hex())
 }
 
+/// Verify that an event has been published to at least one relay.
+/// Queries all connected relays for the event by ID and returns true if found.
+#[frb]
+pub async fn verify_event_published(event_id_hex: String) -> Result<bool, BurrowError> {
+    let event_id =
+        EventId::from_hex(&event_id_hex).map_err(|e| BurrowError::from(e.to_string()))?;
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+
+    let filter = Filter::new().id(event_id).limit(1);
+
+    let events = client
+        .fetch_events(filter, std::time::Duration::from_secs(10))
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    Ok(events.into_iter().any(|e| e.id == event_id))
+}
+
+/// Publish an event to a specific relay URL.
+/// Used for retry logic when broadcast publish fails verification.
+#[frb]
+pub async fn publish_event_json_to_relay(
+    event_json: String,
+    relay_url: String,
+) -> Result<String, BurrowError> {
+    let event: Event =
+        serde_json::from_str(&event_json).map_err(|e| BurrowError::from(e.to_string()))?;
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+
+    let relay_url_parsed: Url =
+        Url::parse(&relay_url).map_err(|e| BurrowError::from(e.to_string()))?;
+    let output = client
+        .send_event_to(vec![relay_url_parsed], &event)
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+    Ok(output.id().to_hex())
+}
+
 /// Default relays for the Marmot/Burrow network.
 #[frb(sync)]
 pub fn default_relay_urls() -> Vec<String> {

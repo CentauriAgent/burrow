@@ -34,6 +34,23 @@ Future<List<RelayInfo>> listRelays() =>
 Future<String> publishEventJson({required String eventJson}) =>
     RustLib.instance.api.crateApiRelayPublishEventJson(eventJson: eventJson);
 
+/// Verify that an event has been published to at least one relay.
+/// Queries all connected relays for the event by ID and returns true if found.
+Future<bool> verifyEventPublished({required String eventIdHex}) => RustLib
+    .instance
+    .api
+    .crateApiRelayVerifyEventPublished(eventIdHex: eventIdHex);
+
+/// Publish an event to a specific relay URL.
+/// Used for retry logic when broadcast publish fails verification.
+Future<String> publishEventJsonToRelay({
+  required String eventJson,
+  required String relayUrl,
+}) => RustLib.instance.api.crateApiRelayPublishEventJsonToRelay(
+  eventJson: eventJson,
+  relayUrl: relayUrl,
+);
+
 /// Default relays for the Marmot/Burrow network.
 List<String> defaultRelayUrls() =>
     RustLib.instance.api.crateApiRelayDefaultRelayUrls();
