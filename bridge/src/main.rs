@@ -303,6 +303,13 @@ async fn main() -> Result<()> {
                 }
             }
 
+            // Skip single-emoji messages (reactions like 👍 🔥 ❤️)
+            let trimmed = content.trim();
+            if !trimmed.is_empty() && trimmed.chars().count() <= 3 && trimmed.chars().all(|c| !c.is_ascii_alphanumeric() && !c.is_ascii_punctuation() && !c.is_ascii_whitespace()) {
+                eprintln!("[bridge] Skipping reaction/emoji: {}", trimmed);
+                continue;
+            }
+
             // Check ACL: sender must be in allowed set, group must be in allowed set
             if !allowed_pubkeys.contains(&sender) {
                 eprintln!("[bridge] Sender {} not in ACL, skipping", &sender[..12]);
@@ -332,7 +339,7 @@ async fn main() -> Result<()> {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
                 Err(e) => {
-                    eprintln!("[bridge] API error: {}", e);
+                    eprintln!("[bridge] API error (not sending to chat): {}", e);
                 }
             }
         }
