@@ -8,6 +8,10 @@ import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
   @override
   Future<List<WelcomeInfo>> build() async {
+    // Sync welcomes from relays before listing
+    try {
+      await syncWelcomes();
+    } catch (_) {}
     try {
       return await listPendingWelcomes();
     } catch (_) {
@@ -93,6 +97,10 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
   }
 
   Future<void> refresh() async {
+    // Sync from relays first, then reload from MDK storage
+    try {
+      await syncWelcomes();
+    } catch (_) {}
     state = AsyncData(await listPendingWelcomes());
   }
 }

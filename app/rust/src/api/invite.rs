@@ -239,6 +239,70 @@ pub async fn list_pending_welcomes() -> Result<Vec<WelcomeInfo>, BurrowError> {
     .await
 }
 
+/// Fetch and process incoming welcome messages from relays (catch-up sync).
+///
+/// Queries relays for kind 1059 (GiftWrap) events addressed to us, unwraps
+/// each via NIP-59, and processes any kind 444 (MLS Welcome) rumors through
+/// MDK's `process_welcome`. Returns the count of new welcomes found.
+///
+/// Call this on app startup and when refreshing the invites screen to catch
+/// welcomes sent while the app was offline.
+#[frb]
+pub async fn sync_welcomes() -> Result<u32, BurrowError> {
+    let (client, keys) = state::with_state(|s| {
+        Ok((s.client.clone(), s.keys.clone()))
+    })
+    .await?;
+
+    // Query for gift wraps addressed to us
+    let filter = Filter::new()
+        .kind(Kind::GiftWrap)
+        .pubkey(keys.public_key())
+        .limit(100);
+
+    let events = client
+        .fetch_events(filter, std::time::Duration::from_secs(10))
+        .await
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+
+    let mut welcome_count: u32 = 0;
+
+    for event in events.iter() {
+        // Unwrap NIP-59 gift wrap
+        let rumor = match client.unwrap_gift_wrap(event).await {
+            Ok(unwrapped) => unwrapped.rumor,
+            Err(_) => continue,
+        };
+
+        // Only process kind 444 (MLS Welcome) rumors
+        if rumor.kind != Kind::Custom(444) {
+            continue;
+        }
+
+        let wrapper_event_id = event.id;
+        let rumor_json = match serde_json::to_string(&rumor) {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+
+        // Process through MDK
+        let result = state::with_state(|s| {
+            let unsigned: UnsignedEvent = serde_json::from_str(&rumor_json)
+                .map_err(|e| BurrowError::from(e.to_string()))?;
+            s.mdk
+                .process_welcome(&wrapper_event_id, &unsigned)
+                .map_err(BurrowError::from)
+        })
+        .await;
+
+        if result.is_ok() {
+            welcome_count += 1;
+        }
+    }
+
+    Ok(welcome_count)
+}
+
 /// Gift-wrap a welcome rumor for a specific recipient and return the
 /// serialized kind 1059 event for relay publication.
 ///

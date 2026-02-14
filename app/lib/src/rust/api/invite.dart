@@ -66,6 +66,16 @@ Future<void> declineWelcome({required String welcomeEventIdHex}) => RustLib
 Future<List<WelcomeInfo>> listPendingWelcomes() =>
     RustLib.instance.api.crateApiInviteListPendingWelcomes();
 
+/// Fetch and process incoming welcome messages from relays (catch-up sync).
+///
+/// Queries relays for kind 1059 (GiftWrap) events addressed to us, unwraps
+/// each via NIP-59, and processes any kind 444 (MLS Welcome) rumors through
+/// MDK's `process_welcome`. Returns the count of new welcomes found.
+///
+/// Call this on app startup and when refreshing the invites screen to catch
+/// welcomes sent while the app was offline.
+Future<int> syncWelcomes() => RustLib.instance.api.crateApiInviteSyncWelcomes();
+
 /// Gift-wrap a welcome rumor for a specific recipient and return the
 /// serialized kind 1059 event for relay publication.
 ///
