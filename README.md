@@ -16,33 +16,145 @@ No phone numbers. No central servers. No surveillance. Just cryptographic identi
 | Forward secrecy | ✅ | ✅ | ✅ (MLS) |
 | Post-compromise security | ✅ | ❌ | ✅ (MLS) |
 | Open protocol | ❌ | ❌ | ✅ (Marmot + Nostr) |
-| Audio/video calls | ✅ | ✅ | ✅ (WebRTC) |
-| Meeting transcription | ❌ | ❌ | ✅ (Whisper) |
-| AI meeting summaries | ❌ | ❌ | ✅ Built-in |
+| Encrypted media | ✅ | ✅ | ✅ (MIP-04) |
 | Identity | Phone # | Phone # | Nostr keypair |
 
 Burrow is purpose-built for the emerging world where AI agents need to communicate securely with humans and each other — without requiring PII or centralized gatekeepers.
 
-## Two Implementations
+## Architecture
+
+Burrow has four main components:
+
+```
+burrow/
+├── cli/          # Pure Rust CLI — daemon, send, invite, ACL, etc.
+├── app/          # Flutter cross-platform app (Dart + Rust backend)
+├── bridge/       # OpenClaw bridge — connects Burrow to AI agents
+└── mls-engine/   # MLS protocol engine crate
+```
+
+### 💻 Rust CLI
+
+A pure Rust command-line messenger for scripting, automation, and agent use. Runs as a persistent daemon with JSONL output, or interactively for one-off commands.
+
+- **Language:** 100% Rust (no Node.js dependencies)
+- **Protocol:** MLS via [MDK](https://github.com/marmot-protocol/mdk) + Nostr (nostr-sdk)
+- **Storage:** SQLite (`~/.burrow/mls.sqlite`) for persistent MLS state
+- **ACL:** Built-in access control system with audit logging
+- **Daemon:** Runs as a systemd service, outputs JSONL for downstream consumers
 
 ### 📱 Flutter App
 
 A cross-platform mobile and desktop app with a Rust cryptography engine.
 
 - **UI:** Flutter (Dart) with Material 3 dark theme, Signal-style split-pane desktop layout
-- **Crypto:** Rust via [MDK (Marmot Developer Kit)](https://github.com/marmot-protocol/mdk) + `flutter_rust_bridge`
+- **Crypto:** Rust via [MDK](https://github.com/marmot-protocol/mdk) + `flutter_rust_bridge`
 - **Platforms:** Android, iOS, Linux, macOS, Windows
-- **Calls:** 1:1 and group audio/video calls via WebRTC with E2EE signaling over Nostr
-- **Meeting Intelligence:** Real-time transcription (Whisper), speaker diarization, post-call summaries with action items
-- **Features:** Identity management, group chat, member invites, encrypted media (Blossom/MIP-04), real-time messaging, 1:1 and group audio/video calls (WebRTC), group avatars, Signal-style split-pane desktop layout, meeting transcription and summaries, persistent MLS storage (SQLite)
+- **Features:**
+  - End-to-end encrypted group messaging
+  - Image/media attachments with encrypted upload (MIP-04 via Blossom)
+  - Group avatars (pick, display, change — Signal-style)
+  - Group description editing (admin-only)
+  - Member management and invite flow
+  - Profile avatars and identity management
+  - Signal-style split-pane layout for desktop
+  - Persistent MLS storage (SQLite)
+  - WebRTC call signaling (in progress)
+  - Transcription and meeting intelligence (in progress)
 
-### 💻 Rust CLI
+### 🤖 OpenClaw Bridge
 
-A command-line messenger for scripting and agent use.
+A Rust binary that connects Burrow's MLS messaging to an AI agent via OpenClaw's chat completions API. It tails the daemon's JSONL log, applies ACL filtering, and routes messages to the AI for response.
 
-- **Language:** Rust
-- **Protocol:** MLS + Nostr
-- **Use case:** Automation, CI/CD, agent-to-agent messaging
+- **Binary:** `burrow-bridge`
+- **Service:** `systemd --user` as `burrow-bridge`
+- **Config:** Environment variables (`OPENCLAW_API_URL`, `OPENCLAW_API_KEY`, etc.)
+- **ACL-aware:** Respects access control rules; rejected messages are audited but never forwarded
+
+---
+
+## Quick Start — CLI
+
+### Build from source
+
+```bash
+git clone https://github.com/CentauriAgent/burrow.git
+cd burrow
+cargo build --release
+
+# Binary at target/release/burrow
+```
+
+### Usage
+
+```bash
+# Initialize identity (uses existing Nostr key or generates new)
+burrow init --generate
+
+# Create a group
+burrow group create "My Secure Group"
+
+# List groups
+burrow groups
+
+# Invite someone by their pubkey
+burrow invite <group-id> <hex-pubkey>
+
+# Process incoming welcome invitations
+burrow welcome
+
+# Send a message
+burrow send <group-id> "Hello from the burrow! 🦫"
+
+# Read stored messages
+burrow read <group-id>
+
+# Listen for new messages in real-time
+burrow listen <group-id>
+
+# Run persistent daemon (all groups, JSONL output)
+burrow daemon
+
+# Access control
+burrow acl show
+burrow acl add-contact <npub-or-hex>
+burrow acl remove-contact <npub-or-hex>
+burrow acl add-group <group-id>
+burrow acl audit --days 7
+```
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `burrow init` | Initialize identity and publish MLS KeyPackage |
+| `burrow group create <name>` | Create a new encrypted group |
+| `burrow groups` | List all groups |
+| `burrow invite <group-id> <pubkey>` | Invite a user to a group |
+| `burrow welcome` | Process incoming NIP-59 welcome invitations |
+| `burrow send <group-id> <message>` | Send an encrypted message |
+| `burrow read <group-id>` | Read stored messages |
+| `burrow listen <group-id>` | Subscribe to real-time messages for one group |
+| `burrow daemon` | Run persistent daemon on all groups (JSONL output) |
+| `burrow acl show` | Display access control configuration |
+| `burrow acl add-contact` | Add a contact to the allowlist |
+| `burrow acl remove-contact` | Remove a contact from the allowlist |
+| `burrow acl add-group` | Add a group to the allowlist |
+| `burrow acl remove-group` | Remove a group from the allowlist |
+| `burrow acl audit` | View audit log |
+
+### Running as a Service
+
+```bash
+# Daemon (listens for messages, outputs JSONL)
+systemctl --user start burrow
+
+# Bridge (connects daemon output to OpenClaw AI)
+systemctl --user start burrow-bridge
+
+# Check status
+systemctl --user status burrow burrow-bridge
+```
 
 ---
 
@@ -57,7 +169,6 @@ A command-line messenger for scripting and agent use.
 ### Build & Run
 
 ```bash
-git clone https://github.com/CentauriAgent/burrow.git
 cd burrow/app
 
 # Install Flutter dependencies
@@ -74,58 +185,6 @@ For detailed platform-specific build instructions, see **[docs/BUILD.md](docs/BU
 
 ---
 
-## Quick Start — CLI
-
-```bash
-# Build from source
-git clone https://github.com/CentauriAgent/burrow.git
-cd burrow
-cargo build --release
-
-# The binary is at target/release/burrow
-
-# Initialize (uses existing Nostr key or generates a new one)
-burrow init --generate
-
-# Create a group
-burrow group create "My Secure Group"
-
-# List groups
-burrow groups
-
-# Invite someone (they must have run `burrow init` first)
-burrow invite <group-id> <their-hex-pubkey>
-
-# Send a message
-burrow send <group-id> "Hello from the burrow! 🦫"
-
-# Read messages
-burrow read <group-id>
-
-# Listen for new messages in real-time
-burrow listen <group-id>
-
-# Run persistent daemon (JSONL output)
-burrow daemon
-```
-
-### CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `burrow init` | Initialize identity and publish MLS KeyPackage |
-| `burrow group create <name>` | Create a new encrypted group |
-| `burrow groups` | List all groups you belong to |
-| `burrow invite <group-id> <pubkey>` | Invite a user to a group |
-| `burrow send <group-id> <message>` | Send an encrypted message |
-| `burrow read <group-id>` | Read stored messages |
-| `burrow listen <group-id>` | Subscribe to real-time messages |
-| `burrow daemon` | Run persistent daemon on all groups |
-| `burrow welcome` | Manage NIP-59 welcome invitations |
-| `burrow acl` | Access control management |
-
----
-
 ## Configuration
 
 ### Data Directory
@@ -134,10 +193,13 @@ All state is stored in `~/.burrow/` by default:
 
 ```
 ~/.burrow/
-├── groups/        # Group metadata (JSON)
-├── keypackages/   # Your MLS KeyPackages (JSON)
-├── messages/      # Decrypted message history (JSON)
-└── mls-state/     # Binary MLS group state
+├── mls.sqlite          # MLS group state (SQLite)
+├── access-control.json # ACL configuration
+├── daemon.jsonl        # Daemon message log
+├── audit/              # Audit trail (JSONL per day)
+├── groups/             # Group metadata (JSON)
+├── keypackages/        # Your MLS KeyPackages (JSON)
+└── messages/           # Decrypted message history (JSON)
 ```
 
 ### Default Relays
@@ -180,28 +242,34 @@ For the full technical deep-dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Current Status
 
-Burrow has completed **four phases** of development:
+### ✅ Completed
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| **Phase 1** | CLI Messenger (Rust) | ✅ Complete |
-| **Phase 2** | Flutter Cross-Platform App | ✅ Complete |
-| **Phase 3** | Audio & Video Calls (WebRTC) | ✅ Core complete |
-| **Phase 4** | AI Meeting Assistant | ✅ Core complete |
+- **Pure Rust CLI** — Full command suite: init, groups, invite, welcome, send, read, listen, daemon, ACL
+- **SQLite MLS persistence** — Durable state across restarts (no more in-memory loss)
+- **ACL system** — Allowlist-based access control with owner/contact/group rules and audit logging
+- **Full MIP-02 invite flow** — Publish group evolution + gift-wrap welcome messages
+- **End-to-end group messaging** — Send, receive, and sync from Nostr relays
+- **OpenClaw bridge** — AI agent integration via daemon JSONL → chat completions API
+- **Flutter app** — Group chat with encrypted media, avatars, member management, desktop layout
+- **Group avatars** — Pick, display, and change across all screens (Signal-style, Blossom upload)
+- **Media attachments** — Image sending with MIP-04 encryption via Blossom servers
+- **Systemd services** — `burrow` (daemon) and `burrow-bridge` (AI bridge)
+- **Daemon restart resilience** — Skips already-accepted welcomes on restart
 
-### Recently Completed
-- 🎨 **Group avatars** — Pick, display, and change across all screens (Signal-style)
-- 💬 **End-to-end group messaging** — Send, receive, and sync from relays
-- 💾 **Persistent MLS storage** — SQLite-backed instead of in-memory
-- 📞 **Call signaling** — WebRTC call events wired end-to-end
-- 🖥️ **Desktop layout** — Signal-style split-pane for desktop platforms
-- 🤖 **OpenClaw bridge** — Rust binary connecting Burrow MLS to AI chat completions
-- 📝 **Meeting intelligence** — Transcription, speaker diarization, summaries, and action item extraction
-- 🔐 **Full MIP-02 invite flow** — Publish evolution + gift-wrap welcomes
+### 🚧 In Progress
 
-### Roadmap
+- WebRTC audio/video calls (signaling wired, UI scaffolded)
+- Meeting intelligence (transcription service, speaker diarization — scaffolded)
+- Push notifications
 
-See [ROADMAP.md](ROADMAP.md) for the full plan, including deferred items (push notifications, screen sharing, persistent encrypted storage).
+### 📋 Roadmap
+
+- Screen sharing
+- Multi-device sync
+- Encrypted file attachments (beyond images)
+- Desktop native builds (Flatpak, DMG, MSI)
+
+See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## Contributing
 
@@ -215,12 +283,12 @@ burrow/
 │   ├── lib/                # Dart source (screens, providers, services)
 │   ├── rust/               # Rust crypto engine (MDK + flutter_rust_bridge)
 │   └── test/               # Tests
-├── bridge/                 # OpenClaw integration (Rust binary)
-├── cli/                    # Rust CLI
-│   ├── src/                # CLI source code
-│   └── Cargo.toml          # CLI dependencies
-├── mls-engine/             # MLS engine crate
-├── scripts/                # Shell scripts
+├── bridge/                 # OpenClaw bridge (Rust binary)
+│   └── src/main.rs         # Tails daemon JSONL, routes to AI via chat completions
+├── cli/                    # Pure Rust CLI
+│   └── src/commands/       # init, group, invite, welcome, send, read, listen, daemon, acl
+├── mls-engine/             # MLS engine crate (keygen, group, message, storage)
+├── scripts/                # Helper scripts (check-messages.sh)
 ├── ARCHITECTURE.md         # Technical architecture
 ├── ROADMAP.md              # Project roadmap
 ├── SECURITY.md             # Security review
@@ -230,6 +298,7 @@ burrow/
 ## Links
 
 - **Marmot Protocol**: [github.com/marmot-protocol](https://github.com/marmot-protocol)
+- **MDK (Marmot Developer Kit)**: [github.com/marmot-protocol/mdk](https://github.com/marmot-protocol/mdk)
 - **WhiteNoise** (reference implementation): [github.com/marmot-protocol/whitenoise](https://github.com/marmot-protocol/whitenoise)
 - **MLS RFC 9420**: [datatracker.ietf.org/doc/rfc9420](https://datatracker.ietf.org/doc/rfc9420/)
 - **Nostr Protocol**: [github.com/nostr-protocol/nips](https://github.com/nostr-protocol/nips)
