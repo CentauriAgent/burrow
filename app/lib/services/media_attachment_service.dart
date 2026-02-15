@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -68,8 +69,9 @@ class MediaAttachmentService {
   }
 
   /// Upload a media attachment, send a message with the imeta tag, and return
-  /// the event JSON. The caller should publish the event to relays.
-  static Future<String> sendMediaMessage({
+  /// the SendMessageResult. The caller can use the result for immediate UI
+  /// display — relay publishing is done here in the background.
+  static Future<rust_message.SendMessageResult> sendMediaMessage({
     required String groupId,
     required Uint8List fileData,
     required String mimeType,
@@ -93,16 +95,20 @@ class MediaAttachmentService {
     final messageContent = content.isNotEmpty ? content : filename;
 
     // 3. Send message with imeta tag
-    final eventJson = await rust_message.sendMessageWithMedia(
+    final result = await rust_message.sendMessageWithMedia(
       mlsGroupIdHex: groupId,
       content: messageContent,
       imetaTagsJson: [uploadResult.imetaTagValues],
     );
 
-    // 4. Publish to relays
-    await rust_relay.publishEventJson(eventJson: eventJson);
+    // 4. Publish to relays in background
+    unawaited(
+      rust_relay
+          .publishEventJson(eventJson: result.eventJson)
+          .catchError((_) => ''),
+    );
 
-    return eventJson;
+    return result;
   }
 
   /// Parse imeta tags from a message's tags list.

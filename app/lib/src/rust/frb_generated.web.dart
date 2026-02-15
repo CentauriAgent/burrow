@@ -59,9 +59,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_call_signaling_event_Sse(dynamic raw);
 
   @protected
-  RustStreamSink<GroupMessage> dco_decode_StreamSink_group_message_Sse(
-    dynamic raw,
-  );
+  RustStreamSink<GroupNotification>
+  dco_decode_StreamSink_group_notification_Sse(dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -149,6 +148,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupMessage dco_decode_group_message(dynamic raw);
+
+  @protected
+  GroupNotification dco_decode_group_notification(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -273,6 +275,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SdpInfo dco_decode_sdp_info(dynamic raw);
 
   @protected
+  SendMessageResult dco_decode_send_message_result(dynamic raw);
+
+  @protected
   SfuConfig dco_decode_sfu_config(dynamic raw);
 
   @protected
@@ -343,9 +348,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_StreamSink_call_signaling_event_Sse(SseDeserializer deserializer);
 
   @protected
-  RustStreamSink<GroupMessage> sse_decode_StreamSink_group_message_Sse(
-    SseDeserializer deserializer,
-  );
+  RustStreamSink<GroupNotification>
+  sse_decode_StreamSink_group_notification_Sse(SseDeserializer deserializer);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -445,6 +449,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupMessage sse_decode_group_message(SseDeserializer deserializer);
+
+  @protected
+  GroupNotification sse_decode_group_notification(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -589,6 +596,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SdpInfo sse_decode_sdp_info(SseDeserializer deserializer);
 
   @protected
+  SendMessageResult sse_decode_send_message_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SfuConfig sse_decode_sfu_config(SseDeserializer deserializer);
 
   @protected
@@ -676,8 +688,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_StreamSink_group_message_Sse(
-    RustStreamSink<GroupMessage> self,
+  void sse_encode_StreamSink_group_notification_Sse(
+    RustStreamSink<GroupNotification> self,
     SseSerializer serializer,
   );
 
@@ -800,6 +812,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_group_message(GroupMessage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_notification(
+    GroupNotification self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
@@ -989,6 +1007,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_sdp_info(SdpInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_send_message_result(
+    SendMessageResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_sfu_config(SfuConfig self, SseSerializer serializer);

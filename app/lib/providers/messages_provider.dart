@@ -1,8 +1,9 @@
-import 'dart:async';
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
@@ -119,29 +120,43 @@ class MessagesNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Send a message: MLS-encrypt via Rust, publish to relays.
+  /// Send a message: MLS-encrypt via Rust, display immediately, publish to relays.
   Future<void> sendMessage(String content) async {
     if (content.trim().isEmpty) return;
 
-    final eventJson = await rust_message.sendMessage(
+    final result = await rust_message.sendMessage(
       mlsGroupIdHex: groupId,
       content: content,
     );
 
-    await rust_relay.publishEventJson(eventJson: eventJson);
-    await _loadHistory();
+    // Display the message immediately using the local copy from MDK
+    addIncomingMessage(result.message);
+
+    // Publish to relays in the background (don't block UI)
+    unawaited(
+      rust_relay
+          .publishEventJson(eventJson: result.eventJson)
+          .catchError((_) => ''),
+    );
   }
 
   /// Send a reaction to a message.
   Future<void> sendReaction(String targetEventIdHex, String emoji) async {
-    final eventJson = await rust_message.sendReaction(
+    final result = await rust_message.sendReaction(
       mlsGroupIdHex: groupId,
       targetEventIdHex: targetEventIdHex,
       emoji: emoji,
     );
 
-    await rust_relay.publishEventJson(eventJson: eventJson);
-    await _loadHistory();
+    // Display the reaction immediately using the local copy from MDK
+    addIncomingMessage(result.message);
+
+    // Publish to relays in the background
+    unawaited(
+      rust_relay
+          .publishEventJson(eventJson: result.eventJson)
+          .catchError((_) => ''),
+    );
   }
 
   /// Load more (older) messages for pagination.
@@ -173,6 +188,7 @@ final messagesProvider =
 
 /// Global message listener that subscribes to kind 445 events for all groups
 /// and dispatches decrypted messages to the appropriate group's provider.
+/// Also handles MLS state changes (commits/proposals) by refreshing the groups list.
 final messageListenerProvider = Provider<MessageListener>((ref) {
   final listener = MessageListener(ref);
   ref.onDispose(() => listener.dispose());
@@ -181,7 +197,7 @@ final messageListenerProvider = Provider<MessageListener>((ref) {
 
 class MessageListener {
   final Ref _ref;
-  StreamSubscription<rust_message.GroupMessage>? _subscription;
+  StreamSubscription<rust_message.GroupNotification>? _subscription;
 
   MessageListener(this._ref);
 
@@ -193,10 +209,26 @@ class MessageListener {
       await rust_message.syncGroupMessages();
     } catch (_) {}
 
-    _subscription = rust_message.listenForGroupMessages().listen((message) {
-      _ref
-          .read(messagesProvider(message.mlsGroupIdHex).notifier)
-          .addIncomingMessage(message);
+    // Refresh group state after sync — processed commits may have
+    // advanced epochs or changed group state from pending/inactive to active.
+    try {
+      _ref.read(groupsProvider.notifier).refresh();
+    } catch (_) {}
+
+    _subscription = rust_message.listenForGroupMessages().listen((
+      notification,
+    ) {
+      if (notification.notificationType == 'application_message' &&
+          notification.message != null) {
+        _ref
+            .read(messagesProvider(notification.mlsGroupIdHex).notifier)
+            .addIncomingMessage(notification.message!);
+      } else if (notification.notificationType == 'commit' ||
+          notification.notificationType == 'proposal') {
+        // MLS state changed (epoch advanced, member added/removed).
+        // Refresh the groups list so the UI reflects the new state.
+        _ref.read(groupsProvider.notifier).refresh();
+      }
     }, onError: (_) {});
   }
 

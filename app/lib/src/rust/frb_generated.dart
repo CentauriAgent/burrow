@@ -392,7 +392,7 @@ abstract class RustLibApi extends BaseApi {
 
   Stream<CallSignalingEvent> crateApiCallSignalingListenForCallEvents();
 
-  Stream<GroupMessage> crateApiMessageListenForGroupMessages();
+  Stream<GroupNotification> crateApiMessageListenForGroupMessages();
 
   Future<AccountInfo> crateApiAccountLoadAccountFromFile({
     required String filePath,
@@ -520,18 +520,18 @@ abstract class RustLibApi extends BaseApi {
     required String remotePubkeyHex,
   });
 
-  Future<String> crateApiMessageSendMessage({
+  Future<SendMessageResult> crateApiMessageSendMessage({
     required String mlsGroupIdHex,
     required String content,
   });
 
-  Future<String> crateApiMessageSendMessageWithMedia({
+  Future<SendMessageResult> crateApiMessageSendMessageWithMedia({
     required String mlsGroupIdHex,
     required String content,
     required List<List<String>> imetaTagsJson,
   });
 
-  Future<String> crateApiMessageSendReaction({
+  Future<SendMessageResult> crateApiMessageSendReaction({
     required String mlsGroupIdHex,
     required String targetEventIdHex,
     required String emoji,
@@ -3151,14 +3151,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<GroupMessage> crateApiMessageListenForGroupMessages() {
-    final sink = RustStreamSink<GroupMessage>();
+  Stream<GroupNotification> crateApiMessageListenForGroupMessages() {
+    final sink = RustStreamSink<GroupNotification>();
     unawaited(
       handler.executeNormal(
         NormalTask(
           callFfi: (port_) {
             final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_StreamSink_group_message_Sse(sink, serializer);
+            sse_encode_StreamSink_group_notification_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
@@ -4266,7 +4266,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateApiMessageSendMessage({
+  Future<SendMessageResult> crateApiMessageSendMessage({
     required String mlsGroupIdHex,
     required String content,
   }) {
@@ -4284,7 +4284,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_send_message_result,
           decodeErrorData: sse_decode_burrow_error,
         ),
         constMeta: kCrateApiMessageSendMessageConstMeta,
@@ -4300,7 +4300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<String> crateApiMessageSendMessageWithMedia({
+  Future<SendMessageResult> crateApiMessageSendMessageWithMedia({
     required String mlsGroupIdHex,
     required String content,
     required List<List<String>> imetaTagsJson,
@@ -4320,7 +4320,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_send_message_result,
           decodeErrorData: sse_decode_burrow_error,
         ),
         constMeta: kCrateApiMessageSendMessageWithMediaConstMeta,
@@ -4337,7 +4337,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateApiMessageSendReaction({
+  Future<SendMessageResult> crateApiMessageSendReaction({
     required String mlsGroupIdHex,
     required String targetEventIdHex,
     required String emoji,
@@ -4357,7 +4357,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_send_message_result,
           decodeErrorData: sse_decode_burrow_error,
         ),
         constMeta: kCrateApiMessageSendReactionConstMeta,
@@ -5081,9 +5081,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  RustStreamSink<GroupMessage> dco_decode_StreamSink_group_message_Sse(
-    dynamic raw,
-  ) {
+  RustStreamSink<GroupNotification>
+  dco_decode_StreamSink_group_notification_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
   }
@@ -5391,6 +5390,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       tags: dco_decode_list_list_String(arr[6]),
       wrapperEventIdHex: dco_decode_String(arr[7]),
       epoch: dco_decode_u_64(arr[8]),
+    );
+  }
+
+  @protected
+  GroupNotification dco_decode_group_notification(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return GroupNotification(
+      notificationType: dco_decode_String(arr[0]),
+      message: dco_decode_opt_box_autoadd_group_message(arr[1]),
+      mlsGroupIdHex: dco_decode_String(arr[2]),
     );
   }
 
@@ -5748,6 +5760,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SendMessageResult dco_decode_send_message_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SendMessageResult(
+      eventJson: dco_decode_String(arr[0]),
+      message: dco_decode_group_message(arr[1]),
+    );
+  }
+
+  @protected
   SfuConfig dco_decode_sfu_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -5985,9 +6009,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  RustStreamSink<GroupMessage> sse_decode_StreamSink_group_message_Sse(
-    SseDeserializer deserializer,
-  ) {
+  RustStreamSink<GroupNotification>
+  sse_decode_StreamSink_group_notification_Sse(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     throw UnimplementedError('Unreachable ()');
   }
@@ -6355,6 +6378,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       tags: var_tags,
       wrapperEventIdHex: var_wrapperEventIdHex,
       epoch: var_epoch,
+    );
+  }
+
+  @protected
+  GroupNotification sse_decode_group_notification(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_notificationType = sse_decode_String(deserializer);
+    var var_message = sse_decode_opt_box_autoadd_group_message(deserializer);
+    var var_mlsGroupIdHex = sse_decode_String(deserializer);
+    return GroupNotification(
+      notificationType: var_notificationType,
+      message: var_message,
+      mlsGroupIdHex: var_mlsGroupIdHex,
     );
   }
 
@@ -6874,6 +6912,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SendMessageResult sse_decode_send_message_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventJson = sse_decode_String(deserializer);
+    var var_message = sse_decode_group_message(deserializer);
+    return SendMessageResult(eventJson: var_eventJson, message: var_message);
+  }
+
+  @protected
   SfuConfig sse_decode_sfu_config(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_serverUrl = sse_decode_String(deserializer);
@@ -7154,15 +7202,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_StreamSink_group_message_Sse(
-    RustStreamSink<GroupMessage> self,
+  void sse_encode_StreamSink_group_notification_Sse(
+    RustStreamSink<GroupNotification> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(
       self.setupAndSerialize(
         codec: SseCodec(
-          decodeSuccessData: sse_decode_group_message,
+          decodeSuccessData: sse_decode_group_notification,
           decodeErrorData: sse_decode_AnyhowException,
         ),
       ),
@@ -7450,6 +7498,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_list_String(self.tags, serializer);
     sse_encode_String(self.wrapperEventIdHex, serializer);
     sse_encode_u_64(self.epoch, serializer);
+  }
+
+  @protected
+  void sse_encode_group_notification(
+    GroupNotification self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.notificationType, serializer);
+    sse_encode_opt_box_autoadd_group_message(self.message, serializer);
+    sse_encode_String(self.mlsGroupIdHex, serializer);
   }
 
   @protected
@@ -7891,6 +7950,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_String(self.codecs, serializer);
     sse_encode_bool(self.isValid, serializer);
     sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_send_message_result(
+    SendMessageResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.eventJson, serializer);
+    sse_encode_group_message(self.message, serializer);
   }
 
   @protected

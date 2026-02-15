@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:burrow_app/providers/archive_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/services/user_service.dart';
 
@@ -94,4 +95,30 @@ final sortedGroupsProvider = Provider<List<GroupInfo>>((ref) {
     return bTime.compareTo(aTime);
   });
   return sorted;
+});
+
+/// Visible groups: active groups that are not archived.
+/// This is what the main chat list should display.
+final visibleGroupsProvider = Provider<List<GroupInfo>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final archived = ref.watch(archiveProvider);
+  return groups
+      .where(
+        (g) => g.state != 'inactive' && !archived.contains(g.mlsGroupIdHex),
+      )
+      .toList();
+});
+
+/// Archived groups: groups explicitly archived by the user, plus inactive groups.
+final archivedGroupsProvider = Provider<List<GroupInfo>>((ref) {
+  final groups = ref.watch(groupsProvider).value ?? [];
+  final archived = ref.watch(archiveProvider);
+  return groups
+      .where((g) => g.state == 'inactive' || archived.contains(g.mlsGroupIdHex))
+      .toList();
+});
+
+/// Count of archived groups for badge display.
+final archivedGroupCountProvider = Provider<int>((ref) {
+  return ref.watch(archivedGroupsProvider).length;
 });

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:burrow_app/providers/archive_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
+import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 import 'package:burrow_app/providers/groups_provider.dart' as ui_groups;
 
 class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
@@ -41,7 +43,29 @@ class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
 
   Future<UpdateGroupResult> leaveFromGroup(String mlsGroupIdHex) async {
     final result = await leaveGroup(mlsGroupIdHex: mlsGroupIdHex);
-    // Remove from UI groups list immediately
+
+    // Publish the self-removal proposal to group relays (Marmot protocol).
+    // leave_group creates a proposal (not a commit), so no merge_pending_commit.
+    if (result.evolutionEventJson.isNotEmpty) {
+      // Publish to group-specific relays first, fall back to broadcast
+      try {
+        final groupRelays = await getGroupRelays(mlsGroupIdHex: mlsGroupIdHex);
+        for (final relay in groupRelays) {
+          await rust_relay.publishEventJsonToRelay(
+            eventJson: result.evolutionEventJson,
+            relayUrl: relay,
+          );
+        }
+      } catch (_) {
+        // Fall back to broadcasting to all connected relays
+        await rust_relay.publishEventJson(eventJson: result.evolutionEventJson);
+      }
+    }
+
+    // Auto-archive the group so it's hidden from the main list
+    await ref.read(archiveProvider.notifier).archive(mlsGroupIdHex);
+
+    // Refresh group lists
     ref.read(ui_groups.groupsProvider.notifier).removeGroup(mlsGroupIdHex);
     state = AsyncData(await listGroups());
     return result;

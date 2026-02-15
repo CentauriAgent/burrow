@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/src/rust/api/error.dart';
+import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/invite.dart' as rust_invite;
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
@@ -64,14 +65,42 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
   final _npubController = TextEditingController();
   final List<_InviteEntry> _invitees = [];
   bool _sending = false;
+  Set<String> _existingMemberPubkeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingMembers();
+  }
+
+  Future<void> _loadExistingMembers() async {
+    try {
+      final members = await rust_group.getGroupMembers(
+        mlsGroupIdHex: widget.groupId,
+      );
+      if (mounted) {
+        setState(() {
+          _existingMemberPubkeys = members.map((m) => m.pubkeyHex).toSet();
+        });
+      }
+    } catch (_) {}
+  }
 
   void _goBack(bool isWide) {
     if (isWide) {
-      ref.read(detailPaneProvider.notifier).showGroupInfo(widget.groupId);
+      // In desktop split-pane, check if we're in the detail pane vs full-page
+      final pane = ref.read(detailPaneProvider);
+      if (pane.groupId != null) {
+        ref.read(detailPaneProvider.notifier).showGroupInfo(widget.groupId);
+      } else {
+        context.go('/home');
+      }
     } else if (Navigator.canPop(context)) {
       Navigator.pop(context);
     } else {
-      context.go('/chat/${widget.groupId}');
+      // Can't pop — likely navigated here directly (e.g., after group creation).
+      // Go to the chat for this group, or home if that fails.
+      context.go('/home');
     }
   }
 
@@ -106,7 +135,17 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       return;
     }
 
-    // Check duplicate (by resolved hex)
+    // Check if already a group member
+    if (_existingMemberPubkeys.contains(hexKey)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This user is already a member of this group'),
+        ),
+      );
+      return;
+    }
+
+    // Check duplicate in current invite list (by resolved hex)
     if (_invitees.any((e) => e.hexKey == hexKey)) {
       ScaffoldMessenger.of(
         context,

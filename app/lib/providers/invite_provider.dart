@@ -1,84 +1,33 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
 class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
-  Future<void> _log(String msg) async {
-    final dir = await getApplicationSupportDirectory();
-    final file = File('${dir.path}/invite_debug.log');
-    final ts = DateTime.now().toIso8601String();
-    await file.writeAsString('[$ts] $msg\n', mode: FileMode.append);
-  }
-
   @override
   Future<List<WelcomeInfo>> build() async {
-    // Sync welcomes from relays before listing
+    // Sync welcomes from relays, then list from MDK storage
     try {
-      // Log connected relays first
-      try {
-        final relays = await rust_relay.listRelays();
-        final connected = relays.where((r) => r.connected).toList();
-        await _log(
-          'connected relays: ${connected.length}/${relays.length} - ${connected.map((r) => r.url).join(', ')}',
-        );
-      } catch (_) {}
-      await _log('calling syncWelcomes...');
-      final count = await syncWelcomes();
-      await _log('syncWelcomes found $count new welcomes');
-    } catch (e) {
-      await _log('syncWelcomes error: $e');
-    }
+      await syncWelcomes();
+    } catch (_) {}
     try {
-      final pending = await listPendingWelcomes();
-      await _log('listPendingWelcomes returned ${pending.length} items');
-
-      // If no invites found on first load, schedule a background retry
-      // after relays have had more time to connect (Android cold-start).
-      if (pending.isEmpty) {
-        Future.delayed(const Duration(seconds: 8), () async {
-          try {
-            await _log('retry syncWelcomes after delay...');
-            final retryCount = await syncWelcomes();
-            await _log('retry syncWelcomes found $retryCount new welcomes');
-            if (retryCount > 0) {
-              final updated = await listPendingWelcomes();
-              await _log('retry listPendingWelcomes returned ${updated.length} items');
-              state = AsyncData(updated);
-            }
-          } catch (e) {
-            await _log('retry syncWelcomes error: $e');
-          }
-        });
-      }
-
-      return pending;
-    } catch (e) {
-      await _log('listPendingWelcomes error: $e');
+      return await listPendingWelcomes();
+    } catch (_) {
       return [];
     }
   }
 
-  /// Full MIP-02 invite flow:
-  /// 1. addMembers → get evolution event + welcome rumors
-  /// 2. Publish evolution event (kind 445) to relays
-  /// 3. Merge pending commit in MLS state
-  /// 4. Gift-wrap each welcome rumor (kind 444) for its recipient
-  /// 5. Publish gift-wrapped welcomes to relays
+  /// Full MIP-02 invite flow.
   Future<void> sendInvite({
     required String mlsGroupIdHex,
     required List<String> keyPackageEventsJson,
   }) async {
-    // Clear any stale pending commit from a previous failed invite
+    // Clear any stale pending commit
     try {
       await rust_group.mergePendingCommit(mlsGroupIdHex: mlsGroupIdHex);
-    } catch (_) {
-      // No pending commit — that's fine
-    }
+    } catch (_) {}
 
     // 1. Create the MLS commit + welcome messages
     final result = await addMembers(
@@ -95,9 +44,6 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
     await rust_group.mergePendingCommit(mlsGroupIdHex: mlsGroupIdHex);
 
     // 4. Gift-wrap and publish each welcome rumor
-    // MDK welcome rumors don't have "p" tags — the recipient is the author
-    // of the corresponding KeyPackage event. Welcome rumors are returned in
-    // the same order as keyPackageEventsJson, so we correlate by index.
     final recipientPubkeys = keyPackageEventsJson.map((json) {
       final event = jsonDecode(json) as Map<String, dynamic>;
       return event['pubkey'] as String;
@@ -112,78 +58,30 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
           : null;
       if (recipientHex == null) continue;
 
-      // Gift-wrap the welcome for this recipient (NIP-59)
       final wrappedJson = await giftWrapWelcome(
         welcomeRumorJson: welcomeJson,
         recipientPubkeyHex: recipientHex,
       );
 
-      // Publish the gift-wrapped welcome to relays and verify
       await rust_relay.publishEventJson(eventJson: wrappedJson);
-
-      // Extract event ID from the wrapped event for verification
-      final wrappedEvent = jsonDecode(wrappedJson) as Map<String, dynamic>;
-      final wrappedEventId = wrappedEvent['id'] as String?;
-
-      if (wrappedEventId != null) {
-        // Wait briefly for relay propagation
-        await Future.delayed(const Duration(seconds: 2));
-
-        final verified = await rust_relay.verifyEventPublished(
-          eventIdHex: wrappedEventId,
-        );
-
-        if (!verified) {
-          await _log('Welcome event $wrappedEventId not verified on relays, retrying individually...');
-
-          // Retry on each relay individually
-          final relays = await rust_relay.listRelays();
-          final connectedRelays = relays.where((r) => r.connected).toList();
-          bool anySuccess = false;
-
-          for (final relay in connectedRelays) {
-            try {
-              await rust_relay.publishEventJsonToRelay(
-                eventJson: wrappedJson,
-                relayUrl: relay.url,
-              );
-              anySuccess = true;
-              await _log('Retry succeeded on ${relay.url}');
-            } catch (e) {
-              await _log('Retry failed on ${relay.url}: $e');
-            }
-          }
-
-          if (!anySuccess) {
-            throw Exception(
-              'Failed to publish welcome event to any relay after retries. '
-              'The invite may not have been delivered.',
-            );
-          }
-        }
-      }
     }
   }
 
-  /// Fetch a user's key package from relays.
   Future<String> fetchUserKeyPackage(String pubkeyHex) async {
     return await fetchKeyPackage(pubkeyHex: pubkeyHex);
   }
 
-  /// Accept a pending welcome.
   Future<void> acceptInvite(String welcomeEventIdHex) async {
     await acceptWelcome(welcomeEventIdHex: welcomeEventIdHex);
     state = AsyncData(await listPendingWelcomes());
   }
 
-  /// Decline a pending welcome.
   Future<void> declineInvite(String welcomeEventIdHex) async {
     await declineWelcome(welcomeEventIdHex: welcomeEventIdHex);
     state = AsyncData(await listPendingWelcomes());
   }
 
   Future<void> refresh() async {
-    // Sync from relays first, then reload from MDK storage
     try {
       await syncWelcomes();
     } catch (_) {}
@@ -192,9 +90,7 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
 }
 
 final inviteProvider = AsyncNotifierProvider<InviteNotifier, List<WelcomeInfo>>(
-  () {
-    return InviteNotifier();
-  },
+  () => InviteNotifier(),
 );
 
 /// Count of pending invites for badge display.

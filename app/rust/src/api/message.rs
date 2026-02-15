@@ -41,6 +41,19 @@ pub struct GroupMessage {
     pub epoch: u64,
 }
 
+/// A notification from the group message listener.
+/// Can be a new message or a group state change (commit/proposal).
+#[frb(non_opaque)]
+#[derive(Debug, Clone)]
+pub struct GroupNotification {
+    /// "application_message", "commit", "proposal", or other MLS event type.
+    pub notification_type: String,
+    /// The decrypted message (only set for "application_message").
+    pub message: Option<GroupMessage>,
+    /// Hex-encoded MLS group ID this notification belongs to.
+    pub mls_group_id_hex: String,
+}
+
 /// Result of processing an incoming kind 445 event.
 #[frb(non_opaque)]
 #[derive(Debug, Clone)]
@@ -55,17 +68,26 @@ pub struct ProcessMessageResult {
     pub evolution_event_json: Option<String>,
 }
 
+/// Result of sending a message: the encrypted event JSON and the local message.
+#[frb(non_opaque)]
+#[derive(Debug, Clone)]
+pub struct SendMessageResult {
+    /// JSON-serialized signed Event (kind 445) for relay publication.
+    pub event_json: String,
+    /// The decrypted message as stored locally in MDK, ready for immediate UI display.
+    pub message: GroupMessage,
+}
+
 /// Send an encrypted message to a group (MIP-03).
 ///
 /// Creates a plaintext rumor, MLS-encrypts it, NIP-44-encrypts with exporter_secret,
-/// signs with an ephemeral key, and returns a kind 445 event ready for relay publication.
-///
-/// Returns JSON-serialized signed Event (kind 445).
+/// signs with an ephemeral key, and returns both the kind 445 event for relay publication
+/// and the local GroupMessage for immediate UI display.
 #[frb]
 pub async fn send_message(
     mls_group_id_hex: String,
     content: String,
-) -> Result<String, BurrowError> {
+) -> Result<SendMessageResult, BurrowError> {
     state::with_state(|s| {
         let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
@@ -75,12 +97,46 @@ pub async fn send_message(
         let rumor = EventBuilder::new(Kind::TextNote, &content)
             .build(s.keys.public_key());
 
+        // Get the rumor's event ID before MLS encryption so we can retrieve
+        // the stored message immediately after create_message
+        let rumor_id = rumor.id
+            .ok_or_else(|| BurrowError::from("Rumor event ID not set".to_string()))?;
+
         let event = s
             .mdk
             .create_message(&group_id, rumor)
             .map_err(BurrowError::from)?;
 
-        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+        let event_json =
+            serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))?;
+
+        // Retrieve the message from MDK storage for immediate UI display
+        let msg = s
+            .mdk
+            .get_message(&group_id, &rumor_id)
+            .map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Sent message not found in local storage".to_string()))?;
+
+        let group_message = GroupMessage {
+            event_id_hex: msg.id.to_hex(),
+            author_pubkey_hex: msg.pubkey.to_hex(),
+            content: msg.content.clone(),
+            created_at: msg.created_at.as_secs(),
+            mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
+            kind: msg.kind.as_u16() as u64,
+            tags: msg
+                .tags
+                .iter()
+                .map(|t| t.as_slice().to_vec())
+                .collect(),
+            wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+            epoch: msg.epoch.unwrap_or(0),
+        };
+
+        Ok(SendMessageResult {
+            event_json,
+            message: group_message,
+        })
     })
     .await
 }
@@ -91,13 +147,13 @@ pub async fn send_message(
 /// The `imeta_tags_json` is a JSON array of arrays, where each inner array is
 /// a flat string list like `["imeta", "url ...", "m ...", ...]`.
 ///
-/// Returns JSON-serialized signed Event (kind 445).
+/// Returns the encrypted event JSON and the local GroupMessage for immediate display.
 #[frb]
 pub async fn send_message_with_media(
     mls_group_id_hex: String,
     content: String,
     imeta_tags_json: Vec<Vec<String>>,
-) -> Result<String, BurrowError> {
+) -> Result<SendMessageResult, BurrowError> {
     state::with_state(|s| {
         let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
@@ -116,13 +172,43 @@ pub async fn send_message_with_media(
         }
 
         let rumor = builder.build(s.keys.public_key());
+        let rumor_id = rumor.id
+            .ok_or_else(|| BurrowError::from("Rumor event ID not set".to_string()))?;
 
         let event = s
             .mdk
             .create_message(&group_id, rumor)
             .map_err(BurrowError::from)?;
 
-        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+        let event_json =
+            serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let msg = s
+            .mdk
+            .get_message(&group_id, &rumor_id)
+            .map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Sent message not found in local storage".to_string()))?;
+
+        let group_message = GroupMessage {
+            event_id_hex: msg.id.to_hex(),
+            author_pubkey_hex: msg.pubkey.to_hex(),
+            content: msg.content.clone(),
+            created_at: msg.created_at.as_secs(),
+            mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
+            kind: msg.kind.as_u16() as u64,
+            tags: msg
+                .tags
+                .iter()
+                .map(|t| t.as_slice().to_vec())
+                .collect(),
+            wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+            epoch: msg.epoch.unwrap_or(0),
+        };
+
+        Ok(SendMessageResult {
+            event_json,
+            message: group_message,
+        })
     })
     .await
 }
@@ -133,13 +219,13 @@ pub async fn send_message_with_media(
 /// the target message's event ID. The rumor is MLS-encrypted and published
 /// as a kind 445 event, same as regular messages.
 ///
-/// Returns JSON-serialized signed Event (kind 445).
+/// Returns the encrypted event JSON and the local GroupMessage for immediate display.
 #[frb]
 pub async fn send_reaction(
     mls_group_id_hex: String,
     target_event_id_hex: String,
     emoji: String,
-) -> Result<String, BurrowError> {
+) -> Result<SendMessageResult, BurrowError> {
     state::with_state(|s| {
         let group_id = GroupId::from_slice(
             &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
@@ -153,12 +239,43 @@ pub async fn send_reaction(
             .tag(Tag::event(target_id))
             .build(s.keys.public_key());
 
+        let rumor_id = rumor.id
+            .ok_or_else(|| BurrowError::from("Rumor event ID not set".to_string()))?;
+
         let event = s
             .mdk
             .create_message(&group_id, rumor)
             .map_err(BurrowError::from)?;
 
-        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+        let event_json =
+            serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let msg = s
+            .mdk
+            .get_message(&group_id, &rumor_id)
+            .map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Sent reaction not found in local storage".to_string()))?;
+
+        let group_message = GroupMessage {
+            event_id_hex: msg.id.to_hex(),
+            author_pubkey_hex: msg.pubkey.to_hex(),
+            content: msg.content.clone(),
+            created_at: msg.created_at.as_secs(),
+            mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
+            kind: msg.kind.as_u16() as u64,
+            tags: msg
+                .tags
+                .iter()
+                .map(|t| t.as_slice().to_vec())
+                .collect(),
+            wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+            epoch: msg.epoch.unwrap_or(0),
+        };
+
+        Ok(SendMessageResult {
+            event_json,
+            message: group_message,
+        })
     })
     .await
 }
@@ -439,17 +556,18 @@ pub async fn sync_group_messages() -> Result<u32, BurrowError> {
 }
 
 /// Subscribe to kind 445 group message events for all groups and stream
-/// decrypted messages to the Dart side.
+/// notifications to the Dart side.
 ///
 /// Builds a filter for each active group's Nostr group ID, subscribes to
 /// connected relays, and processes incoming events through MDK's
-/// `process_message` pipeline. Only `ApplicationMessage` results (actual
-/// chat messages) are forwarded; commits and proposals are handled silently.
+/// `process_message` pipeline. All processing results are forwarded:
+/// application messages include the full message data, while commits and
+/// proposals notify the Dart side to refresh group state.
 ///
 /// Runs indefinitely until the stream is closed from the Dart side.
 #[frb]
 pub async fn listen_for_group_messages(
-    sink: StreamSink<GroupMessage>,
+    sink: StreamSink<GroupNotification>,
 ) -> Result<(), BurrowError> {
     let (client, groups) = state::with_state(|s| {
         let groups = s.mdk.get_groups().map_err(BurrowError::from)?;
@@ -525,18 +643,35 @@ pub async fn listen_for_group_messages(
                                     wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
                                     epoch: msg.epoch.unwrap_or(0),
                                 };
-                                let _ = sink.add(group_message);
+                                let _ = sink.add(GroupNotification {
+                                    notification_type: "application_message".to_string(),
+                                    message: Some(group_message),
+                                    mls_group_id_hex: hex::encode(
+                                        msg.mls_group_id.as_slice(),
+                                    ),
+                                });
                             }
                             Ok(mdk_core::messages::MessageProcessingResult::Commit {
-                                ..
+                                mls_group_id,
                             }) => {
-                                // MLS epoch advanced — group state updated silently
+                                // MLS epoch advanced — notify Dart to refresh group state
+                                let _ = sink.add(GroupNotification {
+                                    notification_type: "commit".to_string(),
+                                    message: None,
+                                    mls_group_id_hex: hex::encode(mls_group_id.as_slice()),
+                                });
                             }
                             Ok(mdk_core::messages::MessageProcessingResult::Proposal(
-                                _update_result,
+                                update_result,
                             )) => {
-                                // Proposal received — group state updated by MDK.
-                                // Evolution events are handled by the invite/group providers.
+                                // Proposal received — notify Dart to refresh group state
+                                let _ = sink.add(GroupNotification {
+                                    notification_type: "proposal".to_string(),
+                                    message: None,
+                                    mls_group_id_hex: hex::encode(
+                                        update_result.mls_group_id.as_slice(),
+                                    ),
+                                });
                             }
                             _ => {
                                 // Other results (pending proposals, unprocessable, etc.)

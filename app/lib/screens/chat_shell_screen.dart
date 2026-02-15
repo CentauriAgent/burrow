@@ -1,11 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:burrow_app/providers/archive_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
+import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
 import 'package:burrow_app/screens/chat_view_screen.dart';
@@ -230,8 +230,11 @@ class _ChatListPane extends ConsumerWidget {
         child: const Icon(Icons.group_add),
       ),
       body: groups.when(
-        data: (list) {
-          if (list.isEmpty) {
+        data: (_) {
+          final list = ref.watch(visibleGroupsProvider);
+          final archivedCount = ref.watch(archivedGroupCountProvider);
+
+          if (list.isEmpty && archivedCount == 0) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -268,61 +271,114 @@ class _ChatListPane extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () => ref.read(groupProvider.notifier).refresh(),
             child: ListView.builder(
-              itemCount: list.length,
+              itemCount: list.length + (archivedCount > 0 ? 1 : 0),
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemBuilder: (context, index) {
+                // Archived groups row at the bottom
+                if (index == list.length) {
+                  return ListTile(
+                    leading: Icon(
+                      Icons.archive_outlined,
+                      color: theme.colorScheme.onSurface.withAlpha(150),
+                    ),
+                    title: Text(
+                      'Archived ($archivedCount)',
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withAlpha(150),
+                      ),
+                    ),
+                    onTap: () => context.push('/archived'),
+                  );
+                }
+
                 final group = list[index];
                 final isSelected = group.mlsGroupIdHex == selectedId;
                 final avatarState = ref.watch(
                   groupAvatarProvider(group.mlsGroupIdHex),
                 );
-                return ListTile(
-                  selected: isSelected,
-                  selectedTileColor: theme.colorScheme.primaryContainer
-                      .withAlpha(60),
-                  leading: CircleAvatar(
-                    key: avatarState.avatarFile != null
-                        ? ValueKey(
-                            '${avatarState.avatarFile!.path}_${avatarState.version}',
-                          )
-                        : null,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    backgroundImage: avatarState.avatarFile != null
-                        ? FileImage(avatarState.avatarFile!)
-                        : null,
-                    child: avatarState.avatarFile != null
-                        ? null
-                        : Icon(
-                            Icons.group,
-                            color: theme.colorScheme.onPrimaryContainer,
+                return Dismissible(
+                  key: ValueKey(group.mlsGroupIdHex),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    color: theme.colorScheme.secondaryContainer,
+                    child: Icon(
+                      Icons.archive_outlined,
+                      color: theme.colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                  confirmDismiss: (_) async {
+                    await ref
+                        .read(archiveProvider.notifier)
+                        .archive(group.mlsGroupIdHex);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${group.name.isNotEmpty ? group.name : "Group"} archived',
                           ),
-                  ),
-                  title: Text(
-                    group.name.isNotEmpty ? group.name : 'Unnamed Group',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    group.description.isNotEmpty
-                        ? group.description
-                        : '${group.state} · epoch ${group.epoch}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Icon(
-                    Icons.circle,
-                    size: 10,
-                    color: group.state == 'active' ? Colors.green : Colors.grey,
-                  ),
-                  onTap: () {
-                    if (isWide) {
-                      ref
-                          .read(detailPaneProvider.notifier)
-                          .selectChat(group.mlsGroupIdHex);
-                    } else {
-                      context.go('/chat/${group.mlsGroupIdHex}');
+                          action: SnackBarAction(
+                            label: 'Undo',
+                            onPressed: () => ref
+                                .read(archiveProvider.notifier)
+                                .unarchive(group.mlsGroupIdHex),
+                          ),
+                        ),
+                      );
                     }
+                    return false; // Don't remove widget, provider handles it
                   },
+                  child: ListTile(
+                    selected: isSelected,
+                    selectedTileColor: theme.colorScheme.primaryContainer
+                        .withAlpha(60),
+                    leading: CircleAvatar(
+                      key: avatarState.avatarFile != null
+                          ? ValueKey(
+                              '${avatarState.avatarFile!.path}_${avatarState.version}',
+                            )
+                          : null,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      backgroundImage: avatarState.avatarFile != null
+                          ? FileImage(avatarState.avatarFile!)
+                          : null,
+                      child: avatarState.avatarFile != null
+                          ? null
+                          : Icon(
+                              Icons.group,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                    ),
+                    title: Text(
+                      group.name.isNotEmpty ? group.name : 'Unnamed Group',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      group.description.isNotEmpty
+                          ? group.description
+                          : '${group.state} · epoch ${group.epoch}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: group.state == 'active'
+                          ? Colors.green
+                          : Colors.grey,
+                    ),
+                    onTap: () {
+                      if (isWide) {
+                        ref
+                            .read(detailPaneProvider.notifier)
+                            .selectChat(group.mlsGroupIdHex);
+                      } else {
+                        context.go('/chat/${group.mlsGroupIdHex}');
+                      }
+                    },
+                  ),
                 );
               },
             ),

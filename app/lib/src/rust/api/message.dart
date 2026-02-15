@@ -7,15 +7,14 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Send an encrypted message to a group (MIP-03).
 ///
 /// Creates a plaintext rumor, MLS-encrypts it, NIP-44-encrypts with exporter_secret,
-/// signs with an ephemeral key, and returns a kind 445 event ready for relay publication.
-///
-/// Returns JSON-serialized signed Event (kind 445).
-Future<String> sendMessage({
+/// signs with an ephemeral key, and returns both the kind 445 event for relay publication
+/// and the local GroupMessage for immediate UI display.
+Future<SendMessageResult> sendMessage({
   required String mlsGroupIdHex,
   required String content,
 }) => RustLib.instance.api.crateApiMessageSendMessage(
@@ -29,8 +28,8 @@ Future<String> sendMessage({
 /// The `imeta_tags_json` is a JSON array of arrays, where each inner array is
 /// a flat string list like `["imeta", "url ...", "m ...", ...]`.
 ///
-/// Returns JSON-serialized signed Event (kind 445).
-Future<String> sendMessageWithMedia({
+/// Returns the encrypted event JSON and the local GroupMessage for immediate display.
+Future<SendMessageResult> sendMessageWithMedia({
   required String mlsGroupIdHex,
   required String content,
   required List<List<String>> imetaTagsJson,
@@ -46,8 +45,8 @@ Future<String> sendMessageWithMedia({
 /// the target message's event ID. The rumor is MLS-encrypted and published
 /// as a kind 445 event, same as regular messages.
 ///
-/// Returns JSON-serialized signed Event (kind 445).
-Future<String> sendReaction({
+/// Returns the encrypted event JSON and the local GroupMessage for immediate display.
+Future<SendMessageResult> sendReaction({
   required String mlsGroupIdHex,
   required String targetEventIdHex,
   required String emoji,
@@ -107,15 +106,16 @@ Future<int> syncGroupMessages() =>
     RustLib.instance.api.crateApiMessageSyncGroupMessages();
 
 /// Subscribe to kind 445 group message events for all groups and stream
-/// decrypted messages to the Dart side.
+/// notifications to the Dart side.
 ///
 /// Builds a filter for each active group's Nostr group ID, subscribes to
 /// connected relays, and processes incoming events through MDK's
-/// `process_message` pipeline. Only `ApplicationMessage` results (actual
-/// chat messages) are forwarded; commits and proposals are handled silently.
+/// `process_message` pipeline. All processing results are forwarded:
+/// application messages include the full message data, while commits and
+/// proposals notify the Dart side to refresh group state.
 ///
 /// Runs indefinitely until the stream is closed from the Dart side.
-Stream<GroupMessage> listenForGroupMessages() =>
+Stream<GroupNotification> listenForGroupMessages() =>
     RustLib.instance.api.crateApiMessageListenForGroupMessages();
 
 /// A decrypted group message, flattened for FFI.
@@ -187,6 +187,38 @@ class GroupMessage {
           epoch == other.epoch;
 }
 
+/// A notification from the group message listener.
+/// Can be a new message or a group state change (commit/proposal).
+class GroupNotification {
+  /// "application_message", "commit", "proposal", or other MLS event type.
+  final String notificationType;
+
+  /// The decrypted message (only set for "application_message").
+  final GroupMessage? message;
+
+  /// Hex-encoded MLS group ID this notification belongs to.
+  final String mlsGroupIdHex;
+
+  const GroupNotification({
+    required this.notificationType,
+    this.message,
+    required this.mlsGroupIdHex,
+  });
+
+  @override
+  int get hashCode =>
+      notificationType.hashCode ^ message.hashCode ^ mlsGroupIdHex.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupNotification &&
+          runtimeType == other.runtimeType &&
+          notificationType == other.notificationType &&
+          message == other.message &&
+          mlsGroupIdHex == other.mlsGroupIdHex;
+}
+
 /// Result of processing an incoming kind 445 event.
 class ProcessMessageResult {
   /// "application_message", "commit", "proposal", "pending_proposal", "unprocessable"
@@ -224,4 +256,26 @@ class ProcessMessageResult {
           message == other.message &&
           mlsGroupIdHex == other.mlsGroupIdHex &&
           evolutionEventJson == other.evolutionEventJson;
+}
+
+/// Result of sending a message: the encrypted event JSON and the local message.
+class SendMessageResult {
+  /// JSON-serialized signed Event (kind 445) for relay publication.
+  final String eventJson;
+
+  /// The decrypted message as stored locally in MDK, ready for immediate UI display.
+  final GroupMessage message;
+
+  const SendMessageResult({required this.eventJson, required this.message});
+
+  @override
+  int get hashCode => eventJson.hashCode ^ message.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SendMessageResult &&
+          runtimeType == other.runtimeType &&
+          eventJson == other.eventJson &&
+          message == other.message;
 }

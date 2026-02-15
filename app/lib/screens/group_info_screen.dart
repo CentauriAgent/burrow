@@ -8,6 +8,7 @@ import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
+import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 import 'package:burrow_app/src/rust/api/error.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
@@ -327,12 +328,30 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       } catch (_) {
         // No pending commit — that's fine
       }
-      await removeMembers(
+      final result = await removeMembers(
         mlsGroupIdHex: widget.groupId,
         pubkeysHex: [pubkeyHex],
       );
-      // Merge the pending commit after removal
+      // Merge the pending commit (remove_members creates a commit, not a proposal)
       await mergePendingCommit(mlsGroupIdHex: widget.groupId);
+      // Publish the evolution event to group relays (Marmot protocol)
+      if (result.evolutionEventJson.isNotEmpty) {
+        try {
+          final groupRelays = await getGroupRelays(
+            mlsGroupIdHex: widget.groupId,
+          );
+          for (final relay in groupRelays) {
+            await rust_relay.publishEventJsonToRelay(
+              eventJson: result.evolutionEventJson,
+              relayUrl: relay,
+            );
+          }
+        } catch (_) {
+          await rust_relay.publishEventJson(
+            eventJson: result.evolutionEventJson,
+          );
+        }
+      }
       _loadGroupInfo();
       if (mounted) {
         ScaffoldMessenger.of(

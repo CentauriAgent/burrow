@@ -2891,7 +2891,7 @@ fn wire__crate__api__message__listen_for_group_messages_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_sink = <StreamSink<
-                crate::api::message::GroupMessage,
+                crate::api::message::GroupNotification,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -5066,7 +5066,10 @@ impl SseDecode
 }
 
 impl SseDecode
-    for StreamSink<crate::api::message::GroupMessage, flutter_rust_bridge::for_generated::SseCodec>
+    for StreamSink<
+        crate::api::message::GroupNotification,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5423,6 +5426,20 @@ impl SseDecode for crate::api::message::GroupMessage {
             tags: var_tags,
             wrapper_event_id_hex: var_wrapperEventIdHex,
             epoch: var_epoch,
+        };
+    }
+}
+
+impl SseDecode for crate::api::message::GroupNotification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_notificationType = <String>::sse_decode(deserializer);
+        let mut var_message = <Option<crate::api::message::GroupMessage>>::sse_decode(deserializer);
+        let mut var_mlsGroupIdHex = <String>::sse_decode(deserializer);
+        return crate::api::message::GroupNotification {
+            notification_type: var_notificationType,
+            message: var_message,
+            mls_group_id_hex: var_mlsGroupIdHex,
         };
     }
 }
@@ -5959,6 +5976,18 @@ impl SseDecode for crate::api::call_webrtc::SdpInfo {
             codecs: var_codecs,
             is_valid: var_isValid,
             error: var_error,
+        };
+    }
+}
+
+impl SseDecode for crate::api::message::SendMessageResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_eventJson = <String>::sse_decode(deserializer);
+        let mut var_message = <crate::api::message::GroupMessage>::sse_decode(deserializer);
+        return crate::api::message::SendMessageResult {
+            event_json: var_eventJson,
+            message: var_message,
         };
     }
 }
@@ -7055,6 +7084,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::message::GroupMessage>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::message::GroupNotification {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.notification_type.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+            self.mls_group_id_hex.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::message::GroupNotification
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::message::GroupNotification>
+    for crate::api::message::GroupNotification
+{
+    fn into_into_dart(self) -> crate::api::message::GroupNotification {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::call_webrtc::IceServer {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -7359,6 +7410,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::call_webrtc::SdpInfo>
     for crate::api::call_webrtc::SdpInfo
 {
     fn into_into_dart(self) -> crate::api::call_webrtc::SdpInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::message::SendMessageResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.event_json.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::message::SendMessageResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::message::SendMessageResult>
+    for crate::api::message::SendMessageResult
+{
+    fn into_into_dart(self) -> crate::api::message::SendMessageResult {
         self
     }
 }
@@ -7687,7 +7759,10 @@ impl SseEncode
 }
 
 impl SseEncode
-    for StreamSink<crate::api::message::GroupMessage, flutter_rust_bridge::for_generated::SseCodec>
+    for StreamSink<
+        crate::api::message::GroupNotification,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7955,6 +8030,15 @@ impl SseEncode for crate::api::message::GroupMessage {
         <Vec<Vec<String>>>::sse_encode(self.tags, serializer);
         <String>::sse_encode(self.wrapper_event_id_hex, serializer);
         <u64>::sse_encode(self.epoch, serializer);
+    }
+}
+
+impl SseEncode for crate::api::message::GroupNotification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.notification_type, serializer);
+        <Option<crate::api::message::GroupMessage>>::sse_encode(self.message, serializer);
+        <String>::sse_encode(self.mls_group_id_hex, serializer);
     }
 }
 
@@ -8355,6 +8439,14 @@ impl SseEncode for crate::api::call_webrtc::SdpInfo {
         <Vec<String>>::sse_encode(self.codecs, serializer);
         <bool>::sse_encode(self.is_valid, serializer);
         <Option<String>>::sse_encode(self.error, serializer);
+    }
+}
+
+impl SseEncode for crate::api::message::SendMessageResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.event_json, serializer);
+        <crate::api::message::GroupMessage>::sse_encode(self.message, serializer);
     }
 }
 

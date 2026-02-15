@@ -241,42 +241,33 @@ pub async fn bootstrap_identity() -> Result<ProfileData, BurrowError> {
         Ok((s.keys.public_key().to_hex(), s.client.clone()))
     }).await?;
 
-    // Add default relays
+    // Add default relays and connect (non-blocking, nostr-sdk auto-reconnects)
     let defaults = crate::api::relay::default_relay_urls();
     for url in &defaults {
         let _ = crate::api::relay::add_relay(url.clone()).await;
     }
+    client.connect().await;
 
-    // Fire-and-forget relay connection (nostr-sdk auto-reconnects)
-    let client_clone = client.clone();
+    // Brief pause for initial handshakes
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    // Non-blocking profile fetch (cache only — fast)
+    let profile = fetch_profile(pubkey_hex.clone(), false).await.unwrap_or_default();
+
+    // Background: fetch NIP-65 relays + blocking profile (don't hold up startup)
+    let client_bg = client.clone();
+    let pubkey_bg = pubkey_hex.clone();
     tokio::spawn(async move {
-        client_clone.connect().await;
+        // Fetch user's relay list and add those relays
+        if let Ok(user_relays) = fetch_user_relays(pubkey_bg.clone()).await {
+            for url in &user_relays {
+                let _ = crate::api::relay::add_relay(url.clone()).await;
+            }
+            client_bg.connect().await;
+        }
+        // Try blocking profile fetch to warm the cache for next time
+        let _ = fetch_profile(pubkey_bg, true).await;
     });
-
-    // Give relays a moment to establish connections
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    // Fetch profile non-blocking first (cache), then try blocking with short timeout
-    let profile = match fetch_profile(pubkey_hex.clone(), false).await {
-        Ok(p) if p.display_name.is_some() => p,
-        _ => {
-            // Try blocking sync but don't fail if it times out
-            fetch_profile(pubkey_hex.clone(), true).await.unwrap_or_default()
-        }
-    };
-
-    // Fetch user's relay list and add those relays too (best-effort)
-    if let Ok(user_relays) = fetch_user_relays(pubkey_hex).await {
-        for url in &user_relays {
-            let _ = crate::api::relay::add_relay(url.clone()).await;
-        }
-        if !user_relays.is_empty() {
-            let client_clone2 = client.clone();
-            tokio::spawn(async move {
-                client_clone2.connect().await;
-            });
-        }
-    }
 
     Ok(profile)
 }

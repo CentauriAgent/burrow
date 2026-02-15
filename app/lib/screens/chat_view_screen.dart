@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:burrow_app/providers/archive_provider.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
@@ -551,13 +552,15 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
     setState(() => _isSending = true);
     try {
-      await MediaAttachmentService.sendMediaMessage(
+      final result = await MediaAttachmentService.sendMediaMessage(
         groupId: widget.groupId,
         fileData: bytes,
         mimeType: mimeType,
         filename: picked.name,
       );
-      ref.read(messagesProvider(widget.groupId).notifier).refresh();
+      ref
+          .read(messagesProvider(widget.groupId).notifier)
+          .addIncomingMessage(result.message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -577,13 +580,15 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
     setState(() => _isSending = true);
     try {
-      await MediaAttachmentService.sendMediaMessage(
+      final result = await MediaAttachmentService.sendMediaMessage(
         groupId: widget.groupId,
         fileData: bytes,
         mimeType: mimeType,
         filename: filename,
       );
-      ref.read(messagesProvider(widget.groupId).notifier).refresh();
+      ref
+          .read(messagesProvider(widget.groupId).notifier)
+          .addIncomingMessage(result.message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -623,9 +628,18 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Mute coming soon')));
       case 'archive':
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Archive coming soon')));
+        ref.read(archiveProvider.notifier).archive(groupId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Chat archived'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () =>
+                  ref.read(archiveProvider.notifier).unarchive(groupId),
+            ),
+          ),
+        );
+        context.go('/home');
       case 'leave':
         _confirmLeaveGroup(context, groupId);
     }

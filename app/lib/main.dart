@@ -23,6 +23,7 @@ import 'package:burrow_app/screens/transcript_screen.dart';
 import 'package:burrow_app/screens/meeting_summary_screen.dart';
 import 'package:burrow_app/screens/transcript_history_screen.dart';
 import 'package:burrow_app/screens/new_dm_screen.dart';
+import 'package:burrow_app/screens/archived_groups_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -99,6 +100,10 @@ class BurrowApp extends ConsumerWidget {
         GoRoute(
           path: '/invites',
           builder: (context, state) => const PendingInvitesScreen(),
+        ),
+        GoRoute(
+          path: '/archived',
+          builder: (context, state) => const ArchivedGroupsScreen(),
         ),
         GoRoute(
           path: '/group-info/:groupId',
