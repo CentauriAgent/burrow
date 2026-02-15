@@ -87,9 +87,10 @@ pub async fn run(
         .context("Failed to open MLS SQLite database")?;
     let mdk = MDK::new(mdk_storage);
 
-    // Generate a KeyPackage so MDK has the private key material for processing Welcomes.
-    // Without this, process_welcome fails with "No matching key package was found in the key store."
-    {
+    // Generate a KeyPackage only on first run (no existing MLS database).
+    // Reusing existing key packages avoids invalidating pending invites on restart.
+    let is_fresh_install = !mls_db_path.exists() || std::fs::metadata(&mls_db_path).map(|m| m.len() == 0).unwrap_or(true);
+    if is_fresh_install {
         let relay_parsed: Vec<RelayUrl> = all_relays.iter()
             .filter_map(|u| RelayUrl::parse(u).ok())
             .collect();
@@ -129,6 +130,8 @@ pub async fn run(
                 eprintln!("⚠️ Failed to generate KeyPackage: {}", e);
             }
         }
+    } else {
+        eprintln!("ℹ️ Reusing existing KeyPackage from store (no new publish).");
     }
 
     // Subscribe to kind 445 for all groups
