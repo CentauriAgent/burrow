@@ -1,6 +1,12 @@
 use rust_lib_burrow_app::api::error::BurrowError;
 use rust_lib_burrow_app::api::state;
 
+fn setup_test_data_dir() {
+    let tmp = std::env::temp_dir().join("burrow_tests");
+    std::fs::create_dir_all(&tmp).unwrap();
+    state::set_data_dir(tmp.to_string_lossy().to_string());
+}
+
 #[tokio::test]
 async fn state_not_initialized_after_destroy() {
     state::destroy_state().await;
@@ -26,6 +32,7 @@ async fn with_state_mut_errors_when_not_initialized() {
 #[tokio::test]
 async fn init_and_use_state() {
     state::destroy_state().await;
+    setup_test_data_dir();
     let keys = nostr_sdk::prelude::Keys::generate();
     let pubkey_hex = keys.public_key().to_hex();
 
@@ -43,6 +50,7 @@ async fn init_and_use_state() {
 #[tokio::test]
 async fn destroy_then_reinit() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let keys1 = nostr_sdk::prelude::Keys::generate();
     let _: () = state::init_state(keys1).await.unwrap();

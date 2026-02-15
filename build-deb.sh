@@ -45,7 +45,7 @@ Version: $VERSION
 Section: net
 Priority: optional
 Architecture: $ARCH
-Depends: libgtk-3-0, libglib2.0-0
+Depends: libgtk-3-0, libglib2.0-0, libdbus-1-3
 Maintainer: Burrow Team
 Description: Burrow - Encrypted Messaging
  Secure, encrypted messaging app using the Marmot Protocol

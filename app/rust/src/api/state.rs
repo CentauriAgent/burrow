@@ -41,8 +41,8 @@ fn initialize_keyring_store() {
     KEYRING_INIT.get_or_init(|| {
         #[cfg(target_os = "linux")]
         {
-            let store = linux_keyutils_keyring_store::Store::new()
-                .expect("Failed to create Linux keyutils credential store");
+            let store = dbus_secret_service_keyring_store::Store::new()
+                .expect("Failed to create D-Bus Secret Service credential store");
             keyring_core::set_default_store(store);
         }
         #[cfg(target_os = "macos")]
@@ -89,6 +89,10 @@ fn get_data_dir() -> Result<PathBuf, BurrowError> {
 }
 
 /// Initialize the global state with a keypair and persistent MLS storage.
+///
+/// If the existing MLS database can't be opened (e.g., encryption key was lost
+/// due to a keyring backend change), the stale database is removed and a fresh
+/// one is created.
 pub async fn init_state(keys: Keys) -> Result<(), BurrowError> {
     initialize_keyring_store();
 
@@ -96,8 +100,23 @@ pub async fn init_state(keys: Keys) -> Result<(), BurrowError> {
     let mls_dir = data_dir.join("mls").join(keys.public_key().to_hex());
     let db_key_id = format!("mdk.db.key.{}", keys.public_key().to_hex());
 
-    let storage = MdkSqliteStorage::new(mls_dir, KEYRING_SERVICE_ID, &db_key_id)
-        .map_err(|e| BurrowError::from(format!("Failed to initialize MLS storage: {e}")))?;
+    let storage = match MdkSqliteStorage::new(mls_dir.clone(), KEYRING_SERVICE_ID, &db_key_id) {
+        Ok(s) => s,
+        Err(e) => {
+            // If the database exists but can't be decrypted (e.g., keyring backend
+            // changed from kernel-memory keyutils to D-Bus Secret Service), remove
+            // the stale data and start fresh.
+            if mls_dir.exists() {
+                let _ = std::fs::remove_dir_all(&mls_dir);
+                MdkSqliteStorage::new(mls_dir, KEYRING_SERVICE_ID, &db_key_id)
+                    .map_err(|e2| BurrowError::from(format!(
+                        "Failed to initialize MLS storage after recovery: {e2} (original: {e})"
+                    )))?
+            } else {
+                return Err(BurrowError::from(format!("Failed to initialize MLS storage: {e}")));
+            }
+        }
+    };
 
     let mdk = MDK::new(storage);
     let client = Client::builder().signer(keys.clone()).build();

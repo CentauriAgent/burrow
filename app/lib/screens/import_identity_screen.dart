@@ -33,9 +33,13 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
     } catch (e) {
       setState(() => _isImporting = false);
       if (mounted) {
+        final msg = e.toString();
+        final label = msg.contains('InvalidSecretKey')
+            ? 'Invalid key format. Please enter a valid nsec or hex private key.'
+            : 'Login failed: $msg';
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Invalid key: $e')));
+        ).showSnackBar(SnackBar(content: Text(label)));
       }
     }
   }

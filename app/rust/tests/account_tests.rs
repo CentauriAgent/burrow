@@ -2,9 +2,17 @@ use nostr_sdk::prelude::ToBech32;
 use rust_lib_burrow_app::api::error::BurrowError;
 use rust_lib_burrow_app::api::{account, state};
 
+/// Set up a temporary data directory for tests that need init_state.
+fn setup_test_data_dir() {
+    let tmp = std::env::temp_dir().join("burrow_tests");
+    std::fs::create_dir_all(&tmp).unwrap();
+    state::set_data_dir(tmp.to_string_lossy().to_string());
+}
+
 #[tokio::test]
 async fn create_account_initializes_state() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let info: account::AccountInfo = account::create_account().await.unwrap();
     assert!(!info.pubkey_hex.is_empty());
@@ -18,6 +26,7 @@ async fn create_account_initializes_state() {
 #[tokio::test]
 async fn logout_destroys_state() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let _: account::AccountInfo = account::create_account().await.unwrap();
     assert!(account::is_logged_in().await);
@@ -29,6 +38,7 @@ async fn logout_destroys_state() {
 #[tokio::test]
 async fn get_current_account_after_create() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let created: account::AccountInfo = account::create_account().await.unwrap();
     let current: account::AccountInfo = account::get_current_account().await.unwrap();
@@ -58,6 +68,7 @@ async fn login_with_invalid_key_fails() {
 #[tokio::test]
 async fn login_with_hex_secret_key() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let keys = nostr_sdk::prelude::Keys::generate();
     let hex_secret = keys.secret_key().to_secret_hex();
@@ -72,6 +83,7 @@ async fn login_with_hex_secret_key() {
 #[tokio::test]
 async fn login_with_nsec_key() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let keys = nostr_sdk::prelude::Keys::generate();
     let nsec = keys.secret_key().to_bech32().unwrap();
@@ -86,10 +98,11 @@ async fn login_with_nsec_key() {
 #[tokio::test]
 async fn save_and_load_account() {
     state::destroy_state().await;
+    setup_test_data_dir();
 
     let created: account::AccountInfo = account::create_account().await.unwrap();
 
-    let tmp = std::env::temp_dir().join("burrow_test_key.nsec");
+    let tmp = std::env::temp_dir().join("burrow_tests").join("burrow_test_key.nsec");
     let tmp_path = tmp.to_string_lossy().to_string();
 
     let _: () = account::save_secret_key(tmp_path.clone()).await.unwrap();
