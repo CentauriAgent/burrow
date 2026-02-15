@@ -68,8 +68,7 @@ pub async fn run(
 
     let groups = store.load_groups()?;
     if groups.is_empty() {
-        eprintln!("⚠️ No groups found. Create one first.");
-        return Ok(());
+        eprintln!("ℹ️ No groups yet — listening for invites only.");
     }
 
     // Collect all relay URLs
