@@ -36,7 +36,7 @@ fn global() -> &'static Arc<RwLock<Option<BurrowState>>> {
 }
 
 /// Initialize the platform-specific keyring store (once).
-fn initialize_keyring_store() {
+pub fn initialize_keyring_store() {
     static KEYRING_INIT: OnceLock<()> = OnceLock::new();
     KEYRING_INIT.get_or_init(|| {
         #[cfg(target_os = "linux")]

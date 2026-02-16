@@ -7,9 +7,13 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_data_dir`, `global`, `initialize_keyring_store`
+// These functions are ignored because they are not marked as `pub`: `get_data_dir`, `global`
 // These functions are ignored because they have generic arguments: `with_state_mut`, `with_state`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BurrowState`
+
+/// Initialize the platform-specific keyring store (once).
+Future<void> initializeKeyringStore() =>
+    RustLib.instance.api.crateApiStateInitializeKeyringStore();
 
 /// Set the application data directory (called from Flutter on startup).
 Future<void> setDataDir({required String path}) =>

@@ -16,44 +16,67 @@ class AuthState {
 class AuthNotifier extends AsyncNotifier<AuthState?> {
   @override
   Future<AuthState?> build() async {
-    final path = await _keyFilePath();
-    if (!File(path).existsSync()) return null;
+    // Migrate legacy plaintext key file to keyring if it exists
+    await _migrateLegacyKeyFile();
 
-    try {
-      final info = await loadAccountFromFile(filePath: path);
-      // Bootstrap: connect relays + fetch profile. Non-fatal if it fails.
+    // Try loading from the platform keyring
+    if (await hasKeyringAccount()) {
       try {
-        await rust_identity.bootstrapIdentity();
-      } catch (_) {}
-      // Publish MLS key package so other users can invite us.
-      _publishKeyPackage();
-      return AuthState(account: info);
+        final info = await loadAccountFromKeyring();
+        try {
+          await rust_identity.bootstrapIdentity();
+        } catch (_) {}
+        _publishKeyPackage();
+        return AuthState(account: info);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /// Migrate the legacy plaintext burrow_key file to the platform keyring.
+  /// Deletes the file after successful migration.
+  Future<void> _migrateLegacyKeyFile() async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final legacyFile = File('${dir.path}/burrow_key');
+      if (!legacyFile.existsSync()) return;
+
+      // Read the nsec from the file
+      final nsec = legacyFile.readAsStringSync().trim();
+      if (nsec.isEmpty) return;
+
+      // Login with it (initializes state)
+      await login(secretKey: nsec);
+      // Save to keyring
+      await saveSecretKeyToKeyring();
+      // Delete the plaintext file
+      legacyFile.deleteSync();
     } catch (_) {
-      return null;
+      // Migration failed — the file stays for next attempt
     }
   }
 
   Future<AccountInfo> createNewIdentity() async {
     final info = await createAccount();
-    await saveSecretKey(filePath: await _keyFilePath());
+    await saveSecretKeyToKeyring();
     try {
       await rust_identity.bootstrapIdentity();
     } catch (_) {}
     state = AsyncData(AuthState(account: info));
-    // Publish MLS key package so other users can invite us.
-    // Fire-and-forget: don't block account creation UI.
     _publishKeyPackage();
     return info;
   }
 
   Future<AccountInfo> importIdentity(String secretKey) async {
     final info = await login(secretKey: secretKey);
-    await saveSecretKey(filePath: await _keyFilePath());
+    await saveSecretKeyToKeyring();
     try {
       await rust_identity.bootstrapIdentity();
     } catch (_) {}
     state = AsyncData(AuthState(account: info));
-    // Publish MLS key package so other users can invite us.
     _publishKeyPackage();
     return info;
   }
@@ -66,30 +89,17 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
       final relays = await rust_relay.listRelays();
       final urls = relays.where((r) => r.connected).map((r) => r.url).toList();
       if (urls.isEmpty) {
-        // Fall back to defaults if nothing is connected yet
         urls.addAll(rust_relay.defaultRelayUrls());
       }
       await rust_kp.publishKeyPackage(relayUrls: urls);
       await rust_kp.publishKeyPackageRelays(relayUrls: urls);
-    } catch (_) {
-      // Non-fatal: key package publish can fail if relays are slow.
-      // The user can still use the app; invites to them will fail until
-      // a key package is available.
-    }
+    } catch (_) {}
   }
 
   Future<void> logoutUser() async {
-    final path = await _keyFilePath();
     await logout();
-    try {
-      File(path).deleteSync();
-    } catch (_) {}
+    await deleteSecretKeyFromKeyring();
     state = const AsyncData(null);
-  }
-
-  Future<String> _keyFilePath() async {
-    final dir = await getApplicationSupportDirectory();
-    return '${dir.path}/burrow_key';
   }
 }
 

@@ -43,12 +43,77 @@ pub async fn login(secret_key: String) -> Result<AccountInfo, BurrowError> {
     Ok(info)
 }
 
-/// Save the current secret key to a file with restrictive permissions (0o600).
-/// The caller should provide a secure filesystem path.
-/// Path traversal is prevented by rejecting paths containing `..`.
+const KEYRING_SERVICE: &str = "com.burrow.app";
+const KEYRING_NSEC_KEY: &str = "burrow.nsec";
+
+/// Save the current secret key to the platform keyring.
+///
+/// Uses the OS credential store (D-Bus Secret Service on Linux, Keychain on
+/// macOS/iOS, Credential Manager on Android/Windows). The nsec never touches
+/// the filesystem.
+#[frb]
+pub async fn save_secret_key_to_keyring() -> Result<(), BurrowError> {
+    state::initialize_keyring_store();
+    state::with_state(|s| {
+        let nsec = s
+            .keys
+            .secret_key()
+            .to_bech32()
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let entry = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_NSEC_KEY)
+            .map_err(|e| BurrowError::from(format!("Keyring entry: {e}")))?;
+        entry
+            .set_secret(nsec.as_bytes())
+            .map_err(|e| BurrowError::from(format!("Keyring save: {e}")))?;
+        Ok(())
+    })
+    .await
+}
+
+/// Load the secret key from the platform keyring and initialize the account.
+///
+/// Returns the account info if a key was found in the keyring, or an error
+/// if no key is stored or the keyring is unavailable.
+#[frb]
+pub async fn load_account_from_keyring() -> Result<AccountInfo, BurrowError> {
+    state::initialize_keyring_store();
+    let entry = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_NSEC_KEY)
+        .map_err(|e| BurrowError::from(format!("Keyring entry: {e}")))?;
+    let secret_bytes = entry
+        .get_secret()
+        .map_err(|e| BurrowError::from(format!("Keyring load: {e}")))?;
+    let nsec = String::from_utf8(secret_bytes)
+        .map_err(|e| BurrowError::from(format!("Keyring decode: {e}")))?;
+    login(nsec.trim().to_string()).await
+}
+
+/// Delete the secret key from the platform keyring (logout).
+#[frb]
+pub async fn delete_secret_key_from_keyring() -> Result<(), BurrowError> {
+    state::initialize_keyring_store();
+    if let Ok(entry) = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_NSEC_KEY) {
+        let _ = entry.delete_credential(); // Ignore errors (key might not exist)
+    }
+    Ok(())
+}
+
+/// Check if a secret key exists in the platform keyring.
+#[frb]
+pub async fn has_keyring_account() -> bool {
+    state::initialize_keyring_store();
+    if let Ok(entry) = keyring_core::Entry::new(KEYRING_SERVICE, KEYRING_NSEC_KEY) {
+        entry.get_secret().is_ok()
+    } else {
+        false
+    }
+}
+
+// --- Legacy file-based functions (kept for migration) ---
+
+/// Save the current secret key to a file (DEPRECATED — use save_secret_key_to_keyring).
 #[frb]
 pub async fn save_secret_key(file_path: String) -> Result<(), BurrowError> {
-    // Reject path traversal attempts
     if file_path.contains("..") {
         return Err(BurrowError::from("Invalid file path: path traversal detected".to_string()));
     }
@@ -59,35 +124,16 @@ pub async fn save_secret_key(file_path: String) -> Result<(), BurrowError> {
             .to_bech32()
             .map_err(|e| BurrowError::from(e.to_string()))?;
         let path = Path::new(&file_path);
-
-        // Ensure parent directory exists with restrictive permissions
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(BurrowError::from)?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
-                    .map_err(BurrowError::from)?;
-            }
         }
-
         std::fs::write(path, nsec.as_bytes()).map_err(BurrowError::from)?;
-
-        // Set file permissions to owner-only read/write
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-                .map_err(BurrowError::from)?;
-        }
-
         Ok(())
     })
     .await
 }
 
-/// Load a secret key from a file and initialize the account.
-/// Path traversal is prevented by rejecting paths containing `..`.
+/// Load a secret key from a file (DEPRECATED — use load_account_from_keyring).
 #[frb]
 pub async fn load_account_from_file(file_path: String) -> Result<AccountInfo, BurrowError> {
     if file_path.contains("..") {

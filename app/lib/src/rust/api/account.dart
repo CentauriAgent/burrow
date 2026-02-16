@@ -19,14 +19,34 @@ Future<AccountInfo> createAccount() =>
 Future<AccountInfo> login({required String secretKey}) =>
     RustLib.instance.api.crateApiAccountLogin(secretKey: secretKey);
 
-/// Save the current secret key to a file with restrictive permissions (0o600).
-/// The caller should provide a secure filesystem path.
-/// Path traversal is prevented by rejecting paths containing `..`.
+/// Save the current secret key to the platform keyring.
+///
+/// Uses the OS credential store (D-Bus Secret Service on Linux, Keychain on
+/// macOS/iOS, Credential Manager on Android/Windows). The nsec never touches
+/// the filesystem.
+Future<void> saveSecretKeyToKeyring() =>
+    RustLib.instance.api.crateApiAccountSaveSecretKeyToKeyring();
+
+/// Load the secret key from the platform keyring and initialize the account.
+///
+/// Returns the account info if a key was found in the keyring, or an error
+/// if no key is stored or the keyring is unavailable.
+Future<AccountInfo> loadAccountFromKeyring() =>
+    RustLib.instance.api.crateApiAccountLoadAccountFromKeyring();
+
+/// Delete the secret key from the platform keyring (logout).
+Future<void> deleteSecretKeyFromKeyring() =>
+    RustLib.instance.api.crateApiAccountDeleteSecretKeyFromKeyring();
+
+/// Check if a secret key exists in the platform keyring.
+Future<bool> hasKeyringAccount() =>
+    RustLib.instance.api.crateApiAccountHasKeyringAccount();
+
+/// Save the current secret key to a file (DEPRECATED — use save_secret_key_to_keyring).
 Future<void> saveSecretKey({required String filePath}) =>
     RustLib.instance.api.crateApiAccountSaveSecretKey(filePath: filePath);
 
-/// Load a secret key from a file and initialize the account.
-/// Path traversal is prevented by rejecting paths containing `..`.
+/// Load a secret key from a file (DEPRECATED — use load_account_from_keyring).
 Future<AccountInfo> loadAccountFromFile({required String filePath}) =>
     RustLib.instance.api.crateApiAccountLoadAccountFromFile(filePath: filePath);
 
