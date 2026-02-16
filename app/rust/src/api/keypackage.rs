@@ -26,14 +26,14 @@ pub async fn generate_key_package(relay_urls: Vec<String>) -> Result<KeyPackageD
             .filter_map(|u| RelayUrl::parse(u).ok())
             .collect();
 
-        let (kp_base64, tags) = s
+        let (kp_base64, tags, _hash_ref) = s
             .mdk
             .create_key_package_for_event(&s.keys.public_key(), relays)
             .map_err(BurrowError::from)?;
 
         let tags_flat: Vec<Vec<String>> = tags
             .iter()
-            .map(|tag| tag.as_slice().to_vec())
+            .map(|tag: &Tag| tag.as_slice().to_vec())
             .collect();
 
         Ok(KeyPackageData {

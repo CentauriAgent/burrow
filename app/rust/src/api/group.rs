@@ -290,7 +290,7 @@ pub async fn leave_group(mls_group_id_hex: String) -> Result<UpdateGroupResult, 
         let evolution_json =
             serde_json::to_string(&result.evolution_event).unwrap_or_default();
 
-        let welcome_jsons: Vec<String> = result
+        let _welcome_jsons: Vec<String> = result
             .welcome_rumors
             .iter()
             .flatten()
@@ -345,7 +345,7 @@ pub async fn upload_group_image(
         blossom_server_url.trim_end_matches('/')
     );
 
-    let payload_hash = sha256_hex(&prepared.encrypted_data);
+    let _payload_hash = sha256_hex(&prepared.encrypted_data);
     // BUD-02: Blossom auth uses kind 24242, not NIP-98 kind 27235
     let auth_event = nostr_sdk::EventBuilder::new(
         nostr_sdk::Kind::Custom(24242),

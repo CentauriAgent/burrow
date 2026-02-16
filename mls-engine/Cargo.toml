@@ -10,9 +10,9 @@ path = "src/main.rs"
 
 [dependencies]
 # Marmot protocol dependencies — SAME rev as the Flutter app
-mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776", features = ["mip04"] }
-mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
-mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "5ef0c607e56cc20217ddde24b4b2f8e82f76b776" }
+mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304", features = ["mip04"] }
+mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304" }
+mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304" }
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
 
 openmls = { version = "0.8", default-features = false }

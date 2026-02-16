@@ -1,9 +1,11 @@
-import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
+import 'package:burrow_app/providers/invite_provider.dart';
+import 'package:burrow_app/src/rust/api/invite.dart' as rust_invite;
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
@@ -198,6 +200,7 @@ final messageListenerProvider = Provider<MessageListener>((ref) {
 class MessageListener {
   final Ref _ref;
   StreamSubscription<rust_message.GroupNotification>? _subscription;
+  Timer? _welcomePollTimer;
 
   MessageListener(this._ref);
 
@@ -230,11 +233,32 @@ class MessageListener {
         _ref.read(groupsProvider.notifier).refresh();
       }
     }, onError: (_) {});
+
+    // Poll for new welcomes/invites periodically so incoming invites
+    // appear without needing a manual refresh or app restart.
+    _welcomePollTimer?.cancel();
+    _welcomePollTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      try {
+        await rust_invite.syncWelcomes();
+        final pending = await rust_invite.listPendingWelcomes();
+        if (pending.isNotEmpty) {
+          _ref.invalidate(inviteProvider);
+        }
+      } catch (_) {}
+    });
+  }
+
+  /// Restart the listener to pick up newly created/joined groups.
+  /// Call this after creating a group or accepting a welcome.
+  Future<void> restart() async {
+    await start();
   }
 
   Future<void> stop() async {
     await _subscription?.cancel();
     _subscription = null;
+    _welcomePollTimer?.cancel();
+    _welcomePollTimer = null;
   }
 
   Future<void> dispose() async {

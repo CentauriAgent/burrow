@@ -38,16 +38,52 @@ Future<void> main() async {
   final container = ProviderContainer();
   await container.read(authProvider.future);
 
+  // Start global message listener once if logged in (not in build())
+  final isLoggedIn = container.read(isLoggedInProvider);
+  if (isLoggedIn) {
+    container.read(messageListenerProvider).start();
+  }
+
   runApp(
     UncontrolledProviderScope(container: container, child: const BurrowApp()),
   );
 }
 
-class BurrowApp extends ConsumerWidget {
+class BurrowApp extends ConsumerStatefulWidget {
   const BurrowApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BurrowApp> createState() => _BurrowAppState();
+}
+
+class _BurrowAppState extends ConsumerState<BurrowApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final loggedIn = ref.read(isLoggedInProvider);
+      if (loggedIn) {
+        // Restart message listener to re-subscribe to Nostr relays
+        // after the OS may have killed the connection during sleep.
+        ref.read(messageListenerProvider).restart();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final loggedIn = ref.watch(isLoggedInProvider);
 
     final router = GoRouter(
@@ -137,11 +173,6 @@ class BurrowApp extends ConsumerWidget {
     );
 
     final callState = ref.watch(callProvider);
-
-    // Start the global message listener when logged in
-    if (loggedIn) {
-      ref.read(messageListenerProvider).start();
-    }
 
     return MaterialApp.router(
       title: 'Burrow',

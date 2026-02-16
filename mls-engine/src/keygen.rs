@@ -26,14 +26,11 @@ pub fn generate_key_package(secret_key: &str, relay_urls: &[String]) -> Result<K
 
     let mdk = MDK::new(MdkMemoryStorage::default());
 
-    let (kp_base64, tags) = mdk
+    let (kp_base64, tags, _hash_ref) = mdk
         .create_key_package_for_event(&keys.public_key(), relays)
         .map_err(|e| anyhow::anyhow!("MDK error: {e}"))?;
 
-    let tags_flat: Vec<Vec<String>> = tags
-        .iter()
-        .map(|tag| tag.as_slice().to_vec())
-        .collect();
+    let tags_flat: Vec<Vec<String>> = tags.iter().map(|tag| tag.as_slice().to_vec()).collect();
 
     Ok(KeyPackageResult {
         key_package_base64: kp_base64,

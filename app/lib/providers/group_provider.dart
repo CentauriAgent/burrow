@@ -1,17 +1,17 @@
+/// Legacy group provider — delegates to [groupsProvider] for all operations.
+/// Kept for backward compatibility; new code should use [groupsProvider] directly.
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:burrow_app/providers/archive_provider.dart';
+import 'package:burrow_app/providers/groups_provider.dart' as ui;
 import 'package:burrow_app/src/rust/api/group.dart';
-import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
-import 'package:burrow_app/providers/groups_provider.dart' as ui_groups;
 
 class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
   @override
   Future<List<GroupInfo>> build() async {
-    try {
-      return await listGroups();
-    } catch (_) {
-      return [];
-    }
+    // Watch groupsProvider so this stays in sync automatically
+    final groups = ref.watch(ui.groupsProvider).value ?? [];
+    return groups.map((g) => g.rustGroup).toList();
   }
 
   Future<CreateGroupResult> createNewGroup({
@@ -21,82 +21,47 @@ class GroupNotifier extends AsyncNotifier<List<GroupInfo>> {
     List<String> memberKeyPackageEventsJson = const [],
     required List<String> relayUrls,
   }) async {
-    final result = await createGroup(
-      name: name,
-      description: description,
-      adminPubkeysHex: adminPubkeysHex,
-      memberKeyPackageEventsJson: memberKeyPackageEventsJson,
-      relayUrls: relayUrls,
-    );
-    // Refresh group list
-    state = AsyncData(await listGroups());
-    return result;
+    return ref
+        .read(ui.groupsProvider.notifier)
+        .createNewGroup(
+          name: name,
+          description: description,
+          adminPubkeysHex: adminPubkeysHex,
+          memberKeyPackageEventsJson: memberKeyPackageEventsJson,
+          relayUrls: relayUrls,
+        );
   }
 
   Future<GroupInfo> getGroupInfo(String mlsGroupIdHex) async {
-    return await getGroup(mlsGroupIdHex: mlsGroupIdHex);
+    return ref.read(ui.groupsProvider.notifier).getGroupInfo(mlsGroupIdHex);
   }
 
   Future<List<MemberInfo>> getMembers(String mlsGroupIdHex) async {
-    return await getGroupMembers(mlsGroupIdHex: mlsGroupIdHex);
+    return ref.read(ui.groupsProvider.notifier).getMembers(mlsGroupIdHex);
   }
 
   Future<UpdateGroupResult> leaveFromGroup(String mlsGroupIdHex) async {
-    final result = await leaveGroup(mlsGroupIdHex: mlsGroupIdHex);
-
-    // Publish the self-removal proposal to group relays (Marmot protocol).
-    // leave_group creates a proposal (not a commit), so no merge_pending_commit.
-    if (result.evolutionEventJson.isNotEmpty) {
-      // Publish to group-specific relays first, fall back to broadcast
-      try {
-        final groupRelays = await getGroupRelays(mlsGroupIdHex: mlsGroupIdHex);
-        for (final relay in groupRelays) {
-          await rust_relay.publishEventJsonToRelay(
-            eventJson: result.evolutionEventJson,
-            relayUrl: relay,
-          );
-        }
-      } catch (_) {
-        // Fall back to broadcasting to all connected relays
-        await rust_relay.publishEventJson(eventJson: result.evolutionEventJson);
-      }
-    }
-
-    // Auto-archive the group so it's hidden from the main list
-    await ref.read(archiveProvider.notifier).archive(mlsGroupIdHex);
-
-    // Refresh group lists
-    ref.read(ui_groups.groupsProvider.notifier).removeGroup(mlsGroupIdHex);
-    state = AsyncData(await listGroups());
-    return result;
+    return ref.read(ui.groupsProvider.notifier).leaveFromGroup(mlsGroupIdHex);
   }
 
   Future<UpdateGroupResult> updateName(
     String mlsGroupIdHex,
     String name,
   ) async {
-    final result = await updateGroupName(
-      mlsGroupIdHex: mlsGroupIdHex,
-      name: name,
-    );
-    state = AsyncData(await listGroups());
-    return result;
+    return ref.read(ui.groupsProvider.notifier).updateName(mlsGroupIdHex, name);
   }
 
   Future<UpdateGroupResult> updateDescription(
     String mlsGroupIdHex,
     String description,
   ) async {
-    final result = await updateGroupDescription(
-      mlsGroupIdHex: mlsGroupIdHex,
-      description: description,
-    );
-    state = AsyncData(await listGroups());
-    return result;
+    return ref
+        .read(ui.groupsProvider.notifier)
+        .updateDescription(mlsGroupIdHex, description);
   }
 
   Future<void> refresh() async {
-    state = AsyncData(await listGroups());
+    await ref.read(ui.groupsProvider.notifier).refresh();
   }
 }
 

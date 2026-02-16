@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:burrow_app/providers/archive_provider.dart';
+import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
+import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 import 'package:burrow_app/services/user_service.dart';
 
 /// Wrapper around Rust GroupInfo with UI-only fields.
@@ -76,6 +78,84 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
     state = AsyncData(
       current.where((g) => g.mlsGroupIdHex != mlsGroupIdHex).toList(),
     );
+  }
+
+  Future<rust_group.CreateGroupResult> createNewGroup({
+    required String name,
+    String description = '',
+    required List<String> adminPubkeysHex,
+    List<String> memberKeyPackageEventsJson = const [],
+    required List<String> relayUrls,
+  }) async {
+    final result = await rust_group.createGroup(
+      name: name,
+      description: description,
+      adminPubkeysHex: adminPubkeysHex,
+      memberKeyPackageEventsJson: memberKeyPackageEventsJson,
+      relayUrls: relayUrls,
+    );
+    await refresh();
+    // Restart message listener so the new group's messages are received
+    ref.read(messageListenerProvider).restart();
+    return result;
+  }
+
+  Future<rust_group.GroupInfo> getGroupInfo(String mlsGroupIdHex) async {
+    return await rust_group.getGroup(mlsGroupIdHex: mlsGroupIdHex);
+  }
+
+  Future<List<rust_group.MemberInfo>> getMembers(String mlsGroupIdHex) async {
+    return await rust_group.getGroupMembers(mlsGroupIdHex: mlsGroupIdHex);
+  }
+
+  Future<rust_group.UpdateGroupResult> leaveFromGroup(
+    String mlsGroupIdHex,
+  ) async {
+    final result = await rust_group.leaveGroup(mlsGroupIdHex: mlsGroupIdHex);
+
+    if (result.evolutionEventJson.isNotEmpty) {
+      try {
+        final groupRelays = await rust_group.getGroupRelays(
+          mlsGroupIdHex: mlsGroupIdHex,
+        );
+        for (final relay in groupRelays) {
+          await rust_relay.publishEventJsonToRelay(
+            eventJson: result.evolutionEventJson,
+            relayUrl: relay,
+          );
+        }
+      } catch (_) {
+        await rust_relay.publishEventJson(eventJson: result.evolutionEventJson);
+      }
+    }
+
+    await ref.read(archiveProvider.notifier).archive(mlsGroupIdHex);
+    removeGroup(mlsGroupIdHex);
+    return result;
+  }
+
+  Future<rust_group.UpdateGroupResult> updateName(
+    String mlsGroupIdHex,
+    String name,
+  ) async {
+    final result = await rust_group.updateGroupName(
+      mlsGroupIdHex: mlsGroupIdHex,
+      name: name,
+    );
+    await refresh();
+    return result;
+  }
+
+  Future<rust_group.UpdateGroupResult> updateDescription(
+    String mlsGroupIdHex,
+    String description,
+  ) async {
+    final result = await rust_group.updateGroupDescription(
+      mlsGroupIdHex: mlsGroupIdHex,
+      description: description,
+    );
+    await refresh();
+    return result;
   }
 }
 

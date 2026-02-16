@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:burrow_app/providers/groups_provider.dart';
+import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/src/rust/api/invite.dart';
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
@@ -74,6 +76,10 @@ class InviteNotifier extends AsyncNotifier<List<WelcomeInfo>> {
   Future<void> acceptInvite(String welcomeEventIdHex) async {
     await acceptWelcome(welcomeEventIdHex: welcomeEventIdHex);
     state = AsyncData(await listPendingWelcomes());
+    // Refresh group list so sidebar shows the new group
+    ref.read(groupsProvider.notifier).refresh();
+    // Restart message listener so the new group's messages are received
+    ref.read(messageListenerProvider).restart();
   }
 
   Future<void> declineInvite(String welcomeEventIdHex) async {

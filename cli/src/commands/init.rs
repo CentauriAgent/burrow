@@ -56,7 +56,7 @@ pub async fn run(key_path: Option<String>, data_dir: Option<String>, relays: Opt
         .filter_map(|u| RelayUrl::parse(u).ok())
         .collect();
 
-    let (kp_base64, tags) = mdk.create_key_package_for_event(&pubkey, relay_parsed)
+    let (kp_base64, tags, _hash_ref) = mdk.create_key_package_for_event(&pubkey, relay_parsed)
         .context("Failed to create KeyPackage")?;
 
     println!("📦 KeyPackage generated");

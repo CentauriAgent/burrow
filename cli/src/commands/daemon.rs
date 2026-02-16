@@ -95,7 +95,7 @@ pub async fn run(
             .filter_map(|u| RelayUrl::parse(u).ok())
             .collect();
         match mdk.create_key_package_for_event(&keys.public_key(), relay_parsed) {
-            Ok((kp_base64, kp_tags)) => {
+            Ok((kp_base64, kp_tags, _hash_ref)) => {
                 // Publish the fresh KeyPackage to relays
                 let nostr_tags: Vec<Tag> = kp_tags.iter()
                     .filter_map(|t| {
