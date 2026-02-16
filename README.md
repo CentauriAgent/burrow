@@ -23,13 +23,12 @@ Burrow is purpose-built for the emerging world where AI agents need to communica
 
 ## Architecture
 
-Burrow has four main components:
+Burrow has three main components:
 
 ```
 burrow/
 ├── cli/          # Pure Rust CLI — daemon, send, invite, ACL, etc.
 ├── app/          # Flutter cross-platform app (Dart + Rust backend)
-├── bridge/       # OpenClaw bridge — connects Burrow to AI agents
 └── mls-engine/   # MLS protocol engine crate
 ```
 
@@ -39,7 +38,7 @@ A pure Rust command-line messenger for scripting, automation, and agent use. Run
 
 - **Language:** 100% Rust (no Node.js dependencies)
 - **Protocol:** MLS via [MDK](https://github.com/marmot-protocol/mdk) + Nostr (nostr-sdk)
-- **Storage:** SQLite (`~/.burrow/mls.sqlite`) for persistent MLS state
+- **Storage:** Encrypted SQLite (`~/.burrow/mls.sqlite`) for persistent MLS state
 - **ACL:** Built-in access control system with audit logging
 - **Daemon:** Runs as a systemd service, outputs JSONL for downstream consumers
 
@@ -62,14 +61,17 @@ A cross-platform mobile and desktop app with a Rust cryptography engine.
   - WebRTC call signaling (in progress)
   - Transcription and meeting intelligence (in progress)
 
-### 🤖 OpenClaw Bridge
+### 🤖 AI Agent Integration (OpenClaw)
 
-A Rust binary that connects Burrow's MLS messaging to an AI agent via OpenClaw's chat completions API. It tails the daemon's JSONL log, applies ACL filtering, and routes messages to the AI for response.
+Burrow integrates with AI agents via [OpenClaw](https://github.com/openclaw/openclaw) as a first-class MLS channel plugin. The plugin watches the daemon's JSONL output, routes incoming messages into OpenClaw sessions (with full conversation history, tool access, and identity), and sends replies back via the CLI.
 
-- **Binary:** `burrow-bridge`
-- **Service:** `systemd --user` as `burrow-bridge`
-- **Config:** Environment variables (`OPENCLAW_API_URL`, `OPENCLAW_API_KEY`, etc.)
-- **ACL-aware:** Respects access control rules; rejected messages are audited but never forwarded
+- **Plugin:** `@openclaw/mls` — installed at `~/.openclaw/extensions/mls/`
+- **Inbound:** Watches `daemon.jsonl` via `fs.watch`, maps Nostr pubkeys to contacts
+- **Outbound:** Sends via `burrow send <group-id> <message>` subprocess
+- **Full agent capabilities:** Unlike a simple API bridge, messages flow through OpenClaw's session system — giving the AI agent memory, tools, and conversational context
+- **ACL-aware:** Respects Burrow's built-in access control; only allowlisted contacts reach the agent
+
+This replaces the earlier `burrow-bridge` binary, which was a standalone Rust program that called OpenClaw's chat completions API without session continuity or tool access.
 
 ---
 
@@ -149,12 +151,23 @@ burrow acl audit --days 7
 # Daemon (listens for messages, outputs JSONL)
 systemctl --user start burrow
 
-# Bridge (connects daemon output to OpenClaw AI)
-systemctl --user start burrow-bridge
-
 # Check status
-systemctl --user status burrow burrow-bridge
+systemctl --user status burrow
 ```
+
+### AI Agent Integration
+
+To connect Burrow to an OpenClaw AI agent, configure the MLS channel plugin in your `openclaw.yaml`:
+
+```yaml
+channels:
+  mls:
+    enabled: true
+    daemonLog: ~/.burrow/daemon.jsonl
+    secretKeyPath: ~/.clawstr/secret.key
+```
+
+The plugin watches the daemon's JSONL output and routes messages into OpenClaw sessions with full agent capabilities (tools, memory, conversation history). See the [MLS channel plugin docs](https://docs.openclaw.ai) for details.
 
 ---
 
@@ -249,11 +262,11 @@ For the full technical deep-dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **ACL system** — Allowlist-based access control with owner/contact/group rules and audit logging
 - **Full MIP-02 invite flow** — Publish group evolution + gift-wrap welcome messages
 - **End-to-end group messaging** — Send, receive, and sync from Nostr relays
-- **OpenClaw bridge** — AI agent integration via daemon JSONL → chat completions API
+- **OpenClaw MLS channel plugin** — First-class AI agent integration with session continuity and full tool access
 - **Flutter app** — Group chat with encrypted media, avatars, member management, desktop layout
 - **Group avatars** — Pick, display, and change across all screens (Signal-style, Blossom upload)
 - **Media attachments** — Image sending with MIP-04 encryption via Blossom servers
-- **Systemd services** — `burrow` (daemon) and `burrow-bridge` (AI bridge)
+- **Systemd service** — `burrow` daemon with JSONL output for integrations
 - **Daemon restart resilience** — Skips already-accepted welcomes on restart
 
 ### 🚧 In Progress
@@ -283,8 +296,6 @@ burrow/
 │   ├── lib/                # Dart source (screens, providers, services)
 │   ├── rust/               # Rust crypto engine (MDK + flutter_rust_bridge)
 │   └── test/               # Tests
-├── bridge/                 # OpenClaw bridge (Rust binary)
-│   └── src/main.rs         # Tails daemon JSONL, routes to AI via chat completions
 ├── cli/                    # Pure Rust CLI
 │   └── src/commands/       # init, group, invite, welcome, send, read, listen, daemon, acl
 ├── mls-engine/             # MLS engine crate (keygen, group, message, storage)
