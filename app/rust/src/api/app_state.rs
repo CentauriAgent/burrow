@@ -4,18 +4,18 @@
 //! Follows the "Rust owns data" principle — Flutter never persists state directly.
 
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, Mutex};
 
 use flutter_rust_bridge::frb;
 use rusqlite::{params, Connection};
-use std::sync::Mutex;
 
 use crate::api::error::BurrowError;
 use crate::api::state;
 
-static APP_DB: OnceLock<Mutex<Connection>> = OnceLock::new();
+static APP_DB: LazyLock<Mutex<Option<Connection>>> = LazyLock::new(|| Mutex::new(None));
 
-/// Initialize the app state database. Called after state::init_state.
+/// Initialize (or reinitialize) the app state database.
+/// Called after MdkSqliteStorage::new creates the mls_dir.
 #[frb(ignore)]
 pub fn init_app_state_db(mls_dir: &PathBuf) -> Result<(), BurrowError> {
     let db_path = mls_dir.join("app_state.db");
@@ -33,7 +33,10 @@ pub fn init_app_state_db(mls_dir: &PathBuf) -> Result<(), BurrowError> {
     )
     .map_err(|e| BurrowError::from(format!("app_state schema: {e}")))?;
 
-    let _ = APP_DB.set(Mutex::new(conn));
+    let mut guard = APP_DB
+        .lock()
+        .map_err(|e| BurrowError::from(format!("app_state lock: {e}")))?;
+    *guard = Some(conn);
     Ok(())
 }
 
@@ -42,13 +45,13 @@ fn with_db<F, T>(f: F) -> Result<T, BurrowError>
 where
     F: FnOnce(&Connection) -> Result<T, BurrowError>,
 {
-    let db = APP_DB
-        .get()
-        .ok_or_else(|| BurrowError::from("App state DB not initialized".to_string()))?;
-    let conn = db
+    let guard = APP_DB
         .lock()
         .map_err(|e| BurrowError::from(format!("app_state lock: {e}")))?;
-    f(&conn)
+    let conn = guard
+        .as_ref()
+        .ok_or_else(|| BurrowError::from("App state DB not initialized".to_string()))?;
+    f(conn)
 }
 
 // ---------------------------------------------------------------------------
