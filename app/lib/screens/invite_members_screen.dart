@@ -91,7 +91,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       // In desktop split-pane, check if we're in the detail pane vs full-page
       final pane = ref.read(detailPaneProvider);
       if (pane.groupId != null) {
-        ref.read(detailPaneProvider.notifier).showGroupInfo(widget.groupId);
+        ref.read(detailPaneProvider.notifier).backToChat();
       } else {
         context.go('/home');
       }
@@ -99,8 +99,8 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       Navigator.pop(context);
     } else {
       // Can't pop — likely navigated here directly (e.g., after group creation).
-      // Go to the chat for this group, or home if that fails.
-      context.go('/home');
+      // Go to the chat for this group.
+      context.go('/chat/${widget.groupId}');
     }
   }
 

@@ -79,10 +79,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Group "$name" created!')));
-        // Navigate to the new group's chat, then push invite on top
-        // so back/skip returns to the chat
-        context.go('/chat/${result.mlsGroupIdHex}');
-        context.push('/invite/${result.mlsGroupIdHex}');
+        // Go directly to the invite screen. Back/skip will navigate
+        // to the chat for this group (handled in invite_members_screen).
+        context.go('/invite/${result.mlsGroupIdHex}');
       }
     } catch (e) {
       if (mounted) {
