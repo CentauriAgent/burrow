@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/invite_provider.dart';
+import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/invite.dart' as rust_invite;
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
@@ -226,6 +227,31 @@ class MessageListener {
         _ref
             .read(messagesProvider(notification.mlsGroupIdHex).notifier)
             .addIncomingMessage(notification.message!);
+
+        // Update group list: last message preview + unread count
+        final msg = notification.message!;
+        final activeGroup = _ref.read(activeGroupProvider);
+        final isActive = activeGroup == notification.mlsGroupIdHex;
+
+        _ref
+            .read(groupsProvider.notifier)
+            .updateGroupPreview(
+              groupId: notification.mlsGroupIdHex,
+              lastMessage: msg.content,
+              lastMessageTime: DateTime.fromMillisecondsSinceEpoch(
+                msg.createdAt.toInt() * 1000,
+              ),
+              incrementUnread: !isActive,
+            );
+
+        // If this is the active chat, immediately mark as read
+        if (isActive) {
+          rust_app.markGroupRead(
+            groupIdHex: notification.mlsGroupIdHex,
+            lastEventIdHex: msg.eventIdHex,
+            timestamp: msg.createdAt.toInt(),
+          );
+        }
       } else if (notification.notificationType == 'commit' ||
           notification.notificationType == 'proposal') {
         // MLS state changed (epoch advanced, member added/removed).

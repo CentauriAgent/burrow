@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:burrow_app/providers/archive_provider.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
+import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 import 'package:burrow_app/services/user_service.dart';
@@ -59,7 +61,27 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   Future<List<GroupInfo>> build() async {
     try {
       final rustGroups = await rust_group.listGroups();
-      final groups = rustGroups.map((g) => GroupInfo(rustGroup: g)).toList();
+      final groups = <GroupInfo>[];
+      for (final g in rustGroups) {
+        final hex = g.mlsGroupIdHex;
+        try {
+          final summary = await rust_app.getGroupSummary(mlsGroupIdHex: hex);
+          groups.add(
+            GroupInfo(
+              rustGroup: g,
+              lastMessage: summary.lastMessageContent,
+              lastMessageTime: summary.lastMessageTimestamp != null
+                  ? DateTime.fromMillisecondsSinceEpoch(
+                      summary.lastMessageTimestamp! * 1000,
+                    )
+                  : null,
+              unreadCount: summary.unreadCount,
+            ),
+          );
+        } catch (_) {
+          groups.add(GroupInfo(rustGroup: g));
+        }
+      }
       // Resolve DM peer profiles in the background so names/avatars appear
       _resolveDmPeerProfiles(groups);
       return groups;
@@ -91,10 +113,9 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
         }
       } catch (_) {}
     }
-    // Refresh the list so the UI picks up the newly cached names/pictures
+    // Refresh the full list so the UI picks up the newly cached names/pictures
     if (anyResolved) {
-      final updated = await rust_group.listGroups();
-      state = AsyncData(updated.map((g) => GroupInfo(rustGroup: g)).toList());
+      state = await AsyncValue.guard(() => build());
     }
   }
 
@@ -102,6 +123,44 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build());
+  }
+
+  /// Update a group's last message preview and unread count in-place.
+  /// Called by the message listener when a new message arrives.
+  void updateGroupPreview({
+    required String groupId,
+    required String lastMessage,
+    required DateTime lastMessageTime,
+    required bool incrementUnread,
+  }) {
+    final current = state.value ?? [];
+    state = AsyncData(
+      current.map((g) {
+        if (g.mlsGroupIdHex != groupId) return g;
+        return GroupInfo(
+          rustGroup: g.rustGroup,
+          lastMessage: lastMessage,
+          lastMessageTime: lastMessageTime,
+          unreadCount: incrementUnread ? g.unreadCount + 1 : 0,
+        );
+      }).toList(),
+    );
+  }
+
+  /// Reset unread count to 0 for a group (called when user views the chat).
+  void markGroupRead(String groupId) {
+    final current = state.value ?? [];
+    state = AsyncData(
+      current.map((g) {
+        if (g.mlsGroupIdHex != groupId) return g;
+        return GroupInfo(
+          rustGroup: g.rustGroup,
+          lastMessage: g.lastMessage,
+          lastMessageTime: g.lastMessageTime,
+          unreadCount: 0,
+        );
+      }).toList(),
+    );
   }
 
   /// Remove a group from the local list (e.g. after leaving).
@@ -234,3 +293,7 @@ final archivedGroupsProvider = Provider<List<GroupInfo>>((ref) {
 final archivedGroupCountProvider = Provider<int>((ref) {
   return ref.watch(archivedGroupsProvider).length;
 });
+
+/// Tracks which group the user is currently viewing.
+/// Used to suppress unread count increments for the active chat.
+final activeGroupProvider = StateProvider<String?>((ref) => null);

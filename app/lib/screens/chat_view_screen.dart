@@ -14,6 +14,7 @@ import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
+import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/error.dart';
 
 class ChatViewScreen extends ConsumerStatefulWidget {
@@ -34,9 +35,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   @override
   void initState() {
     super.initState();
-    // Set the active group
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // TODO: Track active group ID when state management is finalized
+      ref.read(activeGroupProvider.notifier).state = widget.groupId;
+      _markAsRead();
     });
   }
 
@@ -46,6 +47,19 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _markAsRead() {
+    final messages = ref.read(messagesProvider(widget.groupId)).messages;
+    if (messages.isNotEmpty) {
+      final newest = messages.first;
+      ref.read(groupsProvider.notifier).markGroupRead(widget.groupId);
+      rust_app.markGroupRead(
+        groupIdHex: widget.groupId,
+        lastEventIdHex: newest.eventIdHex,
+        timestamp: newest.createdAt.toInt(),
+      );
+    }
   }
 
   @override

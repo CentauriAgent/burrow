@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/account.dart';
+import 'api/app_state.dart';
 import 'api/call_quality.dart';
 import 'api/call_session.dart';
 import 'api/call_signaling.dart';
@@ -99,6 +100,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupMessage dco_decode_box_autoadd_group_message(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
   PeerStats dco_decode_box_autoadd_peer_stats(dynamic raw);
 
   @protected
@@ -151,6 +155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupNotification dco_decode_group_notification(dynamic raw);
+
+  @protected
+  GroupSummary dco_decode_group_summary(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -237,6 +244,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupMessage? dco_decode_opt_box_autoadd_group_message(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
   PeerStats? dco_decode_opt_box_autoadd_peer_stats(dynamic raw);
@@ -394,6 +404,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
   PeerStats sse_decode_box_autoadd_peer_stats(SseDeserializer deserializer);
 
   @protected
@@ -452,6 +465,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupNotification sse_decode_group_notification(SseDeserializer deserializer);
+
+  @protected
+  GroupSummary sse_decode_group_summary(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -550,6 +566,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupMessage? sse_decode_opt_box_autoadd_group_message(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
   PeerStats? sse_decode_opt_box_autoadd_peer_stats(
@@ -745,6 +764,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_peer_stats(
     PeerStats self,
     SseSerializer serializer,
@@ -818,6 +843,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     GroupNotification self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_group_summary(GroupSummary self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
@@ -957,6 +985,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_group_message(
     GroupMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
     SseSerializer serializer,
   );
 

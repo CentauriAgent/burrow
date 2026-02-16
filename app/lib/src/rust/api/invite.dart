@@ -89,9 +89,13 @@ Future<String> giftWrapWelcome({
   recipientPubkeyHex: recipientPubkeyHex,
 );
 
-/// Fetch a user's KeyPackage from relays (kind 443).
+/// Fetch a user's most recent KeyPackage from relays (kind 443).
 ///
-/// Queries connected relays for the most recent KeyPackage event published by the given pubkey.
+/// Queries connected relays for all KeyPackage events published by the given pubkey,
+/// then selects the newest one (highest `created_at`). This ensures we always use
+/// the latest key package even when relays return results in arbitrary order or
+/// the local cache has stale entries.
+///
 /// Returns the JSON-serialized kind 443 event, or error if not found.
 Future<String> fetchKeyPackage({required String pubkeyHex}) =>
     RustLib.instance.api.crateApiInviteFetchKeyPackage(pubkeyHex: pubkeyHex);

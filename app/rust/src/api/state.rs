@@ -108,7 +108,7 @@ pub async fn init_state(keys: Keys) -> Result<(), BurrowError> {
             // the stale data and start fresh.
             if mls_dir.exists() {
                 let _ = std::fs::remove_dir_all(&mls_dir);
-                MdkSqliteStorage::new(mls_dir, KEYRING_SERVICE_ID, &db_key_id)
+                MdkSqliteStorage::new(mls_dir.clone(), KEYRING_SERVICE_ID, &db_key_id)
                     .map_err(|e2| BurrowError::from(format!(
                         "Failed to initialize MLS storage after recovery: {e2} (original: {e})"
                     )))?
@@ -117,6 +117,9 @@ pub async fn init_state(keys: Keys) -> Result<(), BurrowError> {
             }
         }
     };
+
+    // Initialize the app state database (read markers, archive, etc.)
+    crate::api::app_state::init_app_state_db(&mls_dir)?;
 
     let mdk = MDK::new(storage);
     let client = Client::builder().signer(keys.clone()).build();

@@ -16,6 +16,10 @@ Future<void> setDataDir({required String path}) =>
     RustLib.instance.api.crateApiStateSetDataDir(path: path);
 
 /// Initialize the global state with a keypair and persistent MLS storage.
+///
+/// If the existing MLS database can't be opened (e.g., encryption key was lost
+/// due to a keyring backend change), the stale database is removed and a fresh
+/// one is created.
 Future<void> initState({required Keys keys}) =>
     RustLib.instance.api.crateApiStateInitState(keys: keys);
 
