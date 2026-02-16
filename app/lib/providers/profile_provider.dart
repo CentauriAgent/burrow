@@ -2,6 +2,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 
+/// Resolves a member's pubkey hex to their Nostr profile data.
+/// Tries cache first, then fetches from relays.
+final memberProfileProvider = FutureProvider.family<rust_identity.ProfileData?, String>((
+  ref,
+  pubkeyHex,
+) async {
+  try {
+    final cached = await rust_identity.getCachedProfile(pubkeyHex: pubkeyHex);
+    if (cached.displayName != null || cached.name != null) return cached;
+    return await rust_identity.fetchProfile(pubkeyHex: pubkeyHex, blockingSync: true);
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Provides the logged-in user's Nostr profile (display name, picture URL).
 /// Fetches from cache first, then relays.
 final selfProfileProvider = FutureProvider<rust_identity.ProfileData?>((

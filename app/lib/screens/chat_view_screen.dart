@@ -8,6 +8,7 @@ import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/providers/call_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
@@ -56,7 +57,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final group = groups
         .where((g) => g.mlsGroupIdHex == widget.groupId)
         .firstOrNull;
-    final isDm = group?.isDirectMessage ?? false;
+    final isDm = (group?.isDirectMessage ?? false) && (group?.memberCount ?? 0) <= 2;
     final auth = ref.watch(authProvider);
     final selfPubkey = auth.value?.account.pubkeyHex ?? 'self';
 
@@ -242,6 +243,15 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                               (prevMsg == null ||
                                   prevMsg.authorPubkeyHex !=
                                       msg.authorPubkeyHex);
+                          final profileAsync = showName
+                              ? ref.watch(memberProfileProvider(msg.authorPubkeyHex))
+                              : null;
+                          final resolvedName = profileAsync?.whenOrNull(
+                            data: (profile) =>
+                                profile?.displayName ??
+                                profile?.name,
+                          );
+                          final senderName = resolvedName ?? _shortenPubkey(msg.authorPubkeyHex);
                           final attachments =
                               MediaAttachmentService.parseAttachments(msg.tags);
                           final msgReactions = messagesNotifier.reactionsFor(
@@ -253,7 +263,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                               msg.createdAt.toInt() * 1000,
                             ),
                             isSent: isSent,
-                            senderName: _shortenPubkey(msg.authorPubkeyHex),
+                            senderName: senderName,
                             showSenderName: showNameForThis,
                             attachments: attachments,
                             groupId: widget.groupId,

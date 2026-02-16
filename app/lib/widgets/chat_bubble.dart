@@ -59,7 +59,29 @@ class ChatBubble extends StatelessWidget {
           top: 2,
           bottom: reactions.isEmpty ? 2 : 0,
         ),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isSent && showSenderName && senderName != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6, bottom: 2),
+                child: CircleAvatar(
+                  radius: 14,
+                  backgroundColor: _senderColor(senderName!).withAlpha(80),
+                  child: Text(
+                    _avatarInitials(senderName!),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _senderColor(senderName!),
+                    ),
+                  ),
+                ),
+              )
+            else if (!isSent && senderName != null)
+              const SizedBox(width: 34), // align with avatar above
+            Flexible(child: Column(
           crossAxisAlignment: isSent
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
@@ -168,6 +190,8 @@ class ChatBubble extends StatelessWidget {
                   onTap: onReact,
                 ),
               ),
+          ],
+        )),
           ],
         ),
       ),
@@ -317,6 +341,12 @@ class ChatBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime dt) => DateFormat.jm().format(dt);
+
+  String _avatarInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
 
   Color _senderColor(String name) {
     final colors = [
