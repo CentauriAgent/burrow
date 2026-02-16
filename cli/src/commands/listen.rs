@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
 use crate::config;
+use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::{FileStore, StoredMessage};
 
@@ -27,7 +27,9 @@ pub async fn run(
     let keys = Keys::new(sk);
 
     let client = pool::connect(&keys, &group.relay_urls).await?;
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
+    let mdk = MDK::new(mdk_storage);
 
     // Subscribe to kind 445 for this group
     let nostr_gid = &group.nostr_group_id_hex;

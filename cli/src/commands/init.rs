@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
 use crate::config;
+use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::FileStore;
 
@@ -47,10 +47,9 @@ pub async fn run(key_path: Option<String>, data_dir: Option<String>, relays: Opt
     println!("🦫 Identity: {}", pubkey.to_bech32()?);
     println!("   Hex:      {}", pubkey.to_hex());
 
-    // Initialize MDK with persistent SQLite storage (same DB as daemon)
+    // Initialize MDK with encrypted SQLite storage (keyring-backed, like Flutter app)
     let mls_db_path = data.join("mls.sqlite");
-    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
-        .context("Failed to open MLS SQLite database")?;
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
 
     // Generate KeyPackage

@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
 use crate::config;
+use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::{FileStore, StoredGroup};
 
@@ -22,8 +22,6 @@ pub async fn list(
         .or_else(|_| SecretKey::from_bech32(secret.trim()))
         .context("Invalid secret key")?;
     let keys = Keys::new(sk);
-
-    let mls_db_path = data.join("mls.sqlite");
 
     let relays = config::default_relays();
     let client = pool::connect(&keys, &relays).await?;
@@ -46,8 +44,8 @@ pub async fn list(
         return Ok(());
     }
 
-    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
-        .context("Failed to open MLS SQLite database")?;
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
     let mut found = 0;
 
@@ -117,8 +115,7 @@ pub async fn accept(
     let relays = config::default_relays();
     let client = pool::connect(&keys, &relays).await?;
     let mls_db_path = data.join("mls.sqlite");
-    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
-        .context("Failed to open MLS SQLite database")?;
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
 
     // Fetch the specific gift wrap event

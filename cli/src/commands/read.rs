@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_sqlite_storage::MdkSqliteStorage;
+use nostr_sdk::prelude::*;
+use std::fs;
 
 use crate::config;
+use crate::keyring;
 use crate::media;
 use crate::storage::file_store::FileStore;
 
@@ -23,10 +25,17 @@ pub async fn run(group_id: String, limit: usize, data_dir: Option<String>) -> Re
 
     let media_dir = data.join("media");
 
+    // Load identity for encrypted storage
+    let kp = config::default_key_path();
+    let secret = fs::read_to_string(&kp).context("Failed to read secret key")?;
+    let sk = SecretKey::from_hex(secret.trim())
+        .or_else(|_| SecretKey::from_bech32(secret.trim()))
+        .context("Invalid secret key")?;
+    let keys = Keys::new(sk);
+
     // Create MDK for auto-downloading media
     let mls_db_path = data.join("mls.sqlite");
-    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
-        .context("Failed to open MLS SQLite database")?;
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
 
     // Reconstruct GroupId from stored hex

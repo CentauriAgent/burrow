@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
 use crate::acl::access_control::resolve_to_hex;
 use crate::config;
+use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::FileStore;
 
@@ -48,7 +48,9 @@ pub async fn run(
         .context(format!("No KeyPackage found for {}", invitee_hex))?;
 
     // Add member via MDK
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
+    let mdk = MDK::new(mdk_storage);
     let mls_group_id = mdk_core::prelude::GroupId::from_slice(
         &hex::decode(&group.mls_group_id_hex)?
     );

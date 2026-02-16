@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_sqlite_storage::MdkSqliteStorage;
 use mdk_storage_traits::welcomes::types::WelcomeState;
 use nostr_sdk::prelude::*;
 use serde::Serialize;
@@ -12,6 +11,7 @@ use std::sync::Arc;
 use crate::acl::access_control::AccessControl;
 use crate::acl::audit;
 use crate::config;
+use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::{FileStore, StoredGroup, StoredMessage};
 
@@ -87,8 +87,7 @@ pub async fn run(
     // Check if this is a fresh install BEFORE opening the DB (which creates the file).
     let is_fresh_install = !mls_db_path.exists() || std::fs::metadata(&mls_db_path).map(|m| m.len() == 0).unwrap_or(true);
 
-    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
-        .context("Failed to open MLS SQLite database")?;
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
     if is_fresh_install {
         let relay_parsed: Vec<RelayUrl> = all_relays.iter()

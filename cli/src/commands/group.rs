@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
 use crate::config;
+use crate::keyring;
 use crate::storage::file_store::{FileStore, StoredGroup};
 
 pub async fn create(
@@ -31,7 +31,9 @@ pub async fn create(
         .filter_map(|u| RelayUrl::parse(u).ok())
         .collect();
 
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
+    let mdk = MDK::new(mdk_storage);
     let desc = description.unwrap_or_default();
 
     let config = mdk_core::groups::NostrGroupConfigData::new(

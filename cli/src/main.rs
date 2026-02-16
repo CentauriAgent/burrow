@@ -1,6 +1,7 @@
 mod acl;
 mod commands;
 mod config;
+mod keyring;
 pub mod media;
 mod relay;
 mod storage;
