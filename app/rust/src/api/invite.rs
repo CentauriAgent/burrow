@@ -330,9 +330,13 @@ pub async fn gift_wrap_welcome(
     serde_json::to_string(&gift_wrap).map_err(|e| BurrowError::from(e.to_string()))
 }
 
-/// Fetch a user's KeyPackage from relays (kind 443).
+/// Fetch a user's most recent KeyPackage from relays (kind 443).
 ///
-/// Queries connected relays for the most recent KeyPackage event published by the given pubkey.
+/// Queries connected relays for all KeyPackage events published by the given pubkey,
+/// then selects the newest one (highest `created_at`). This ensures we always use
+/// the latest key package even when relays return results in arbitrary order or
+/// the local cache has stale entries.
+///
 /// Returns the JSON-serialized kind 443 event, or error if not found.
 #[frb]
 pub async fn fetch_key_package(pubkey_hex: String) -> Result<String, BurrowError> {
@@ -341,19 +345,22 @@ pub async fn fetch_key_package(pubkey_hex: String) -> Result<String, BurrowError
 
     let client = state::with_state(|s| Ok(s.client.clone())).await?;
 
+    // Fetch ALL key packages for this pubkey — don't use .limit(1) because
+    // that doesn't guarantee the newest event is returned, and the local
+    // cache may have stale entries.
     let filter = Filter::new()
         .author(pubkey)
-        .kind(Kind::MlsKeyPackage)
-        .limit(1);
+        .kind(Kind::MlsKeyPackage);
 
     let events = client
         .fetch_events(filter, std::time::Duration::from_secs(10))
         .await
         .map_err(|e| BurrowError::from(e.to_string()))?;
 
+    // Select the newest key package by created_at timestamp.
     let event = events
         .into_iter()
-        .next()
+        .max_by_key(|e| e.created_at)
         .ok_or_else(|| {
             BurrowError::from(format!(
                 "No KeyPackage found for pubkey {}",
