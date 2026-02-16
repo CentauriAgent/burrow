@@ -6,6 +6,8 @@ import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
 import 'package:burrow_app/providers/profile_provider.dart';
 import 'package:burrow_app/src/rust/api/identity.dart';
+import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
+import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -17,6 +19,9 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _nameController = TextEditingController();
   bool _saving = false;
+  bool _publishingKeyPackage = false;
+  bool _showNsec = false;
+  String? _nsec;
 
   @override
   void dispose() {
@@ -45,6 +50,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
     }
     setState(() => _saving = false);
+  }
+
+  Future<void> _republishKeyPackage() async {
+    setState(() => _publishingKeyPackage = true);
+    try {
+      final relays = await rust_relay.listRelays();
+      final urls = relays.where((r) => r.connected).map((r) => r.url).toList();
+      if (urls.isEmpty) {
+        urls.addAll(rust_relay.defaultRelayUrls());
+      }
+      await rust_kp.publishKeyPackage(relayUrls: urls);
+      await rust_kp.publishKeyPackageRelays(relayUrls: urls);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Key package published')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error publishing key package: $e')),
+        );
+      }
+    }
+    setState(() => _publishingKeyPackage = false);
+  }
+
+  Future<void> _loadNsec() async {
+    try {
+      final nsec = await exportNsec();
+      setState(() {
+        _nsec = nsec;
+        _showNsec = true;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading nsec: $e')));
+      }
+    }
   }
 
   @override
@@ -136,6 +182,71 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          // nsec display (hidden by default)
+          Text('Secret Key', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: _showNsec && _nsec != null
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _nsec!,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 18),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: _nsec!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Copied nsec!')),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.visibility_off, size: 18),
+                        onPressed: () => setState(() => _showNsec = false),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tap to reveal your secret key',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _loadNsec,
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Reveal'),
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Never share your secret key. Anyone with it can control your identity.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
           const SizedBox(height: 24),
 
           // Display name edit
@@ -165,6 +276,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : const Text('Save'),
               ),
             ],
+          ),
+          const SizedBox(height: 24),
+
+          // Republish key package
+          Text('Key Package', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Other users need your key package to send you group invites. '
+            'Republish if invites are not working.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _publishingKeyPackage ? null : _republishKeyPackage,
+              icon: _publishingKeyPackage
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.publish, size: 18),
+              label: Text(
+                _publishingKeyPackage
+                    ? 'Publishing...'
+                    : 'Republish Key Package',
+              ),
+            ),
           ),
           const SizedBox(height: 32),
 

@@ -6,4 +6,4 @@ Icon=burrow
 Terminal=false
 Type=Application
 Categories=Network;Chat;InstantMessaging;
-StartupWMClass=burrow_app
+StartupWMClass=com.centauri.burrow_app

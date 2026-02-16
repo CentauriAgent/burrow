@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
 import 'package:burrow_app/src/rust/api/identity.dart';
+import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
 import 'package:burrow_app/src/rust/api/relay.dart';
 
 class CreateIdentityScreen extends ConsumerStatefulWidget {
@@ -36,17 +37,13 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
   Future<void> _createIdentity() async {
     setState(() => _isCreating = true);
     try {
-      final info =
-          await ref.read(authProvider.notifier).createNewIdentity();
+      final info = await ref.read(authProvider.notifier).createNewIdentity();
 
       // Set display name if provided
       final name = _displayNameController.text.trim();
       if (name.isNotEmpty) {
         await setProfile(
-          profile: ProfileData(
-            displayName: name,
-            name: name,
-          ),
+          profile: ProfileData(displayName: name, name: name),
         );
       }
 
@@ -56,6 +53,15 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
         await relayNotifier.addAndConnect(url);
       }
 
+      // Publish MLS key package to the user's selected relays so others can
+      // find us and send group invites.
+      try {
+        await rust_kp.publishKeyPackage(relayUrls: _selectedRelays);
+        await rust_kp.publishKeyPackageRelays(relayUrls: _selectedRelays);
+      } catch (_) {
+        // Non-fatal: key package will be re-published on next app launch.
+      }
+
       setState(() {
         _createdNpub = info.npub;
         _isCreating = false;
@@ -63,9 +69,9 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
     } catch (e) {
       setState(() => _isCreating = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -83,11 +89,13 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle,
-                  size: 64, color: theme.colorScheme.primary),
+              Icon(
+                Icons.check_circle,
+                size: 64,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(height: 16),
-              Text('Your Identity',
-                  style: theme.textTheme.headlineSmall),
+              Text('Your Identity', style: theme.textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(
                 'This is your public key. Share it freely.',
@@ -116,8 +124,7 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
                     const SizedBox(height: 8),
                     TextButton.icon(
                       onPressed: () {
-                        Clipboard.setData(
-                            ClipboardData(text: _createdNpub!));
+                        Clipboard.setData(ClipboardData(text: _createdNpub!));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Copied npub!')),
                         );
@@ -148,10 +155,7 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text(
-            'Choose a display name',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('Choose a display name', style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             'Optional. You can change this anytime.',
@@ -179,8 +183,10 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
             return ListTile(
               dense: true,
               leading: const Icon(Icons.dns_outlined, size: 20),
-              title: Text(entry.value,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+              title: Text(
+                entry.value,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              ),
               trailing: IconButton(
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: () {
@@ -215,9 +221,7 @@ class _CreateIdentityScreenState extends ConsumerState<CreateIdentityScreen> {
           Text(
             'A cryptographic keypair will be generated on your device. '
             'Your private key never leaves this device.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.grey,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             textAlign: TextAlign.center,
           ),
         ],

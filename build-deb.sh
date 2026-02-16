@@ -36,7 +36,7 @@ cp -r "$BUNDLE_DIR"/* "$BUILD_DIR/opt/burrow/"
 ln -sf /opt/burrow/burrow_app "$BUILD_DIR/usr/bin/burrow"
 
 # Desktop file
-cp "$APP_DIR/linux/burrow.desktop" "$BUILD_DIR/usr/share/applications/burrow.desktop"
+cp "$APP_DIR/linux/com.centauri.burrow_app.desktop" "$BUILD_DIR/usr/share/applications/com.centauri.burrow_app.desktop"
 
 # DEBIAN/control
 cat > "$BUILD_DIR/DEBIAN/control" <<EOF

@@ -54,7 +54,9 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
-  // Set the window icon.
+  // Set the window icon from the hicolor icon theme so the taskbar/dock
+  // picks it up correctly. Falls back to loading the bundled PNG.
+  gtk_window_set_default_icon_name("burrow");
   g_autoptr(GError) icon_error = nullptr;
   g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
   g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
