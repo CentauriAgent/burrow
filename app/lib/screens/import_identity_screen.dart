@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
+import 'package:burrow_app/src/rust/api/error.dart';
 
 class ImportIdentityScreen extends ConsumerStatefulWidget {
   const ImportIdentityScreen({super.key});
@@ -33,7 +34,7 @@ class _ImportIdentityScreenState extends ConsumerState<ImportIdentityScreen> {
     } catch (e) {
       setState(() => _isImporting = false);
       if (mounted) {
-        final msg = e.toString();
+        final msg = e is BurrowError ? e.message : e.toString();
         final label = msg.contains('InvalidSecretKey')
             ? 'Invalid key format. Please enter a valid nsec or hex private key.'
             : 'Login failed: $msg';

@@ -119,7 +119,8 @@ pub async fn init_state(keys: Keys) -> Result<(), BurrowError> {
     };
 
     // Initialize the app state database (read markers, archive, etc.)
-    crate::api::app_state::init_app_state_db(&mls_dir)?;
+    // Non-fatal: if it fails, the app still works but without read markers.
+    let _ = crate::api::app_state::init_app_state_db(&mls_dir);
 
     let mdk = MDK::new(storage);
     let client = Client::builder().signer(keys.clone()).build();
