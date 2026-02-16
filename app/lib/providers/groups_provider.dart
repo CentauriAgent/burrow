@@ -59,9 +59,42 @@ class GroupsNotifier extends AsyncNotifier<List<GroupInfo>> {
   Future<List<GroupInfo>> build() async {
     try {
       final rustGroups = await rust_group.listGroups();
-      return rustGroups.map((g) => GroupInfo(rustGroup: g)).toList();
+      final groups = rustGroups.map((g) => GroupInfo(rustGroup: g)).toList();
+      // Resolve DM peer profiles in the background so names/avatars appear
+      _resolveDmPeerProfiles(groups);
+      return groups;
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Fetch profiles for DM peers whose names are not yet cached.
+  /// Once fetched, the Rust profile cache is populated, so a refresh
+  /// will pick up the names and pictures.
+  Future<void> _resolveDmPeerProfiles(List<GroupInfo> groups) async {
+    final pubkeysToResolve = <String>[];
+    for (final g in groups) {
+      if (g.isDirectMessage &&
+          g.dmPeerPubkeyHex != null &&
+          g.rustGroup.dmPeerDisplayName == null) {
+        pubkeysToResolve.add(g.dmPeerPubkeyHex!);
+      }
+    }
+    if (pubkeysToResolve.isEmpty) return;
+
+    bool anyResolved = false;
+    for (final hex in pubkeysToResolve) {
+      try {
+        final profile = await UserService(pubkeyHex: hex).fetchProfile();
+        if (UserService.presentName(profile) != null) {
+          anyResolved = true;
+        }
+      } catch (_) {}
+    }
+    // Refresh the list so the UI picks up the newly cached names/pictures
+    if (anyResolved) {
+      final updated = await rust_group.listGroups();
+      state = AsyncData(updated.map((g) => GroupInfo(rustGroup: g)).toList());
     }
   }
 
