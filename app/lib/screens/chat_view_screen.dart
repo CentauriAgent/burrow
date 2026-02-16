@@ -57,7 +57,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     final group = groups
         .where((g) => g.mlsGroupIdHex == widget.groupId)
         .firstOrNull;
-    final isDm = (group?.isDirectMessage ?? false) && (group?.memberCount ?? 0) <= 2;
+    final isDm =
+        (group?.isDirectMessage ?? false) && (group?.memberCount ?? 0) <= 2;
     final auth = ref.watch(authProvider);
     final selfPubkey = auth.value?.account.pubkeyHex ?? 'self';
 
@@ -92,8 +93,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                     : theme.colorScheme.primaryContainer,
                 backgroundImage: avatar.avatarFile != null
                     ? FileImage(avatar.avatarFile!)
+                    : isDm && group?.dmPeerPicture != null
+                    ? NetworkImage(group!.dmPeerPicture!)
                     : null,
-                child: avatar.avatarFile != null
+                child:
+                    (avatar.avatarFile != null ||
+                        (isDm && group?.dmPeerPicture != null))
                     ? null
                     : isDm
                     ? Icon(
@@ -244,14 +249,17 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                   prevMsg.authorPubkeyHex !=
                                       msg.authorPubkeyHex);
                           final profileAsync = showName
-                              ? ref.watch(memberProfileProvider(msg.authorPubkeyHex))
+                              ? ref.watch(
+                                  memberProfileProvider(msg.authorPubkeyHex),
+                                )
                               : null;
                           final resolvedName = profileAsync?.whenOrNull(
                             data: (profile) =>
-                                profile?.displayName ??
-                                profile?.name,
+                                profile?.displayName ?? profile?.name,
                           );
-                          final senderName = resolvedName ?? _shortenPubkey(msg.authorPubkeyHex);
+                          final senderName =
+                              resolvedName ??
+                              _shortenPubkey(msg.authorPubkeyHex);
                           final attachments =
                               MediaAttachmentService.parseAttachments(msg.tags);
                           final msgReactions = messagesNotifier.reactionsFor(

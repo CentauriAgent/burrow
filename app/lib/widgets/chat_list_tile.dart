@@ -11,6 +11,7 @@ class ChatListTile extends StatelessWidget {
   final int memberCount;
   final bool isDirectMessage;
   final File? avatarFile;
+  final String? networkAvatarUrl;
   final VoidCallback? onTap;
 
   const ChatListTile({
@@ -22,6 +23,7 @@ class ChatListTile extends StatelessWidget {
     this.memberCount = 0,
     this.isDirectMessage = false,
     this.avatarFile,
+    this.networkAvatarUrl,
     this.onTap,
   });
 
@@ -35,13 +37,19 @@ class ChatListTile extends StatelessWidget {
             ? ValueKey(
                 '${avatarFile!.path}_${avatarFile!.lastModifiedSync().millisecondsSinceEpoch}',
               )
+            : networkAvatarUrl != null
+            ? ValueKey(networkAvatarUrl)
             : null,
         radius: 26,
         backgroundColor: isDirectMessage
             ? theme.colorScheme.tertiaryContainer
             : theme.colorScheme.primaryContainer,
-        backgroundImage: avatarFile != null ? FileImage(avatarFile!) : null,
-        child: avatarFile != null
+        backgroundImage: avatarFile != null
+            ? FileImage(avatarFile!)
+            : networkAvatarUrl != null
+            ? NetworkImage(networkAvatarUrl!)
+            : null,
+        child: (avatarFile != null || networkAvatarUrl != null)
             ? null
             : isDirectMessage
             ? Icon(

@@ -338,24 +338,40 @@ class _ChatListPane extends ConsumerWidget {
                           ? ValueKey(
                               '${avatarState.avatarFile!.path}_${avatarState.version}',
                             )
+                          : group.isDirectMessage && group.dmPeerPicture != null
+                          ? ValueKey(group.dmPeerPicture)
                           : null,
-                      backgroundColor: theme.colorScheme.primaryContainer,
+                      backgroundColor: group.isDirectMessage
+                          ? theme.colorScheme.tertiaryContainer
+                          : theme.colorScheme.primaryContainer,
                       backgroundImage: avatarState.avatarFile != null
                           ? FileImage(avatarState.avatarFile!)
+                          : group.isDirectMessage && group.dmPeerPicture != null
+                          ? NetworkImage(group.dmPeerPicture!)
                           : null,
-                      child: avatarState.avatarFile != null
+                      child:
+                          (avatarState.avatarFile != null ||
+                              (group.isDirectMessage &&
+                                  group.dmPeerPicture != null))
                           ? null
+                          : group.isDirectMessage
+                          ? Icon(
+                              Icons.person,
+                              color: theme.colorScheme.onTertiaryContainer,
+                            )
                           : Icon(
                               Icons.group,
                               color: theme.colorScheme.onPrimaryContainer,
                             ),
                     ),
                     title: Text(
-                      group.name.isNotEmpty ? group.name : 'Unnamed Group',
+                      group.displayName,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      group.description.isNotEmpty
+                      group.isDirectMessage
+                          ? 'Encrypted direct message'
+                          : group.description.isNotEmpty
                           ? group.description
                           : '${group.state} · epoch ${group.epoch}',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),

@@ -194,6 +194,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             memberCount: group.memberCount,
             isDirectMessage: group.isDirectMessage,
             avatarFile: avatar.avatarFile,
+            networkAvatarUrl: group.isDirectMessage
+                ? group.dmPeerPicture
+                : null,
             onTap: () => context.go('/chat/${group.mlsGroupIdHex}'),
           );
         },
