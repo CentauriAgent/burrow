@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
+use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
@@ -23,6 +23,8 @@ pub async fn list(
         .context("Invalid secret key")?;
     let keys = Keys::new(sk);
 
+    let mls_db_path = data.join("mls.sqlite");
+
     let relays = config::default_relays();
     let client = pool::connect(&keys, &relays).await?;
 
@@ -44,7 +46,9 @@ pub async fn list(
         return Ok(());
     }
 
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
+        .context("Failed to open MLS SQLite database")?;
+    let mdk = MDK::new(mdk_storage);
     let mut found = 0;
 
     for event in events.into_iter() {
@@ -112,7 +116,10 @@ pub async fn accept(
 
     let relays = config::default_relays();
     let client = pool::connect(&keys, &relays).await?;
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
+        .context("Failed to open MLS SQLite database")?;
+    let mdk = MDK::new(mdk_storage);
 
     // Fetch the specific gift wrap event
     let target_id = EventId::from_hex(&event_id_hex)

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
-use mdk_memory_storage::MdkMemoryStorage;
+use mdk_sqlite_storage::MdkSqliteStorage;
 use nostr_sdk::prelude::*;
 use std::fs;
 
@@ -47,8 +47,11 @@ pub async fn run(key_path: Option<String>, data_dir: Option<String>, relays: Opt
     println!("🦫 Identity: {}", pubkey.to_bech32()?);
     println!("   Hex:      {}", pubkey.to_hex());
 
-    // Initialize MDK
-    let mdk = MDK::new(MdkMemoryStorage::default());
+    // Initialize MDK with persistent SQLite storage (same DB as daemon)
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = MdkSqliteStorage::new_unencrypted(&mls_db_path)
+        .context("Failed to open MLS SQLite database")?;
+    let mdk = MDK::new(mdk_storage);
 
     // Generate KeyPackage
     let relay_urls = relays.unwrap_or_else(config::default_relays);
