@@ -12,6 +12,7 @@ import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 import 'package:burrow_app/src/rust/api/error.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/services/user_service.dart';
+import 'package:burrow_app/providers/call_provider.dart';
 
 class GroupInfoScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -446,6 +447,33 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     if (mounted) setState(() => _updatingRelays = false);
   }
 
+  void _startCall(BuildContext context, {required bool isVideo}) {
+    final auth = ref.read(authProvider).value;
+    if (auth == null) return;
+    final group = _group;
+    if (group == null) return;
+
+    // For 1:1 DM chats use the peer pubkey; for group chats use group-based calling
+    final remotePubkey = group.dmPeerPubkeyHex;
+    if (remotePubkey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Group calls are not yet supported. Use 1:1 chats for calls.'),
+        ),
+      );
+      return;
+    }
+
+    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    ref.read(callProvider.notifier).startCall(
+      remotePubkeyHex: remotePubkey,
+      localPubkeyHex: auth.account.pubkeyHex,
+      callId: callId,
+      isVideo: isVideo,
+      remoteName: group.dmPeerDisplayName ?? group.name,
+    );
+  }
+
   String _errorMsg(Object e) => e is BurrowError ? e.message : e.toString();
 
   String _truncateHex(String hex) {
@@ -615,6 +643,18 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    _ActionButton(
+                      icon: Icons.phone_outlined,
+                      label: 'Audio',
+                      onTap: () => _startCall(context, isVideo: false),
+                    ),
+                    const SizedBox(width: 24),
+                    _ActionButton(
+                      icon: Icons.videocam_outlined,
+                      label: 'Video',
+                      onTap: () => _startCall(context, isVideo: true),
+                    ),
+                    const SizedBox(width: 24),
                     _ActionButton(
                       icon: Icons.notifications_outlined,
                       label: 'Mute',
