@@ -37,48 +37,39 @@ pub struct WebRtcConfig {
     pub bundle_policy: String,
 }
 
-/// Generate WebRTC configuration with ICE servers.
+/// Generate WebRTC configuration with STUN-only ICE servers.
 ///
-/// Returns STUN/TURN server configuration for creating peer connections.
-/// TURN credentials are short-lived and derived per-call.
+/// Returns STUN server configuration for creating peer connections.
+/// STUN is sufficient for most NAT traversal scenarios.
 ///
-/// `call_id`: Used to derive unique TURN credentials for this call.
+/// TURN relay is NOT included by default because proper TURN authentication
+/// requires server-side credential provisioning (e.g., time-limited HMAC
+/// credentials via a TURN REST API, or an API key from a hosted provider
+/// like metered.ca / Twilio / Xirsys). Client-side credential generation
+/// provides no security — anyone can derive the same credentials.
+///
+/// Users who need TURN relay (e.g., behind symmetric NATs or strict
+/// firewalls) should configure their own TURN server credentials in the
+/// app settings (Settings > TURN Server). The Dart WebRTC service layer
+/// will merge user-configured TURN servers into the ICE server list.
+///
+/// `call_id`: Call identifier (unused currently, reserved for future use).
 #[frb]
 pub fn generate_webrtc_config(call_id: String) -> Result<WebRtcConfig, BurrowError> {
-    // Public STUN servers (free, reliable)
+    let _ = &call_id; // reserved for future use
+
+    // Public STUN servers (free, reliable, no auth needed)
     let stun_servers = vec![
         "stun:stun.l.google.com:19302".to_string(),
         "stun:stun1.l.google.com:19302".to_string(),
         "stun:stun2.l.google.com:19302".to_string(),
     ];
 
-    // Default TURN server with per-call credentials.
-    // These defaults can be overridden from the Dart side via TurnSettings
-    // in the settings screen (stored in SharedPreferences).
-    // The Dart WebRTC service layer checks for user-configured TURN servers
-    // and replaces these defaults before creating the peer connection.
-    let turn_username = format!("burrow-{}", &call_id[..8.min(call_id.len())]);
-    let mut hasher = Sha256::new();
-    hasher.update(b"burrow-turn-credential-v1");
-    hasher.update(call_id.as_bytes());
-    let turn_credential = hex::encode(&hasher.finalize()[..16]);
-
-    let ice_servers = vec![
-        IceServer {
-            urls: stun_servers,
-            username: None,
-            credential: None,
-        },
-        IceServer {
-            urls: vec![
-                "turn:openrelay.metered.ca:80".to_string(),
-                "turn:openrelay.metered.ca:443".to_string(),
-                "turn:openrelay.metered.ca:443?transport=tcp".to_string(),
-            ],
-            username: Some(turn_username),
-            credential: Some(turn_credential),
-        },
-    ];
+    let ice_servers = vec![IceServer {
+        urls: stun_servers,
+        username: None,
+        credential: None,
+    }];
 
     Ok(WebRtcConfig {
         ice_servers,

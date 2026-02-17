@@ -1,14 +1,17 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages user-configurable TURN server settings.
 ///
-/// Settings are persisted via SharedPreferences and can be configured
-/// in the app's settings screen. When set, they override the default
-/// TURN servers returned by the Rust layer.
+/// URL and username are stored in SharedPreferences (not secret).
+/// The credential (password) is stored in flutter_secure_storage
+/// (Keychain on iOS, EncryptedSharedPreferences on Android).
 class TurnSettings {
   static const _keyUrl = 'turn_server_url';
   static const _keyUsername = 'turn_server_username';
   static const _keyCredential = 'turn_server_credential';
+
+  static const _secureStorage = FlutterSecureStorage();
 
   /// Load TURN settings from persistent storage.
   /// Returns null if no custom TURN server is configured.
@@ -16,10 +19,11 @@ class TurnSettings {
     final prefs = await SharedPreferences.getInstance();
     final url = prefs.getString(_keyUrl);
     if (url == null || url.isEmpty) return null;
+    final credential = await _secureStorage.read(key: _keyCredential);
     return TurnConfig(
       urls: url.split(',').map((u) => u.trim()).where((u) => u.isNotEmpty).toList(),
       username: prefs.getString(_keyUsername),
-      credential: prefs.getString(_keyCredential),
+      credential: credential,
     );
   }
 
@@ -34,7 +38,7 @@ class TurnSettings {
     if (url == null || url.isEmpty) {
       await prefs.remove(_keyUrl);
       await prefs.remove(_keyUsername);
-      await prefs.remove(_keyCredential);
+      await _secureStorage.delete(key: _keyCredential);
     } else {
       await prefs.setString(_keyUrl, url);
       if (username != null) {
@@ -43,9 +47,9 @@ class TurnSettings {
         await prefs.remove(_keyUsername);
       }
       if (credential != null) {
-        await prefs.setString(_keyCredential, credential);
+        await _secureStorage.write(key: _keyCredential, value: credential);
       } else {
-        await prefs.remove(_keyCredential);
+        await _secureStorage.delete(key: _keyCredential);
       }
     }
   }
