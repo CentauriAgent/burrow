@@ -42,14 +42,6 @@ Future<void> deleteSecretKeyFromKeyring() =>
 Future<bool> hasKeyringAccount() =>
     RustLib.instance.api.crateApiAccountHasKeyringAccount();
 
-/// Save the current secret key to a file (DEPRECATED — use save_secret_key_to_keyring).
-Future<void> saveSecretKey({required String filePath}) =>
-    RustLib.instance.api.crateApiAccountSaveSecretKey(filePath: filePath);
-
-/// Load a secret key from a file (DEPRECATED — use load_account_from_keyring).
-Future<AccountInfo> loadAccountFromFile({required String filePath}) =>
-    RustLib.instance.api.crateApiAccountLoadAccountFromFile(filePath: filePath);
-
 /// Get the current account info, or error if not logged in.
 Future<AccountInfo> getCurrentAccount() =>
     RustLib.instance.api.crateApiAccountGetCurrentAccount();

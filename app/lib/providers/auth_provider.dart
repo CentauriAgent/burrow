@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/api/account.dart';
 import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
 import 'package:burrow_app/src/rust/api/keypackage.dart' as rust_kp;
@@ -16,47 +13,19 @@ class AuthState {
 class AuthNotifier extends AsyncNotifier<AuthState?> {
   @override
   Future<AuthState?> build() async {
-    // Migrate legacy plaintext key file to keyring if it exists
-    await _migrateLegacyKeyFile();
-
-    // Try loading from the platform keyring
-    if (await hasKeyringAccount()) {
-      try {
+    try {
+      final hasAccount = await hasKeyringAccount();
+      if (hasAccount) {
         final info = await loadAccountFromKeyring();
         try {
           await rust_identity.bootstrapIdentity();
         } catch (_) {}
         _publishKeyPackage();
         return AuthState(account: info);
-      } catch (_) {
-        return null;
       }
-    }
+    } catch (_) {}
 
     return null;
-  }
-
-  /// Migrate the legacy plaintext burrow_key file to the platform keyring.
-  /// Deletes the file after successful migration.
-  Future<void> _migrateLegacyKeyFile() async {
-    try {
-      final dir = await getApplicationSupportDirectory();
-      final legacyFile = File('${dir.path}/burrow_key');
-      if (!legacyFile.existsSync()) return;
-
-      // Read the nsec from the file
-      final nsec = legacyFile.readAsStringSync().trim();
-      if (nsec.isEmpty) return;
-
-      // Login with it (initializes state)
-      await login(secretKey: nsec);
-      // Save to keyring
-      await saveSecretKeyToKeyring();
-      // Delete the plaintext file
-      legacyFile.deleteSync();
-    } catch (_) {
-      // Migration failed — the file stays for next attempt
-    }
   }
 
   Future<AccountInfo> createNewIdentity() async {
@@ -81,9 +50,6 @@ class AuthNotifier extends AsyncNotifier<AuthState?> {
     return info;
   }
 
-  /// Publish an MLS key package and key package relay list so other users
-  /// can discover us and send invites. Non-fatal — failures are logged but
-  /// do not block login/creation.
   Future<void> _publishKeyPackage() async {
     try {
       final relays = await rust_relay.listRelays();

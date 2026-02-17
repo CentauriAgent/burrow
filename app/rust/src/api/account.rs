@@ -2,7 +2,6 @@
 
 use flutter_rust_bridge::frb;
 use nostr_sdk::prelude::*;
-use std::path::Path;
 
 use crate::api::error::BurrowError;
 use crate::api::state;
@@ -109,40 +108,7 @@ pub async fn has_keyring_account() -> bool {
     }
 }
 
-// --- Legacy file-based functions (kept for migration) ---
 
-/// Save the current secret key to a file (DEPRECATED — use save_secret_key_to_keyring).
-#[frb]
-pub async fn save_secret_key(file_path: String) -> Result<(), BurrowError> {
-    if file_path.contains("..") {
-        return Err(BurrowError::from("Invalid file path: path traversal detected".to_string()));
-    }
-    state::with_state(|s| {
-        let nsec = s
-            .keys
-            .secret_key()
-            .to_bech32()
-            .map_err(|e| BurrowError::from(e.to_string()))?;
-        let path = Path::new(&file_path);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(BurrowError::from)?;
-        }
-        std::fs::write(path, nsec.as_bytes()).map_err(BurrowError::from)?;
-        Ok(())
-    })
-    .await
-}
-
-/// Load a secret key from a file (DEPRECATED — use load_account_from_keyring).
-#[frb]
-pub async fn load_account_from_file(file_path: String) -> Result<AccountInfo, BurrowError> {
-    if file_path.contains("..") {
-        return Err(BurrowError::from("Invalid file path: path traversal detected".to_string()));
-    }
-    let content = std::fs::read_to_string(Path::new(&file_path))
-        .map_err(BurrowError::from)?;
-    login(content.trim().to_string()).await
-}
 
 /// Get the current account info, or error if not logged in.
 #[frb]
