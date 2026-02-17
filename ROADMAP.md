@@ -51,7 +51,7 @@ Burrow is a secure messaging and collaboration platform built on the **Marmot pr
 | # | Milestone | Status |
 |---|-----------|--------|
 | 2.1 | Project scaffolding + Rust bridge setup (flutter_rust_bridge 2.11.1) | ✅ Complete |
-| 2.2 | Nostr identity — create new keypair or import nsec | ✅ Complete |
+| 2.2 | Nostr identity — create new keypair or import nsec/QR code | ✅ Complete |
 | 2.3 | MLS KeyPackage generation and publishing via MDK | ✅ Complete |
 | 2.4 | Group creation and listing | ✅ Complete |
 | 2.5 | Member invitation — fetch KeyPackage, send gift-wrapped Welcome | ✅ Complete |
@@ -63,6 +63,9 @@ Burrow is a secure messaging and collaboration platform built on the **Marmot pr
 | 2.11 | Unit and integration tests (Dart + Rust) | ✅ Complete |
 | 2.12 | CI pipeline (fmt, clippy, analyze, test, cargo audit) | ✅ Complete |
 | 2.13 | Documentation, README, build guides | ✅ Complete |
+| 2.14 | Contact list tab (aggregated from group membership) | ✅ Complete |
+| 2.15 | Mute/unmute conversations (persisted) | ✅ Complete |
+| 2.16 | QR code identity import (camera scanner) | ✅ Complete |
 
 ### Key Decisions Made
 - **MDK over ts-mls:** Rust MDK provides better performance and memory safety than the TypeScript MLS implementation
@@ -93,7 +96,10 @@ Burrow is a secure messaging and collaboration platform built on the **Marmot pr
 | 3.6 | 1:1 video calls | ✅ Complete |
 | 3.7 | Group audio calls (mesh, up to 5) | ✅ Complete |
 | 3.8 | Group video calls | ✅ Complete |
-| 3.9 | Screen sharing | 🔜 Deferred |
+| 3.9 | Speaker routing (earpiece ↔ speaker toggle) | ✅ Complete |
+| 3.10 | Configurable TURN server (user settings override defaults) | ✅ Complete |
+| 3.11 | Call UI on group info screen (Signal-style audio/video buttons) | ✅ Complete |
+| 3.12 | Screen sharing | 🔜 Deferred |
 
 ### Insights from Phase 2
 - `block_on` inside async `RwLock` guards should be refactored to proper async flow before adding real-time WebRTC

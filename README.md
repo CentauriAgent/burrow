@@ -56,9 +56,14 @@ A cross-platform mobile and desktop app with a Rust cryptography engine.
   - Group description editing (admin-only)
   - Member management and invite flow
   - Profile avatars and identity management
+  - Contact list with profiles derived from group membership
+  - Mute/unmute conversations (persisted across restarts)
+  - QR code scanning for identity import (nsec / hex)
   - Signal-style split-pane layout for desktop
   - Persistent MLS storage (SQLite)
-  - WebRTC call signaling (in progress)
+  - WebRTC audio/video calls (1:1 and group, with speaker routing)
+  - Configurable TURN server (override defaults in settings)
+  - Call buttons on group info screen (Signal-style)
   - Transcription and meeting intelligence (in progress)
 
 ### 🤖 AI Agent Integration (OpenClaw)
@@ -132,7 +137,7 @@ burrow acl audit --days 7
 | `burrow init` | Initialize identity and publish MLS KeyPackage |
 | `burrow group create <name>` | Create a new encrypted group |
 | `burrow groups` | List all groups |
-| `burrow invite <group-id> <pubkey>` | Invite a user to a group |
+| `burrow invite <group-id> <pubkey>` | Invite a user via NIP-59 gift-wrapped Welcome |
 | `burrow welcome` | Process incoming NIP-59 welcome invitations |
 | `burrow send <group-id> <message>` | Send an encrypted message |
 | `burrow read <group-id>` | Read stored messages |
@@ -266,12 +271,17 @@ For the full technical deep-dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **Flutter app** — Group chat with encrypted media, avatars, member management, desktop layout
 - **Group avatars** — Pick, display, and change across all screens (Signal-style, Blossom upload)
 - **Media attachments** — Image sending with MIP-04 encryption via Blossom servers
+- **Contact list** — Aggregated contacts from group membership with profile resolution
+- **Mute/unmute** — Per-conversation mute with persistent storage (SharedPreferences)
+- **QR code import** — Scan QR codes containing nsec/hex keys for identity import
+- **Speaker routing** — Toggle earpiece/speaker during calls via flutter_webrtc Helper API
+- **Call UI** — Audio/video call buttons on group info screen (Signal-style)
+- **Configurable TURN** — User-configurable TURN server settings that override Rust-layer defaults
 - **Systemd service** — `burrow` daemon with JSONL output for integrations
 - **Daemon restart resilience** — Skips already-accepted welcomes on restart
 
 ### 🚧 In Progress
 
-- WebRTC audio/video calls (signaling wired, UI scaffolded)
 - Meeting intelligence (transcription service, speaker diarization — scaffolded)
 - Push notifications
 
@@ -297,7 +307,7 @@ burrow/
 │   ├── rust/               # Rust crypto engine (MDK + flutter_rust_bridge)
 │   └── test/               # Tests
 ├── cli/                    # Pure Rust CLI
-│   └── src/commands/       # init, group, invite, welcome, send, read, listen, daemon, acl
+│   └── src/commands/       # init, group, invite (NIP-59), welcome, send, read, listen, daemon, acl
 ├── mls-engine/             # MLS engine crate (keygen, group, message, storage)
 ├── scripts/                # Helper scripts (check-messages.sh)
 ├── ARCHITECTURE.md         # Technical architecture

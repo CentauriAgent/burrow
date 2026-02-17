@@ -95,6 +95,7 @@ Both target the same Marmot MIPs and are interoperable.
 | **`message.rs`** | Encrypt/decrypt MLS application messages, publish kind 445 events |
 | **`media.rs`** | Blossom media upload/download with ChaCha20-Poly1305 encryption (MIP-04) |
 | **`relay.rs`** | Connect to relay pool, publish events, subscribe to filters |
+| **`call_webrtc.rs`** | ICE/TURN config, SDP parsing, peer tracking, frame encryption key derivation, SFU topology |
 | **`error.rs`** | Unified `BurrowError` enum with `thiserror` |
 
 ### Flutter App Modules (`app/lib/`)
@@ -105,7 +106,7 @@ Both target the same Marmot MIPs and are interoperable.
 |--------|-------|-------------|
 | `onboarding_screen.dart` | `/onboarding` | Welcome screen — create or import identity |
 | `create_identity_screen.dart` | `/create-identity` | Generate new Nostr keypair |
-| `import_identity_screen.dart` | `/import-identity` | Import existing nsec key |
+| `import_identity_screen.dart` | `/import-identity` | Import existing nsec key or scan QR code |
 | `home_screen.dart` | `/home` | Main screen with chat list |
 | `chat_list_screen.dart` | (embedded) | List of group conversations |
 | `chat_view_screen.dart` | (pushed) | Message view for a group |
@@ -125,6 +126,9 @@ Both target the same Marmot MIPs and are interoperable.
 | `messages_provider.dart` | Message send/receive, real-time polling |
 | `invite_provider.dart` | Send invites, fetch/accept pending invites |
 | `relay_provider.dart` | Relay connection state |
+| `call_provider.dart` | WebRTC call state, speaker routing, mute/camera toggle |
+| `mute_provider.dart` | Per-conversation mute state (persisted via SharedPreferences) |
+| `contacts_provider.dart` | Aggregated contact list from group membership |
 
 #### Widgets
 
@@ -132,6 +136,12 @@ Both target the same Marmot MIPs and are interoperable.
 |--------|-------------|
 | `chat_list_tile.dart` | Group conversation list item |
 | `chat_bubble.dart` | Individual message bubble in chat view |
+
+#### Services
+
+| Service | Description |
+|---------|-------------|
+| `turn_settings.dart` | Persistent TURN server configuration (SharedPreferences) |
 
 #### Router
 
@@ -182,6 +192,9 @@ User taps Send in ChatViewScreen
 | `go_router` | Declarative routing with auth guards |
 | `flutter_rust_bridge` | Generated Rust FFI bindings |
 | `intl` | Internationalization / date formatting |
+| `flutter_webrtc` | WebRTC media, speaker routing |
+| `mobile_scanner` | QR code scanning for identity import |
+| `shared_preferences` | Persistent settings (mute state, TURN config) |
 
 ---
 
