@@ -131,7 +131,14 @@ class CallNotifier extends Notifier<CallState> {
         break;
       case 'active':
         final now = DateTime.now();
-        state = state.copyWith(status: CallStatus.active, callStartTime: now);
+        // Video calls default to speaker on
+        final useSpeaker = state.callType == 'video';
+        state = state.copyWith(
+          status: CallStatus.active,
+          callStartTime: now,
+          isSpeakerOn: useSpeaker,
+        );
+        Helper.setSpeakerphoneOn(useSpeaker);
         _startDurationTimer();
         _scheduleControlsHide();
         break;
@@ -246,10 +253,16 @@ class CallNotifier extends Notifier<CallState> {
     await _callManager.switchCamera();
   }
 
-  /// Toggle speaker.
-  void toggleSpeaker() {
-    state = state.copyWith(isSpeakerOn: !state.isSpeakerOn);
-    // TODO: actual speaker routing via platform channel
+  /// Toggle speaker output (earpiece ↔ speaker).
+  Future<void> toggleSpeaker() async {
+    final newValue = !state.isSpeakerOn;
+    state = state.copyWith(isSpeakerOn: newValue);
+    try {
+      await Helper.setSpeakerphoneOn(newValue);
+    } catch (e) {
+      // If routing fails, revert state
+      state = state.copyWith(isSpeakerOn: !newValue);
+    }
   }
 
   /// Show controls (and auto-hide after 3s during active call).
