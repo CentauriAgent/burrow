@@ -46,6 +46,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   String _searchQuery = '';
   List<int> _searchMatchIndices = [];
   int _currentMatchIndex = -1;
+  // GlobalKeys for message items, keyed by list index, used for accurate
+  // scroll-to-match with variable-height message bubbles.
+  final Map<int, GlobalKey> _messageKeys = {};
   bool _isRecording = false;
   final AudioRecorder _audioRecorder = AudioRecorder();
   Timer? _recordingTimer;
@@ -226,13 +229,13 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 child: ListTile(
                   dense: true,
                   leading: Icon(
-                    ref.read(muteProvider).contains(widget.groupId)
+                    (ref.read(muteProvider).value ?? {}).contains(widget.groupId)
                         ? Icons.notifications_active_outlined
                         : Icons.notifications_off_outlined,
                     size: 20,
                   ),
                   title: Text(
-                    ref.read(muteProvider).contains(widget.groupId)
+                    (ref.read(muteProvider).value ?? {}).contains(widget.groupId)
                         ? 'Unmute notifications'
                         : 'Mute notifications',
                   ),
@@ -322,7 +325,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                               _currentMatchIndex >= 0 &&
                               _currentMatchIndex < _searchMatchIndices.length &&
                               _searchMatchIndices[_currentMatchIndex] == index;
+                          // Assign a GlobalKey so search can scroll
+                          // accurately to variable-height items.
+                          _messageKeys.putIfAbsent(
+                              index, () => GlobalKey());
                           return Container(
+                            key: _messageKeys[index],
                             color: isCurrentMatch
                                 ? theme.colorScheme.tertiaryContainer
                                     .withAlpha(120)
@@ -455,6 +463,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 _searchQuery = '';
                 _searchMatchIndices = [];
                 _currentMatchIndex = -1;
+                _messageKeys.clear();
                 _searchController.clear();
               });
             },
@@ -503,14 +512,18 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     if (_currentMatchIndex < 0 ||
         _currentMatchIndex >= _searchMatchIndices.length) return;
     final targetIndex = _searchMatchIndices[_currentMatchIndex];
-    // ListView is reversed, so index 0 is at bottom. Estimate position.
-    // Use animateTo with an estimated offset. Each item ~72px.
-    final estimatedOffset = targetIndex * 72.0;
-    _scrollController.animateTo(
-      estimatedOffset,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    // Use Scrollable.ensureVisible with the message's GlobalKey for accurate
+    // positioning regardless of variable-height message bubbles.
+    final key = _messageKeys[targetIndex];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5, // center the match in the viewport
+      );
+    }
   }
 
   Widget _buildEmptyChat(ThemeData theme) {
@@ -968,7 +981,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           _searchController.clear();
         });
       case 'mute':
-        final wasMuted = ref.read(muteProvider).contains(groupId);
+        final wasMuted = (ref.read(muteProvider).value ?? {}).contains(groupId);
         ref.read(muteProvider.notifier).toggle(groupId);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

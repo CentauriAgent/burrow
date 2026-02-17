@@ -6,29 +6,31 @@ const _key = 'muted_group_ids';
 /// Manages the set of muted group IDs.
 /// Muted groups suppress notification sounds/badges.
 /// Persisted to shared_preferences so it survives app restarts.
-class MuteNotifier extends Notifier<Set<String>> {
+///
+/// Uses AsyncNotifier so the initial SharedPreferences load is properly
+/// awaited, avoiding a race where mute/unmute could overwrite the loaded data.
+class MuteNotifier extends AsyncNotifier<Set<String>> {
   @override
-  Set<String> build() {
-    _load();
-    return {};
-  }
-
-  Future<void> _load() async {
+  Future<Set<String>> build() async {
     final prefs = await SharedPreferences.getInstance();
     final ids = prefs.getStringList(_key) ?? [];
-    state = ids.toSet();
+    return ids.toSet();
   }
 
   Future<void> mute(String groupId) async {
-    state = {...state, groupId};
+    final current = state.value ?? {};
+    final updated = {...current, groupId};
+    state = AsyncData(updated);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, state.toList());
+    await prefs.setStringList(_key, updated.toList());
   }
 
   Future<void> unmute(String groupId) async {
-    state = state.where((id) => id != groupId).toSet();
+    final current = state.value ?? {};
+    final updated = current.where((id) => id != groupId).toSet();
+    state = AsyncData(updated);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, state.toList());
+    await prefs.setStringList(_key, updated.toList());
   }
 
   Future<void> toggle(String groupId) async {
@@ -39,9 +41,9 @@ class MuteNotifier extends Notifier<Set<String>> {
     }
   }
 
-  bool isMuted(String groupId) => state.contains(groupId);
+  bool isMuted(String groupId) => state.value?.contains(groupId) ?? false;
 }
 
-final muteProvider = NotifierProvider<MuteNotifier, Set<String>>(
+final muteProvider = AsyncNotifierProvider<MuteNotifier, Set<String>>(
   MuteNotifier.new,
 );

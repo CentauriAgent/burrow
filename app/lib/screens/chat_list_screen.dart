@@ -183,7 +183,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               'DEBUG chat list: group=${group.displayName} avatar=null hasImage=${group.rustGroup.hasImage}',
             );
           }
-          final mutedGroups = ref.watch(muteProvider);
+          final mutedGroups = ref.watch(muteProvider).value ?? {};
           return ChatListTile(
             name: group.displayName,
             lastMessage: group.lastMessage,
