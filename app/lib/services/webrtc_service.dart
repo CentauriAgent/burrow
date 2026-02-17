@@ -7,6 +7,7 @@ library;
 import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:burrow_app/src/rust/api/call_webrtc.dart' as rust_webrtc;
+import 'package:burrow_app/services/turn_settings.dart';
 
 /// Manages WebRTC peer connections and local media for calls.
 class WebRtcService {
@@ -74,14 +75,31 @@ class WebRtcService {
     // Get ICE configuration from Rust
     final config = await rust_webrtc.generateWebrtcConfig(callId: callId);
 
+    // Build ICE servers list, checking for user-configured TURN override
+    var iceServers = config.iceServers
+        .map((s) => <String, dynamic>{
+              'urls': s.urls,
+              if (s.username != null) 'username': s.username,
+              if (s.credential != null) 'credential': s.credential,
+            })
+        .toList();
+
+    // Override TURN servers with user settings if configured
+    final customTurn = await TurnSettings.load();
+    if (customTurn != null) {
+      // Keep STUN servers (no username), replace TURN servers
+      iceServers = [
+        ...iceServers.where((s) => s['username'] == null),
+        <String, dynamic>{
+          'urls': customTurn.urls,
+          if (customTurn.username != null) 'username': customTurn.username,
+          if (customTurn.credential != null) 'credential': customTurn.credential,
+        },
+      ];
+    }
+
     final rtcConfig = <String, dynamic>{
-      'iceServers': config.iceServers
-          .map((s) => <String, dynamic>{
-                'urls': s.urls,
-                if (s.username != null) 'username': s.username,
-                if (s.credential != null) 'credential': s.credential,
-              })
-          .toList(),
+      'iceServers': iceServers,
       'sdpSemantics': config.sdpSemantics,
       'bundlePolicy': config.bundlePolicy,
     };

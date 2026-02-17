@@ -52,9 +52,11 @@ pub fn generate_webrtc_config(call_id: String) -> Result<WebRtcConfig, BurrowErr
         "stun:stun2.l.google.com:19302".to_string(),
     ];
 
-    // TURN server with short-lived credentials derived from call_id.
-    // In production, these would come from a credential server.
-    // For now, generate deterministic credentials for the call.
+    // Default TURN server with per-call credentials.
+    // These defaults can be overridden from the Dart side via TurnSettings
+    // in the settings screen (stored in SharedPreferences).
+    // The Dart WebRTC service layer checks for user-configured TURN servers
+    // and replaces these defaults before creating the peer connection.
     let turn_username = format!("burrow-{}", &call_id[..8.min(call_id.len())]);
     let mut hasher = Sha256::new();
     hasher.update(b"burrow-turn-credential-v1");
@@ -69,8 +71,9 @@ pub fn generate_webrtc_config(call_id: String) -> Result<WebRtcConfig, BurrowErr
         },
         IceServer {
             urls: vec![
-                "turn:turn.burrow.chat:3478".to_string(),
-                "turn:turn.burrow.chat:3478?transport=tcp".to_string(),
+                "turn:openrelay.metered.ca:80".to_string(),
+                "turn:openrelay.metered.ca:443".to_string(),
+                "turn:openrelay.metered.ca:443?transport=tcp".to_string(),
             ],
             username: Some(turn_username),
             credential: Some(turn_credential),
