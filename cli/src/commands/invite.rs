@@ -68,11 +68,22 @@ pub async fn run(
     // Merge pending commit
     mdk.merge_pending_commit(&mls_group_id)?;
 
-    // Send Welcome via NIP-59 gift wrap
+    // Send Welcome via NIP-59 gift wrap (kind 1059)
     for rumor in result.welcome_rumors.iter().flatten() {
-        let _rumor_str = serde_json::to_string(rumor)?;
-        println!("📨 Welcome rumor prepared for {}", &invitee_hex[..12]);
-        // TODO: NIP-59 gift wrap and send
+        println!("📨 Gift-wrapping Welcome for {}...", &invitee_hex[..12]);
+
+        let gift_wrap = EventBuilder::gift_wrap(
+            &keys,
+            &invitee_pk,
+            rumor.clone(),
+            Vec::<Tag>::new(),
+        )
+        .await
+        .context("Failed to gift-wrap welcome rumor")?;
+
+        let output = client.send_event(&gift_wrap).await
+            .context("Failed to publish gift-wrapped welcome")?;
+        println!("📤 Gift-wrapped Welcome sent: {}", output.id().to_hex());
     }
 
     println!("✅ Invited {} to group {}", &invitee_hex[..12], group.name);
