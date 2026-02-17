@@ -5,6 +5,8 @@ import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/providers/profile_provider.dart';
+import 'package:burrow_app/providers/contacts_provider.dart';
+import 'package:burrow_app/providers/mute_provider.dart';
 import 'package:burrow_app/widgets/chat_list_tile.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
@@ -36,12 +38,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         index: _navIndex,
         children: [
           _buildChatsList(theme),
-          _buildPlaceholderTab(
-            theme,
-            Icons.contacts_outlined,
-            'Contacts',
-            'Contact list coming soon',
-          ),
+          _buildContactsTab(theme),
           _buildPlaceholderTab(
             theme,
             Icons.call_outlined,
@@ -186,6 +183,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               'DEBUG chat list: group=${group.displayName} avatar=null hasImage=${group.rustGroup.hasImage}',
             );
           }
+          final mutedGroups = ref.watch(muteProvider);
           return ChatListTile(
             name: group.displayName,
             lastMessage: group.lastMessage,
@@ -197,6 +195,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             networkAvatarUrl: group.isDirectMessage
                 ? group.dmPeerPicture
                 : null,
+            isMuted: mutedGroups.contains(group.mlsGroupIdHex),
             onTap: () => context.go('/chat/${group.mlsGroupIdHex}'),
           );
         },
@@ -240,6 +239,181 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContactsTab(ThemeData theme) {
+    final contactsAsync = ref.watch(contactsProvider);
+
+    return contactsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+            const SizedBox(height: 12),
+            Text('Failed to load contacts', style: theme.textTheme.bodyLarge),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => ref.invalidate(contactsProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (contacts) {
+        if (contacts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.contacts_outlined,
+                  size: 56,
+                  color: theme.colorScheme.primary.withAlpha(120),
+                ),
+                const SizedBox(height: 16),
+                Text('No contacts yet', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  'People you chat with will appear here.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withAlpha(120),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.separated(
+          itemCount: contacts.length,
+          separatorBuilder: (_, __) => Divider(
+            height: 1,
+            indent: 72,
+            color: theme.colorScheme.outlineVariant.withAlpha(50),
+          ),
+          itemBuilder: (context, index) {
+            final contact = contacts[index];
+            return ListTile(
+              leading: CircleAvatar(
+                radius: 22,
+                backgroundColor: theme.colorScheme.tertiaryContainer,
+                backgroundImage: contact.picture != null &&
+                        contact.picture!.isNotEmpty
+                    ? NetworkImage(contact.picture!)
+                    : null,
+                child: contact.picture != null && contact.picture!.isNotEmpty
+                    ? null
+                    : Text(
+                        contact.name.isNotEmpty
+                            ? contact.name[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onTertiaryContainer,
+                        ),
+                      ),
+              ),
+              title: Text(
+                contact.name,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                '${contact.pubkeyHex.substring(0, 8)}...${contact.pubkeyHex.substring(contact.pubkeyHex.length - 8)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: theme.colorScheme.onSurface.withAlpha(120),
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                onPressed: () => context.go('/new-dm?pubkey=${contact.pubkeyHex}'),
+                tooltip: 'Send message',
+              ),
+              onTap: () => _showContactProfile(context, contact, theme),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showContactProfile(
+    BuildContext context,
+    Contact contact,
+    ThemeData theme,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withAlpha(60),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: theme.colorScheme.tertiaryContainer,
+                backgroundImage: contact.picture != null &&
+                        contact.picture!.isNotEmpty
+                    ? NetworkImage(contact.picture!)
+                    : null,
+                child: contact.picture != null && contact.picture!.isNotEmpty
+                    ? null
+                    : Text(
+                        contact.name.isNotEmpty
+                            ? contact.name[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onTertiaryContainer,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                contact.name,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SelectableText(
+                contact.pubkeyHex,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: theme.colorScheme.onSurface.withAlpha(120),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.go('/new-dm?pubkey=${contact.pubkeyHex}');
+                },
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Send Message'),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 

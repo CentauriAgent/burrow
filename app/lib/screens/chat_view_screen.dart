@@ -1,9 +1,16 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:burrow_app/providers/archive_provider.dart';
+import 'package:burrow_app/providers/mute_provider.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 import 'package:burrow_app/providers/groups_provider.dart';
 import 'package:burrow_app/providers/group_provider.dart';
@@ -16,6 +23,7 @@ import 'package:burrow_app/widgets/chat_bubble.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/error.dart';
+import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 
 class ChatViewScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -32,6 +40,17 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   final _focusNode = FocusNode();
   bool _isSending = false;
 
+  // Search state
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  List<int> _searchMatchIndices = [];
+  int _currentMatchIndex = -1;
+  bool _isRecording = false;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  Timer? _recordingTimer;
+  int _recordingSeconds = 0;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +65,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _audioRecorder.dispose();
+    _recordingTimer?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -199,12 +221,21 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'mute',
                 child: ListTile(
                   dense: true,
-                  leading: Icon(Icons.notifications_off_outlined, size: 20),
-                  title: Text('Mute notifications'),
+                  leading: Icon(
+                    ref.read(muteProvider).contains(widget.groupId)
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_off_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    ref.read(muteProvider).contains(widget.groupId)
+                        ? 'Unmute notifications'
+                        : 'Mute notifications',
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -236,6 +267,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       ),
       body: Column(
         children: [
+          // Search bar
+          if (_isSearching) _buildSearchBar(theme, messages),
+
           // Messages list
           Expanded(
             child: messages.isEmpty
@@ -279,7 +313,24 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                           final msgReactions = messagesNotifier.reactionsFor(
                             msg.eventIdHex,
                           );
-                          return ChatBubble(
+                          final isSearchMatch = _isSearching &&
+                              _searchQuery.isNotEmpty &&
+                              msg.content
+                                  .toLowerCase()
+                                  .contains(_searchQuery.toLowerCase());
+                          final isCurrentMatch = isSearchMatch &&
+                              _currentMatchIndex >= 0 &&
+                              _currentMatchIndex < _searchMatchIndices.length &&
+                              _searchMatchIndices[_currentMatchIndex] == index;
+                          return Container(
+                            color: isCurrentMatch
+                                ? theme.colorScheme.tertiaryContainer
+                                    .withAlpha(120)
+                                : isSearchMatch
+                                    ? theme.colorScheme.tertiaryContainer
+                                        .withAlpha(50)
+                                    : null,
+                            child: ChatBubble(
                             content: msg.content,
                             timestamp: DateTime.fromMillisecondsSinceEpoch(
                               msg.createdAt.toInt() * 1000,
@@ -298,6 +349,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                   )
                                   .sendReaction(msg.eventIdHex, emoji);
                             },
+                          ),
                           );
                         },
                       );
@@ -332,6 +384,132 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           _buildInputBar(theme),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchBar(
+    ThemeData theme,
+    List<rust_message.GroupMessage> messages,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Search in chat...',
+                border: InputBorder.none,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                isDense: true,
+                suffixText: _searchMatchIndices.isNotEmpty
+                    ? '${_currentMatchIndex + 1}/${_searchMatchIndices.length}'
+                    : null,
+                suffixStyle: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface.withAlpha(120),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _updateSearchMatches(messages);
+                });
+              },
+            ),
+          ),
+          if (_searchMatchIndices.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+              onPressed: _currentMatchIndex < _searchMatchIndices.length - 1
+                  ? () => _navigateSearchMatch(1, messages)
+                  : null,
+              tooltip: 'Previous match',
+              visualDensity: VisualDensity.compact,
+            ),
+            IconButton(
+              icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+              onPressed: _currentMatchIndex > 0
+                  ? () => _navigateSearchMatch(-1, messages)
+                  : null,
+              tooltip: 'Next match',
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () {
+              setState(() {
+                _isSearching = false;
+                _searchQuery = '';
+                _searchMatchIndices = [];
+                _currentMatchIndex = -1;
+                _searchController.clear();
+              });
+            },
+            tooltip: 'Close search',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateSearchMatches(List<rust_message.GroupMessage> messages) {
+    if (_searchQuery.isEmpty) {
+      _searchMatchIndices = [];
+      _currentMatchIndex = -1;
+      return;
+    }
+    final query = _searchQuery.toLowerCase();
+    _searchMatchIndices = <int>[];
+    for (int i = 0; i < messages.length; i++) {
+      if (messages[i].content.toLowerCase().contains(query)) {
+        _searchMatchIndices.add(i);
+      }
+    }
+    if (_searchMatchIndices.isNotEmpty) {
+      _currentMatchIndex = 0;
+      _scrollToMatch(messages);
+    } else {
+      _currentMatchIndex = -1;
+    }
+  }
+
+  void _navigateSearchMatch(
+    int delta,
+    List<rust_message.GroupMessage> messages,
+  ) {
+    if (_searchMatchIndices.isEmpty) return;
+    setState(() {
+      _currentMatchIndex =
+          (_currentMatchIndex + delta).clamp(0, _searchMatchIndices.length - 1);
+    });
+    _scrollToMatch(messages);
+  }
+
+  void _scrollToMatch(List<rust_message.GroupMessage> messages) {
+    if (_currentMatchIndex < 0 ||
+        _currentMatchIndex >= _searchMatchIndices.length) return;
+    final targetIndex = _searchMatchIndices[_currentMatchIndex];
+    // ListView is reversed, so index 0 is at bottom. Estimate position.
+    // Use animateTo with an estimated offset. Each item ~72px.
+    final estimatedOffset = targetIndex * 72.0;
+    _scrollController.animateTo(
+      estimatedOffset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -433,41 +611,59 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
             ],
           ),
 
-          // Text field
+          // Text field or recording indicator
           Expanded(
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Focus(
-                onKeyEvent: (node, event) {
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.enter &&
-                      !HardwareKeyboard.instance.isShiftPressed) {
-                    _sendMessage();
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: TextField(
-                  controller: _messageController,
-                  focusNode: _focusNode,
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'Message',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+            child: _isRecording
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withAlpha(25),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.mic, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Recording... ${_formatDuration(_recordingSeconds)}',
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  )
+                : Container(
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent &&
+                            event.logicalKey == LogicalKeyboardKey.enter &&
+                            !HardwareKeyboard.instance.isShiftPressed) {
+                          _sendMessage();
+                          return KeyEventResult.handled;
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _focusNode,
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          hintText: 'Message',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
                     ),
                   ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-            ),
           ),
 
           const SizedBox(width: 4),
@@ -492,15 +688,41 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                         : Icon(Icons.send, color: theme.colorScheme.primary),
                     onPressed: _isSending ? null : _sendMessage,
                   )
-                : IconButton(
-                    key: const ValueKey('voice'),
-                    icon: Icon(
-                      Icons.mic,
-                      color: theme.colorScheme.onSurface.withAlpha(150),
-                    ),
-                    onPressed: _onVoiceMessage,
-                    tooltip: 'Voice message',
-                  ),
+                : _isRecording
+                    ? Row(
+                        key: const ValueKey('recording'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            onPressed: _cancelRecording,
+                            tooltip: 'Cancel recording',
+                          ),
+                          Text(
+                            _formatDuration(_recordingSeconds),
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: Icon(Icons.send, color: theme.colorScheme.primary),
+                            onPressed: _isSending ? null : _stopAndSendVoiceMessage,
+                            tooltip: 'Send voice message',
+                          ),
+                        ],
+                      )
+                    : IconButton(
+                        key: const ValueKey('voice'),
+                        icon: Icon(
+                          Icons.mic,
+                          color: theme.colorScheme.onSurface.withAlpha(150),
+                        ),
+                        onPressed: _onVoiceMessage,
+                        tooltip: 'Voice message',
+                      ),
           ),
         ],
       ),
@@ -634,11 +856,97 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
   String _mediaError(Object e) => e is BurrowError ? e.message : e.toString();
 
-  void _onVoiceMessage() {
-    // TODO: Record audio, encrypt, upload to Blossom, send URL in message
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Voice messages coming soon')));
+  Future<void> _onVoiceMessage() async {
+    if (_isRecording) {
+      await _stopAndSendVoiceMessage();
+      return;
+    }
+
+    // Check microphone permission
+    if (!await _audioRecorder.hasPermission()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission denied')),
+        );
+      }
+      return;
+    }
+
+    // Start recording
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
+      path: path,
+    );
+
+    setState(() {
+      _isRecording = true;
+      _recordingSeconds = 0;
+    });
+
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _recordingSeconds++);
+    });
+  }
+
+  Future<void> _stopAndSendVoiceMessage() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+
+    final path = await _audioRecorder.stop();
+    setState(() => _isRecording = false);
+
+    if (path == null) return;
+
+    final file = File(path);
+    if (!file.existsSync()) return;
+
+    final bytes = await file.readAsBytes();
+
+    setState(() => _isSending = true);
+    try {
+      final result = await MediaAttachmentService.sendMediaMessage(
+        groupId: widget.groupId,
+        fileData: bytes,
+        mimeType: 'audio/mp4',
+        filename: 'voice_message.m4a',
+      );
+      ref
+          .read(messagesProvider(widget.groupId).notifier)
+          .addIncomingMessage(result.message);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send voice message: ${_mediaError(e)}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+      // Clean up temp file
+      file.delete().catchError((_) => file);
+    }
+
+    _recordingSeconds = 0;
+  }
+
+  void _cancelRecording() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    final path = await _audioRecorder.stop();
+    if (path != null) File(path).delete().catchError((_) => File(path));
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   void _onMenuAction(BuildContext context, String action) {
@@ -652,13 +960,23 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           context.push('/group-info/$groupId');
         }
       case 'search':
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Search coming soon')));
+        setState(() {
+          _isSearching = true;
+          _searchQuery = '';
+          _searchMatchIndices = [];
+          _currentMatchIndex = -1;
+          _searchController.clear();
+        });
       case 'mute':
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Mute coming soon')));
+        final wasMuted = ref.read(muteProvider).contains(groupId);
+        ref.read(muteProvider.notifier).toggle(groupId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(wasMuted
+                ? 'Notifications unmuted'
+                : 'Notifications muted'),
+          ),
+        );
       case 'archive':
         ref.read(archiveProvider.notifier).archive(groupId);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -731,6 +1049,35 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Calls are currently supported for 1:1 chats only'),
+        ),
+      );
+      return;
+    }
+
+    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    ref
+        .read(callProvider.notifier)
+        .startCall(
+          remotePubkeyHex: remotePubkey,
+          localPubkeyHex: auth.account.pubkeyHex,
+          callId: callId,
+          isVideo: isVideo,
+          remoteName: group?.displayName,
+        );
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
+  String _shortenPubkey(String hex) {
+    if (hex.length > 12) return '${hex.substring(0, 8)}...';
+    return hex;
+  }
+}
+y supported for 1:1 chats only'),
         ),
       );
       return;

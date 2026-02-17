@@ -12,6 +12,7 @@ class ChatListTile extends StatelessWidget {
   final bool isDirectMessage;
   final File? avatarFile;
   final String? networkAvatarUrl;
+  final bool isMuted;
   final VoidCallback? onTap;
 
   const ChatListTile({
@@ -24,6 +25,7 @@ class ChatListTile extends StatelessWidget {
     this.isDirectMessage = false,
     this.avatarFile,
     this.networkAvatarUrl,
+    this.isMuted = false,
     this.onTap,
   });
 
@@ -116,6 +118,14 @@ class ChatListTile extends StatelessWidget {
                     : theme.colorScheme.onSurface.withAlpha(120),
               ),
             ),
+          if (isMuted) ...[
+            const SizedBox(height: 2),
+            Icon(
+              Icons.notifications_off,
+              size: 16,
+              color: theme.colorScheme.onSurface.withAlpha(120),
+            ),
+          ],
           if (unreadCount > 0) ...[
             const SizedBox(height: 4),
             Container(
