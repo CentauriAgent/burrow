@@ -44,10 +44,13 @@ dependencies:
   image_picker: ^1.1.2
   file_picker: ^10.3.10
   emoji_picker_flutter: ^4.3.0
+  record: ^5.2.1
+  just_audio: ^0.9.43
   bech32: ^0.2.2
   freezed_annotation: ^3.1.0
   path_provider: ^2.1.5
   shared_preferences: ^2.3.4
+  mobile_scanner: ^6.0.2
 
 dev_dependencies:
   flutter_test:

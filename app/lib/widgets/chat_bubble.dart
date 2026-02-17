@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 
@@ -145,7 +146,13 @@ class ChatBubble extends StatelessWidget {
                               ),
                             ),
                           for (final attachment in attachments)
-                            if (!attachment.isImage)
+                            if (attachment.isAudio)
+                              _AudioAttachmentWidget(
+                                attachment: attachment,
+                                groupId: groupId,
+                                textColor: textColor,
+                              )
+                            else if (!attachment.isImage)
                               _FileAttachmentChip(
                                 attachment: attachment,
                                 groupId: groupId,
@@ -530,6 +537,161 @@ class _ImageAttachmentWidgetState extends State<_ImageAttachmentWidget> {
       errorBuilder: (_, __, ___) => const SizedBox(
         height: 100,
         child: Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+      ),
+    );
+  }
+}
+
+/// Downloads, decrypts, and plays an audio attachment with playback controls.
+class _AudioAttachmentWidget extends StatefulWidget {
+  final MediaAttachment attachment;
+  final String? groupId;
+  final Color textColor;
+
+  const _AudioAttachmentWidget({
+    required this.attachment,
+    this.groupId,
+    required this.textColor,
+  });
+
+  @override
+  State<_AudioAttachmentWidget> createState() => _AudioAttachmentWidgetState();
+}
+
+class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
+  final AudioPlayer _player = AudioPlayer();
+  File? _file;
+  bool _loading = true;
+  String? _error;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _download();
+    _player.positionStream.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.durationStream.listen((d) {
+      if (mounted && d != null) setState(() => _duration = d);
+    });
+    _player.playerStateStream.listen((state) {
+      if (mounted) {
+        setState(() => _isPlaying = state.playing);
+        if (state.processingState == ProcessingState.completed) {
+          _player.seek(Duration.zero);
+          _player.pause();
+        }
+      }
+    });
+  }
+
+  Future<void> _download() async {
+    if (widget.groupId == null) {
+      setState(() { _loading = false; _error = 'No group context'; });
+      return;
+    }
+    try {
+      final file = await MediaAttachmentService.downloadAttachment(
+        groupId: widget.groupId!,
+        attachment: widget.attachment,
+      );
+      await _player.setFilePath(file.path);
+      if (mounted) setState(() { _file = file; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = 'Failed to load audio'; _loading = false; });
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 8),
+            Text('Loading audio...', style: TextStyle(color: widget.textColor, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    if (_error != null || _file == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 18, color: widget.textColor.withAlpha(180)),
+            const SizedBox(width: 6),
+            Text(_error ?? 'Audio unavailable', style: TextStyle(color: widget.textColor, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => _isPlaying ? _player.pause() : _player.play(),
+            child: Icon(
+              _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+              size: 32,
+              color: widget.textColor,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 16,
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                      activeTrackColor: widget.textColor,
+                      inactiveTrackColor: widget.textColor.withAlpha(60),
+                      thumbColor: widget.textColor,
+                    ),
+                    child: Slider(
+                      min: 0,
+                      max: _duration.inMilliseconds.toDouble().clamp(1, double.infinity),
+                      value: _position.inMilliseconds.toDouble().clamp(0, _duration.inMilliseconds.toDouble().clamp(1, double.infinity)),
+                      onChanged: (v) => _player.seek(Duration(milliseconds: v.toInt())),
+                    ),
+                  ),
+                ),
+                Text(
+                  '${_fmt(_position)} / ${_fmt(_duration)}',
+                  style: TextStyle(fontSize: 11, color: widget.textColor.withAlpha(180)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

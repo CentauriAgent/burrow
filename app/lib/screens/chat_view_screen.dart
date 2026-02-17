@@ -1077,32 +1077,3 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     return hex;
   }
 }
-y supported for 1:1 chats only'),
-        ),
-      );
-      return;
-    }
-
-    final callId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    ref
-        .read(callProvider.notifier)
-        .startCall(
-          remotePubkeyHex: remotePubkey,
-          localPubkeyHex: auth.account.pubkeyHex,
-          callId: callId,
-          isVideo: isVideo,
-          remoteName: group?.displayName,
-        );
-  }
-
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
-  }
-
-  String _shortenPubkey(String hex) {
-    if (hex.length > 12) return '${hex.substring(0, 8)}...';
-    return hex;
-  }
-}
