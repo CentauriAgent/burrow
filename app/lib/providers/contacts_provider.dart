@@ -1,20 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:burrow_app/providers/groups_provider.dart';
-import 'package:burrow_app/providers/auth_provider.dart';
-import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
-import 'package:burrow_app/src/rust/api/identity.dart' as rust_identity;
+import 'package:burrow_app/src/rust/api/contacts.dart' as rust_contacts;
 
-/// A contact derived from group membership.
+/// A Marmot-capable contact (NIP-02 follow with a published key package).
 class Contact {
   final String pubkeyHex;
   final String? displayName;
   final String? picture;
 
-  const Contact({
-    required this.pubkeyHex,
-    this.displayName,
-    this.picture,
-  });
+  const Contact({required this.pubkeyHex, this.displayName, this.picture});
 
   /// Best name for display, falling back to truncated pubkey.
   String get name {
@@ -29,72 +22,70 @@ class Contact {
   String get sortKey => name.toLowerCase();
 }
 
-/// Collects all unique peers across all groups the user belongs to.
-/// Returns them sorted alphabetically by display name.
-///
-/// Profile resolution is batched: all members are collected first, then
-/// profiles for members missing display names are fetched in parallel
-/// (instead of one-by-one N+1 calls).
-final contactsProvider = FutureProvider<List<Contact>>((ref) async {
-  final groups = ref.watch(groupsProvider).value ?? [];
-  final auth = ref.watch(authProvider);
-  final selfPubkey = auth.value?.account.pubkeyHex;
-
-  // Phase 1: Collect all unique members across groups
-  final seen = <String>{};
-  final memberData = <String, ({String? name, String? picture})>{};
-
-  for (final group in groups) {
+/// Contacts provider: loads from local cache instantly, syncs with relays
+/// in the background on every app launch. Pull-to-refresh triggers a full sync.
+class ContactsNotifier extends AsyncNotifier<List<Contact>> {
+  @override
+  Future<List<Contact>> build() async {
+    List<rust_contacts.ContactInfo> cached;
     try {
-      final members = await rust_group.getGroupMembers(
-        mlsGroupIdHex: group.mlsGroupIdHex,
-      );
-      for (final member in members) {
-        if (member.pubkeyHex == selfPubkey) continue;
-        if (seen.contains(member.pubkeyHex)) continue;
-        seen.add(member.pubkeyHex);
-        memberData[member.pubkeyHex] = (
-          name: member.displayName,
-          picture: member.picture,
-        );
+      cached = await rust_contacts.getCachedContacts();
+    } catch (_) {
+      cached = [];
+    }
+
+    if (cached.isEmpty) {
+      // No cache — do a full sync so the user sees a loading spinner
+      try {
+        final synced = await rust_contacts.syncContacts();
+        return _toContacts(synced);
+      } catch (_) {
+        return [];
       }
-    } catch (_) {}
+    }
+
+    // Cache exists — return it immediately, refresh in background
+    _backgroundSync();
+    return _toContacts(cached);
   }
 
-  // Phase 2: Batch-fetch profiles for members missing display names
-  final needsProfile = memberData.entries
-      .where((e) => e.value.name == null || e.value.name!.isEmpty)
-      .map((e) => e.key)
-      .toList();
-
-  if (needsProfile.isNotEmpty) {
-    final profileFutures = needsProfile.map((hex) async {
-      try {
-        return MapEntry(hex, await rust_identity.getCachedProfile(pubkeyHex: hex));
-      } catch (_) {
-        return MapEntry(hex, null);
-      }
-    });
-
-    final profiles = await Future.wait(profileFutures);
-    for (final entry in profiles) {
-      if (entry.value != null) {
-        final existing = memberData[entry.key]!;
-        memberData[entry.key] = (
-          name: entry.value!.displayName ?? entry.value!.name,
-          picture: existing.picture ?? entry.value!.picture,
-        );
-      }
+  Future<void> _backgroundSync() async {
+    try {
+      final synced = await rust_contacts.syncContacts();
+      state = AsyncData(_toContacts(synced));
+    } catch (_) {
+      // Silently fail — cached data is still showing
     }
   }
 
-  // Phase 3: Build sorted contact list
-  final contacts = memberData.entries.map((e) => Contact(
-    pubkeyHex: e.key,
-    displayName: e.value.name,
-    picture: e.value.picture,
-  )).toList();
+  /// Full relay sync, called by the sync button.
+  Future<void> refresh() async {
+    final previous = state.value;
+    state = const AsyncLoading();
+    try {
+      final synced = await rust_contacts.syncContacts();
+      state = AsyncData(_toContacts(synced));
+    } catch (_) {
+      // Restore previous data if available, otherwise show empty
+      state = AsyncData(previous ?? []);
+    }
+  }
 
-  contacts.sort((a, b) => a.sortKey.compareTo(b.sortKey));
-  return contacts;
-});
+  List<Contact> _toContacts(List<rust_contacts.ContactInfo> infos) {
+    final contacts = infos
+        .map(
+          (c) => Contact(
+            pubkeyHex: c.pubkeyHex,
+            displayName: c.displayName,
+            picture: c.picture,
+          ),
+        )
+        .toList();
+    contacts.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    return contacts;
+  }
+}
+
+final contactsProvider = AsyncNotifierProvider<ContactsNotifier, List<Contact>>(
+  ContactsNotifier.new,
+);

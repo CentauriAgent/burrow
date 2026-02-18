@@ -9,6 +9,7 @@ import 'api/call_quality.dart';
 import 'api/call_session.dart';
 import 'api/call_signaling.dart';
 import 'api/call_webrtc.dart';
+import 'api/contacts.dart';
 import 'api/error.dart';
 import 'api/group.dart';
 import 'api/identity.dart';
@@ -134,6 +135,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodecPreferences dco_decode_codec_preferences(dynamic raw);
 
   @protected
+  ContactInfo dco_decode_contact_info(dynamic raw);
+
+  @protected
+  ContactsSyncDebug dco_decode_contacts_sync_debug(dynamic raw);
+
+  @protected
   CreateGroupResult dco_decode_create_group_result(dynamic raw);
 
   @protected
@@ -174,6 +181,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<CallSession> dco_decode_list_call_session(dynamic raw);
+
+  @protected
+  List<ContactInfo> dco_decode_list_contact_info(dynamic raw);
 
   @protected
   List<GroupInfo> dco_decode_list_group_info(dynamic raw);
@@ -440,6 +450,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodecPreferences sse_decode_codec_preferences(SseDeserializer deserializer);
 
   @protected
+  ContactInfo sse_decode_contact_info(SseDeserializer deserializer);
+
+  @protected
+  ContactsSyncDebug sse_decode_contacts_sync_debug(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CreateGroupResult sse_decode_create_group_result(
     SseDeserializer deserializer,
   );
@@ -484,6 +502,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<CallSession> sse_decode_list_call_session(SseDeserializer deserializer);
+
+  @protected
+  List<ContactInfo> sse_decode_list_contact_info(SseDeserializer deserializer);
 
   @protected
   List<GroupInfo> sse_decode_list_group_info(SseDeserializer deserializer);
@@ -813,6 +834,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_contact_info(ContactInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_contacts_sync_debug(
+    ContactsSyncDebug self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_create_group_result(
     CreateGroupResult self,
     SseSerializer serializer,
@@ -866,6 +896,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_call_session(
     List<CallSession> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_contact_info(
+    List<ContactInfo> self,
     SseSerializer serializer,
   );
 

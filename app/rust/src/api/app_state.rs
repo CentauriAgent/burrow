@@ -16,9 +16,20 @@ static APP_DB: LazyLock<Mutex<Option<Connection>>> = LazyLock::new(|| Mutex::new
 
 /// Initialize (or reinitialize) the app state database.
 /// Called after MdkSqliteStorage::new creates the mls_dir.
+/// `mls_dir` may be a file (MdkSqliteStorage DB) or a directory — we handle
+/// both by placing app_state.db alongside or inside it.
 #[frb(ignore)]
 pub fn init_app_state_db(mls_dir: &PathBuf) -> Result<(), BurrowError> {
-    let db_path = mls_dir.join("app_state.db");
+    // If mls_dir is a file (MdkSqliteStorage creates a flat DB file),
+    // place app_state.db next to it with a suffix. If it's a directory,
+    // place it inside.
+    let db_path = if mls_dir.is_file() {
+        let mut p = mls_dir.clone().into_os_string();
+        p.push("_app_state.db");
+        PathBuf::from(p)
+    } else {
+        mls_dir.join("app_state.db")
+    };
     let conn =
         Connection::open(db_path).map_err(|e| BurrowError::from(format!("app_state db: {e}")))?;
 
@@ -33,15 +44,40 @@ pub fn init_app_state_db(mls_dir: &PathBuf) -> Result<(), BurrowError> {
     )
     .map_err(|e| BurrowError::from(format!("app_state schema: {e}")))?;
 
+    // Store the connection first so with_db() works even if later migrations fail.
     let mut guard = APP_DB
         .lock()
         .map_err(|e| BurrowError::from(format!("app_state lock: {e}")))?;
     *guard = Some(conn);
+    drop(guard);
+
+    // Contacts tables — run as a migration after DB is available.
+    // Uses with_db so the connection is reused properly.
+    let _ = with_db(|conn| {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS follows (
+                pubkey_hex TEXT PRIMARY KEY,
+                display_name TEXT,
+                picture TEXT,
+                has_key_package INTEGER NOT NULL DEFAULT 0,
+                key_package_checked_at INTEGER,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS contacts_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );",
+        )
+        .map_err(|e| BurrowError::from(format!("contacts schema: {e}")))?;
+        Ok(())
+    });
+
     Ok(())
 }
 
 #[frb(ignore)]
-fn with_db<F, T>(f: F) -> Result<T, BurrowError>
+pub(crate) fn with_db<F, T>(f: F) -> Result<T, BurrowError>
 where
     F: FnOnce(&Connection) -> Result<T, BurrowError>,
 {
@@ -52,6 +88,30 @@ where
         .as_ref()
         .ok_or_else(|| BurrowError::from("App state DB not initialized".to_string()))?;
     f(conn)
+}
+
+/// Check if the app state DB is initialized.
+#[frb(ignore)]
+pub fn is_db_initialized() -> bool {
+    APP_DB
+        .lock()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
+}
+
+/// Initialize the app state DB from a known data dir and pubkey hex.
+/// Safe to call multiple times — no-ops if already initialized.
+#[frb(ignore)]
+pub fn ensure_db_with(data_dir: &std::path::Path, pubkey_hex: &str) -> Result<(), BurrowError> {
+    if is_db_initialized() {
+        return Ok(());
+    }
+
+    let mls_dir = data_dir.join("mls").join(pubkey_hex);
+    // mls_dir may be a file (MdkSqliteStorage flat DB) or a directory.
+    // Don't try to create it — just pass it to init_app_state_db which
+    // handles both cases.
+    init_app_state_db(&mls_dir)
 }
 
 // ---------------------------------------------------------------------------

@@ -10,12 +10,23 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `compute_quality_score`, `now_secs`, `parse_sdp_internal`, `peer_stats_store`, `peers`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
-/// Generate WebRTC configuration with ICE servers.
+/// Generate WebRTC configuration with STUN-only ICE servers.
 ///
-/// Returns STUN/TURN server configuration for creating peer connections.
-/// TURN credentials are short-lived and derived per-call.
+/// Returns STUN server configuration for creating peer connections.
+/// STUN is sufficient for most NAT traversal scenarios.
 ///
-/// `call_id`: Used to derive unique TURN credentials for this call.
+/// TURN relay is NOT included by default because proper TURN authentication
+/// requires server-side credential provisioning (e.g., time-limited HMAC
+/// credentials via a TURN REST API, or an API key from a hosted provider
+/// like metered.ca / Twilio / Xirsys). Client-side credential generation
+/// provides no security — anyone can derive the same credentials.
+///
+/// Users who need TURN relay (e.g., behind symmetric NATs or strict
+/// firewalls) should configure their own TURN server credentials in the
+/// app settings (Settings > TURN Server). The Dart WebRTC service layer
+/// will merge user-configured TURN servers into the ICE server list.
+///
+/// `call_id`: Call identifier (unused currently, reserved for future use).
 Future<WebRtcConfig> generateWebrtcConfig({required String callId}) =>
     RustLib.instance.api.crateApiCallWebrtcGenerateWebrtcConfig(callId: callId);
 

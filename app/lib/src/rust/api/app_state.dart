@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `with_db`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
-// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `init_app_state_db`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `ensure_db_with`, `init_app_state_db`, `is_db_initialized`
 
 /// Store a key-value pair for a group.
 Future<void> setGroupState({

@@ -81,7 +81,7 @@ pub fn set_data_dir(path: String) {
     let _ = DATA_DIR.set(PathBuf::from(path));
 }
 
-fn get_data_dir() -> Result<PathBuf, BurrowError> {
+pub(crate) fn get_data_dir() -> Result<PathBuf, BurrowError> {
     DATA_DIR
         .get()
         .cloned()

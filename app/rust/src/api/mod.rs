@@ -8,6 +8,7 @@ pub mod keypackage;
 pub mod relay;
 pub mod group;
 pub mod invite;
+pub mod contacts;
 pub mod media;
 pub mod message;
 pub mod call_signaling;

@@ -10,13 +10,8 @@ class TabAwareFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (tabIndex == 1) {
-      return FloatingActionButton(
-        onPressed: () => context.push('/new-dm'),
-        tooltip: 'New Message',
-        child: const Icon(Icons.message),
-      );
-    }
+    // Only show FAB on the Chats tab — contacts tab has tap-to-DM on each row.
+    if (tabIndex != 0) return const SizedBox.shrink();
     return FloatingActionButton(
       onPressed: () => context.push('/create-group'),
       tooltip: 'Create Group',

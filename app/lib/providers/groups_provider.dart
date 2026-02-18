@@ -280,6 +280,19 @@ final visibleGroupsProvider = Provider<List<GroupInfo>>((ref) {
       .toList();
 });
 
+/// Visible groups sorted by last message time (most recent first).
+/// Combines archive filtering with chronological ordering.
+final sortedVisibleGroupsProvider = Provider<List<GroupInfo>>((ref) {
+  final visible = ref.watch(visibleGroupsProvider);
+  final sorted = List<GroupInfo>.from(visible);
+  sorted.sort((a, b) {
+    final aTime = a.lastMessageTime ?? DateTime(2000);
+    final bTime = b.lastMessageTime ?? DateTime(2000);
+    return bTime.compareTo(aTime);
+  });
+  return sorted;
+});
+
 /// Archived groups: groups explicitly archived by the user, plus inactive groups.
 final archivedGroupsProvider = Provider<List<GroupInfo>>((ref) {
   final groups = ref.watch(groupsProvider).value ?? [];
