@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:burrow_app/providers/auth_provider.dart';
-import 'package:burrow_app/providers/group_provider.dart';
-import 'package:burrow_app/providers/groups_provider.dart';
-import 'package:burrow_app/providers/relay_provider.dart';
+import 'package:burrow_app/utils/dm_utils.dart';
 
 class NewDmScreen extends ConsumerStatefulWidget {
   const NewDmScreen({super.key});
@@ -46,16 +43,6 @@ class _NewDmScreenState extends ConsumerState<NewDmScreen> {
     return null;
   }
 
-  String _shortenKey(String key) {
-    if (key.startsWith('npub1') && key.length > 20) {
-      return '${key.substring(0, 12)}...${key.substring(key.length - 6)}';
-    }
-    if (key.length > 16) {
-      return '${key.substring(0, 8)}...${key.substring(key.length - 8)}';
-    }
-    return key;
-  }
-
   Future<void> _startDm() async {
     final pubkey = _parsePubkey(_pubkeyController.text);
     if (pubkey == null) {
@@ -63,34 +50,16 @@ class _NewDmScreenState extends ConsumerState<NewDmScreen> {
       return;
     }
 
-    final auth = ref.read(authProvider).value;
-    if (auth == null) return;
-
     setState(() {
       _creating = true;
       _error = null;
     });
 
     try {
-      final relayUrls = ref.read(relayProvider.notifier).defaultRelays;
-
-      // Create a 1:1 group behind the scenes
-      final dmName = 'DM-${_shortenKey(pubkey)}';
-      final result = await ref
-          .read(groupProvider.notifier)
-          .createNewGroup(
-            name: dmName,
-            description: '__dm__', // marker for DM groups
-            adminPubkeysHex: [auth.account.pubkeyHex],
-            relayUrls: relayUrls,
-          );
-
-      // Refresh groups from Rust to pick up the new DM
-      await ref.read(groupsProvider.notifier).refresh();
+      final groupId = await findOrCreateDm(ref, pubkey);
 
       if (mounted) {
-        // Navigate to the new chat
-        context.go('/chat/${result.mlsGroupIdHex}');
+        context.go('/chat/$groupId');
       }
     } catch (e) {
       if (mounted) {
