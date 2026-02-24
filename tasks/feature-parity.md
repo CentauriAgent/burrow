@@ -12,11 +12,11 @@ Implement all missing features to reach parity with Pika, plus CLI audio call su
 - [x] 1.4 Personal profile photo upload (reuse Blossom from group avatars)
 
 ### Batch 2: Messaging UX (moderate effort)
-- [ ] 2.1 Typing indicators (ephemeral MLS app messages + UI)
-- [ ] 2.2 @Mention autocomplete (`@` trigger, member list popup, npub resolution)
+- [x] 2.1 Typing indicators (ephemeral MLS app messages + UI)
+- [x] 2.2 @Mention autocomplete (`@` trigger, member list popup, npub resolution)
 
 ### Batch 3: Rich Content (moderate effort)
-- [ ] 3.1 Polls (custom message kind, vote tracking, tally UI)
+- [x] 3.1 Polls (custom message kind, vote tracking, tally UI)
 
 ### Batch 4: Push Notifications (large effort, platform-specific)
 - [ ] 4.1 Firebase Cloud Messaging setup (Android)
@@ -36,4 +36,4 @@ Implement all missing features to reach parity with Pika, plus CLI audio call su
 - Interactive widgets (HTML): deprioritized (even Pika only has iOS)
 
 ## Status
-**Batch 1 complete** - Moving to Batch 2 (typing indicators, mentions)
+**Batches 1-3 complete** - Moving to Batch 4 (push notifications)

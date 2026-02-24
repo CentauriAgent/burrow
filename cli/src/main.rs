@@ -54,6 +54,12 @@ enum Commands {
         key_path: Option<String>,
         #[arg(short = 'd', long)]
         data_dir: Option<String>,
+        /// Attach a file (MIP-04 encrypted, uploaded to Blossom)
+        #[arg(long)]
+        media: Option<String>,
+        /// Blossom server URL for media uploads
+        #[arg(long, default_value = "https://blossom.primal.net")]
+        blossom_url: String,
     },
     /// Read stored messages
     Read {
@@ -187,8 +193,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Invite { group_id, pubkey, key_path, data_dir } => {
             commands::invite::run(group_id, pubkey, key_path, data_dir).await?;
         }
-        Commands::Send { group_id, message, key_path, data_dir } => {
-            commands::send::run(group_id, message, key_path, data_dir).await?;
+        Commands::Send { group_id, message, key_path, data_dir, media, blossom_url } => {
+            commands::send::run(group_id, message, key_path, data_dir, media, blossom_url).await?;
         }
         Commands::Read { group_id, limit, data_dir } => {
             commands::read::run(group_id, limit, data_dir).await?;
