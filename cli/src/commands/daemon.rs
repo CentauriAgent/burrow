@@ -322,6 +322,13 @@ pub async fn run(
                     match mdk.process_message(&event) {
                         Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(msg)) => {
                             let sender_hex = msg.pubkey.to_hex();
+
+                            // Skip our own messages to prevent feedback loops with
+                            // downstream consumers (e.g. OpenClaw MLS plugin)
+                            if sender_hex == keys_clone.public_key().to_hex() {
+                                return Ok(false);
+                            }
+
                             let group_hex = hex::encode(msg.mls_group_id.as_slice());
 
                             // Find nostr group id for ACL check
