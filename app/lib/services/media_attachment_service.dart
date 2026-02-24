@@ -101,7 +101,20 @@ class MediaAttachmentService {
       imetaTagsJson: [uploadResult.imetaTagValues],
     );
 
-    // 4. Publish to relays in background
+    // 4. Cache the original file locally so sent messages display instantly
+    try {
+      final cachePath = await _getCachePath();
+      final cacheFile = File(
+        '$cachePath/${uploadResult.reference.originalHashHex}_$filename',
+      );
+      if (!cacheFile.existsSync()) {
+        await cacheFile.writeAsBytes(fileData);
+      }
+    } catch (_) {
+      // Non-fatal — worst case it re-downloads from Blossom
+    }
+
+    // 5. Publish to relays in background
     unawaited(
       rust_relay
           .publishEventJson(eventJson: result.eventJson)
@@ -167,6 +180,7 @@ class MediaAttachmentService {
   }
 
   /// Download and decrypt a media attachment. Caches locally.
+  /// Returns immediately from cache for sent messages (cached during send).
   static Future<File> downloadAttachment({
     required String groupId,
     required MediaAttachment attachment,
@@ -176,10 +190,12 @@ class MediaAttachmentService {
       '$cachePath/${attachment.originalHashHex}_${attachment.filename}',
     );
 
-    // Return cached file if exists
-    if (cacheFile.existsSync()) return cacheFile;
+    // Return cached file if exists (includes files we just sent)
+    if (cacheFile.existsSync() && cacheFile.lengthSync() > 0) {
+      return cacheFile;
+    }
 
-    // Download and decrypt
+    // Download and decrypt from Blossom
     final decrypted = await rust_media.downloadMedia(
       mlsGroupIdHex: groupId,
       url: attachment.url,
@@ -190,6 +206,10 @@ class MediaAttachmentService {
       schemeVersion: attachment.schemeVersion,
       dimensions: attachment.dimensions,
     );
+
+    if (decrypted.isEmpty) {
+      throw Exception('Decrypted file is empty');
+    }
 
     await cacheFile.writeAsBytes(decrypted);
     return cacheFile;

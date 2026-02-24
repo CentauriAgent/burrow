@@ -283,13 +283,18 @@ pub async fn download_media(
     scheme_version: String,
     dimensions: Option<String>,
 ) -> Result<Vec<u8>, BurrowError> {
-    // Step 1: Fetch
-    let client = reqwest::Client::new();
+    // Step 1: Fetch (with timeout to prevent hanging)
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| BurrowError::from(format!("HTTP client error: {}", e)))?;
+
     let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| BurrowError::from(format!("Download failed: {}", e)))?;
+        .map_err(|e| BurrowError::from(format!("Download failed for {}: {}", url, e)))?;
 
     if !resp.status().is_success() {
         return Err(BurrowError::from(format!(

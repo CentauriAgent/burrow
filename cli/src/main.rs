@@ -90,6 +90,22 @@ enum Commands {
         #[arg(long)]
         no_access_control: bool,
     },
+    /// Start or answer an audio call
+    Call {
+        /// Group ID or peer npub/hex for 1:1 call
+        target: String,
+        #[arg(short = 'k', long)]
+        key_path: Option<String>,
+        #[arg(short = 'd', long)]
+        data_dir: Option<String>,
+        /// Answer an incoming call by call-id instead of initiating
+        #[arg(long)]
+        answer: Option<String>,
+        /// Pipe raw PCM audio to/from files instead of system audio
+        /// (format: input_path:output_path, e.g. /tmp/mic.pcm:/tmp/speaker.pcm)
+        #[arg(long)]
+        pipe: Option<String>,
+    },
     /// Manage NIP-59 welcome invitations
     #[command(subcommand)]
     Welcome(WelcomeCommands),

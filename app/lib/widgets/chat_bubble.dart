@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -652,22 +653,38 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
       return;
     }
     try {
-      final file = await MediaAttachmentService.downloadAttachment(
-        groupId: widget.groupId!,
-        attachment: widget.attachment,
-      );
-      await _player.setFilePath(file.path);
-      if (mounted)
+      final file =
+          await MediaAttachmentService.downloadAttachment(
+            groupId: widget.groupId!,
+            attachment: widget.attachment,
+          ).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw TimeoutException('Download timed out'),
+          );
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        throw Exception('Downloaded file is empty or missing');
+      }
+      try {
+        await _player.setFilePath(file.path);
+      } catch (playerError) {
+        // Fallback: try setting as a file URI (some platforms need this)
+        await _player.setUrl('file://${file.path}');
+      }
+      if (mounted) {
         setState(() {
           _file = file;
           _loading = false;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
-          _error = 'Failed to load audio';
+          _error = e.toString().length > 60
+              ? 'Failed to load audio'
+              : 'Audio: $e';
           _loading = false;
         });
+      }
     }
   }
 
