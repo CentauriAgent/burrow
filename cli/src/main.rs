@@ -90,9 +90,9 @@ enum Commands {
         #[arg(long)]
         no_access_control: bool,
     },
-    /// Start or answer an audio call
+    /// Start or answer a 1:1 audio call
     Call {
-        /// Group ID or peer npub/hex for 1:1 call
+        /// Peer npub or hex pubkey for 1:1 call
         target: String,
         #[arg(short = 'k', long)]
         key_path: Option<String>,
@@ -220,6 +220,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Daemon { key_path, data_dir, log_file, reconnect_delay, no_access_control } => {
             commands::daemon::run(key_path, data_dir, log_file, reconnect_delay, no_access_control).await?;
+        }
+        Commands::Call { target, key_path, data_dir, answer, pipe } => {
+            commands::call::run(target, key_path, data_dir, answer, pipe).await?;
         }
         Commands::Welcome(sub) => match sub {
             WelcomeCommands::List { key_path, data_dir } => {

@@ -33,7 +33,7 @@ CLI Agent                          Flutter App
 - 60s TTL via expiration tag
 
 ## Phases
-- [ ] Phase 1: CLI call command scaffold + signaling (Nostr events)
+- [x] Phase 1: CLI call command scaffold + signaling (Nostr events)
 - [ ] Phase 2: GStreamer WebRTC integration (webrtcbin)
 - [ ] Phase 3: Audio I/O (PulseAudio/pipewire + file pipe for agent)
 - [ ] Phase 4: End-to-end test with Flutter app
@@ -50,4 +50,4 @@ CLI Agent                          Flutter App
 - PulseAudio or PipeWire for mic/speaker (or filesrc/filesink for agent mode)
 
 ## Status
-**Starting Phase 1** - CLI command scaffold + signaling
+**Phase 1 complete** - Moving to Phase 2 (GStreamer WebRTC)

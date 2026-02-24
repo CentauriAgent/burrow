@@ -7,3 +7,4 @@ pub mod listen;
 pub mod daemon;
 pub mod acl;
 pub mod welcome;
+pub mod call;
