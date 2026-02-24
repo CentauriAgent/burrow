@@ -10,6 +10,13 @@ import 'package:burrow_app/src/rust/api/invite.dart' as rust_invite;
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 import 'package:burrow_app/src/rust/api/relay.dart' as rust_relay;
 
+/// A vote on a poll.
+class PollVote {
+  final String voterPubkeyHex;
+  final int optionIndex;
+  const PollVote({required this.voterPubkeyHex, required this.optionIndex});
+}
+
 /// A reaction to a message: emoji + who sent it.
 class Reaction {
   final String emoji;
@@ -42,6 +49,9 @@ class MessagesNotifier extends ChangeNotifier {
 
   /// Reactions indexed by target event ID.
   Map<String, List<Reaction>> reactions = {};
+
+  /// Poll votes indexed by poll event ID.
+  Map<String, List<PollVote>> pollVotes = {};
 
   /// Currently typing users (auto-expires after 5 seconds).
   final Map<String, TypingState> _typingUsers = {};
@@ -83,6 +93,7 @@ class MessagesNotifier extends ChangeNotifier {
   void _categorize(List<rust_message.GroupMessage> all) {
     final msgs = <rust_message.GroupMessage>[];
     final rxns = <String, List<Reaction>>{};
+    final votes = <String, List<PollVote>>{};
 
     for (final m in all) {
       if (m.kind == BigInt.from(7)) {
@@ -98,6 +109,19 @@ class MessagesNotifier extends ChangeNotifier {
             ),
           );
         }
+      } else if (m.kind == BigInt.from(1018)) {
+        // Kind 1018 = poll vote
+        final pollId = _extractETag(m.tags);
+        final optionIndex = int.tryParse(m.content);
+        if (pollId != null && optionIndex != null) {
+          votes.putIfAbsent(pollId, () => []);
+          votes[pollId]!.add(
+            PollVote(
+              voterPubkeyHex: m.authorPubkeyHex,
+              optionIndex: optionIndex,
+            ),
+          );
+        }
       } else {
         msgs.add(m);
       }
@@ -105,6 +129,7 @@ class MessagesNotifier extends ChangeNotifier {
 
     messages = msgs;
     reactions = rxns;
+    pollVotes = votes;
   }
 
   String? _extractETag(List<List<String>> tags) {
@@ -131,6 +156,23 @@ class MessagesNotifier extends ChangeNotifier {
       );
       _startTypingCleanup();
       notifyListeners();
+      return;
+    }
+
+    // Kind 1018 = poll vote (ephemeral tally, not displayed as message)
+    if (message.kind == BigInt.from(1018)) {
+      final pollId = _extractETag(message.tags);
+      final optionIndex = int.tryParse(message.content);
+      if (pollId != null && optionIndex != null) {
+        pollVotes.putIfAbsent(pollId, () => []);
+        pollVotes[pollId]!.add(
+          PollVote(
+            voterPubkeyHex: message.authorPubkeyHex,
+            optionIndex: optionIndex,
+          ),
+        );
+        notifyListeners();
+      }
       return;
     }
 
@@ -219,6 +261,41 @@ class MessagesNotifier extends ChangeNotifier {
     addIncomingMessage(result.message);
 
     // Publish to relays in the background
+    unawaited(
+      rust_relay
+          .publishEventJson(eventJson: result.eventJson)
+          .catchError((_) => ''),
+    );
+  }
+
+  /// Get votes for a specific poll event ID.
+  List<PollVote> votesFor(String pollEventIdHex) {
+    return pollVotes[pollEventIdHex] ?? [];
+  }
+
+  /// Send a poll to the group.
+  Future<void> sendPoll(String question, List<String> options) async {
+    final result = await rust_message.sendPoll(
+      mlsGroupIdHex: groupId,
+      question: question,
+      options: options,
+    );
+    addIncomingMessage(result.message);
+    unawaited(
+      rust_relay
+          .publishEventJson(eventJson: result.eventJson)
+          .catchError((_) => ''),
+    );
+  }
+
+  /// Vote on a poll.
+  Future<void> sendPollVote(String pollEventIdHex, int optionIndex) async {
+    final result = await rust_message.sendPollVote(
+      mlsGroupIdHex: groupId,
+      pollEventIdHex: pollEventIdHex,
+      optionIndex: optionIndex,
+    );
+    addIncomingMessage(result.message);
     unawaited(
       rust_relay
           .publishEventJson(eventJson: result.eventJson)

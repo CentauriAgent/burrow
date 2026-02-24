@@ -351,26 +351,38 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                     50,
                                   )
                                 : null,
-                            child: ChatBubble(
-                              content: msg.content,
-                              timestamp: DateTime.fromMillisecondsSinceEpoch(
-                                msg.createdAt.toInt() * 1000,
-                              ),
-                              isSent: isSent,
-                              senderName: senderName,
-                              showSenderName: showNameForThis,
-                              attachments: attachments,
-                              groupId: widget.groupId,
-                              reactions: msgReactions,
-                              selfPubkey: selfPubkey,
-                              onReact: (emoji) {
-                                ref
-                                    .read(
-                                      messagesProvider(widget.groupId).notifier,
-                                    )
-                                    .sendReaction(msg.eventIdHex, emoji);
-                              },
-                            ),
+                            child: msg.kind == BigInt.from(1068)
+                                ? _buildPollBubble(
+                                    theme,
+                                    msg,
+                                    isSent,
+                                    senderName,
+                                    showNameForThis,
+                                    messagesNotifier,
+                                  )
+                                : ChatBubble(
+                                    content: msg.content,
+                                    timestamp:
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                          msg.createdAt.toInt() * 1000,
+                                        ),
+                                    isSent: isSent,
+                                    senderName: senderName,
+                                    showSenderName: showNameForThis,
+                                    attachments: attachments,
+                                    groupId: widget.groupId,
+                                    reactions: msgReactions,
+                                    selfPubkey: selfPubkey,
+                                    onReact: (emoji) {
+                                      ref
+                                          .read(
+                                            messagesProvider(
+                                              widget.groupId,
+                                            ).notifier,
+                                          )
+                                          .sendReaction(msg.eventIdHex, emoji);
+                                    },
+                                  ),
                           );
                         },
                       );
@@ -654,6 +666,240 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     setState(() => _showMentions = false);
   }
 
+  Widget _buildPollBubble(
+    ThemeData theme,
+    rust_message.GroupMessage msg,
+    bool isSent,
+    String senderName,
+    bool showSenderName,
+    MessagesNotifier notifier,
+  ) {
+    final bubbleColor = isSent
+        ? theme.colorScheme.primary
+        : theme.colorScheme.surfaceContainerHighest;
+    final textColor = isSent
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final selfPubkey = ref.read(authProvider).value?.account.pubkeyHex ?? '';
+
+    // Parse poll options from tags
+    final options = <String>[];
+    for (final tag in msg.tags) {
+      if (tag.length >= 3 && tag[0] == 'poll_option') {
+        options.add(tag[2]);
+      }
+    }
+
+    final votes = notifier.votesFor(msg.eventIdHex);
+    final myVote = votes
+        .where((v) => v.voterPubkeyHex == selfPubkey)
+        .firstOrNull;
+    final totalVotes = votes.length;
+
+    return Align(
+      alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: isSent ? 64 : 12,
+          right: isSent ? 12 : 64,
+          top: 2,
+          bottom: 2,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showSenderName)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    senderName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: textColor.withAlpha(180),
+                    ),
+                  ),
+                ),
+              Row(
+                children: [
+                  Icon(Icons.poll, size: 18, color: textColor.withAlpha(180)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Poll',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: textColor.withAlpha(150),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                msg.content,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...options.asMap().entries.map((entry) {
+                final i = entry.key;
+                final option = entry.value;
+                final optionVotes = votes
+                    .where((v) => v.optionIndex == i)
+                    .length;
+                final pct = totalVotes > 0 ? optionVotes / totalVotes : 0.0;
+                final isMyVote = myVote?.optionIndex == i;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: InkWell(
+                    onTap: myVote == null
+                        ? () => ref
+                              .read(messagesProvider(widget.groupId).notifier)
+                              .sendPollVote(msg.eventIdHex, i)
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isMyVote ? textColor : textColor.withAlpha(60),
+                          width: isMyVote ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              option,
+                              style: TextStyle(color: textColor, fontSize: 14),
+                            ),
+                          ),
+                          if (myVote != null)
+                            Text(
+                              '${(pct * 100).round()}%',
+                              style: TextStyle(
+                                color: textColor.withAlpha(150),
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              if (totalVotes > 0)
+                Text(
+                  '$totalVotes vote${totalVotes == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: textColor.withAlpha(120),
+                    fontSize: 11,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreatePollDialog() {
+    final questionController = TextEditingController();
+    final optionControllers = [
+      TextEditingController(),
+      TextEditingController(),
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Create Poll'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: questionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Question',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...optionControllers.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TextField(
+                      controller: entry.value,
+                      decoration: InputDecoration(
+                        labelText: 'Option ${entry.key + 1}',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: optionControllers.length > 2
+                            ? IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () => setDialogState(
+                                  () => optionControllers.removeAt(entry.key),
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => setDialogState(
+                    () => optionControllers.add(TextEditingController()),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add option'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final question = questionController.text.trim();
+                final options = optionControllers
+                    .map((c) => c.text.trim())
+                    .where((o) => o.isNotEmpty)
+                    .toList();
+                if (question.isEmpty || options.length < 2) return;
+                Navigator.pop(ctx);
+                ref
+                    .read(messagesProvider(widget.groupId).notifier)
+                    .sendPoll(question, options);
+              },
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMentionSuggestions(ThemeData theme) {
     if (!_showMentions || _mentionCandidates.isEmpty) {
       return const SizedBox.shrink();
@@ -776,6 +1022,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 icon: Icons.gif_box_outlined,
                 label: 'GIF',
                 value: 'gif',
+                theme: theme,
+              ),
+              _attachmentMenuItem(
+                icon: Icons.poll_outlined,
+                label: 'Poll',
+                value: 'poll',
                 theme: theme,
               ),
               const PopupMenuDivider(),
@@ -974,6 +1226,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         await _sendVideo();
       case 'file':
         await _sendFile();
+      case 'poll':
+        _showCreatePollDialog();
       default:
         ScaffoldMessenger.of(
           context,

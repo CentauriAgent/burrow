@@ -310,6 +310,111 @@ pub async fn send_typing_indicator(
     .await
 }
 
+/// Kind used for poll messages.
+const POLL_KIND: u16 = 1068;
+/// Kind used for poll vote responses.
+const POLL_VOTE_KIND: u16 = 1018;
+
+/// Send a poll to a group.
+///
+/// Creates a kind 1068 MLS app message with the question as content
+/// and poll options as `poll_option` tags: `["poll_option", "0", "Option text"]`.
+#[frb]
+pub async fn send_poll(
+    mls_group_id_hex: String,
+    question: String,
+    options: Vec<String>,
+) -> Result<SendMessageResult, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let mut builder = EventBuilder::new(Kind::Custom(POLL_KIND), &question);
+        for (i, option) in options.iter().enumerate() {
+            builder = builder.tag(
+                Tag::parse(["poll_option".to_string(), i.to_string(), option.clone()])
+                    .map_err(|e| BurrowError::from(e.to_string()))?,
+            );
+        }
+
+        let rumor = builder.build(s.keys.public_key());
+        let rumor_id = rumor.id
+            .ok_or_else(|| BurrowError::from("Rumor event ID not set".to_string()))?;
+
+        let event = s.mdk.create_message(&group_id, rumor).map_err(BurrowError::from)?;
+        let event_json = serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let msg = s.mdk.get_message(&group_id, &rumor_id).map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Sent poll not found".to_string()))?;
+
+        Ok(SendMessageResult {
+            event_json,
+            message: GroupMessage {
+                event_id_hex: msg.id.to_hex(),
+                author_pubkey_hex: msg.pubkey.to_hex(),
+                content: msg.content.clone(),
+                created_at: msg.created_at.as_secs(),
+                mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
+                kind: msg.kind.as_u16() as u64,
+                tags: msg.tags.iter().map(|t| t.as_slice().to_vec()).collect(),
+                wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+                epoch: msg.epoch.unwrap_or(0),
+            },
+        })
+    })
+    .await
+}
+
+/// Send a vote on a poll.
+///
+/// Creates a kind 1018 MLS app message with the selected option index as content
+/// and an `e` tag referencing the poll event ID.
+#[frb]
+pub async fn send_poll_vote(
+    mls_group_id_hex: String,
+    poll_event_id_hex: String,
+    option_index: u32,
+) -> Result<SendMessageResult, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let poll_id = EventId::from_hex(&poll_event_id_hex)
+            .map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let rumor = EventBuilder::new(Kind::Custom(POLL_VOTE_KIND), &option_index.to_string())
+            .tag(Tag::event(poll_id))
+            .build(s.keys.public_key());
+
+        let rumor_id = rumor.id
+            .ok_or_else(|| BurrowError::from("Rumor event ID not set".to_string()))?;
+
+        let event = s.mdk.create_message(&group_id, rumor).map_err(BurrowError::from)?;
+        let event_json = serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))?;
+
+        let msg = s.mdk.get_message(&group_id, &rumor_id).map_err(BurrowError::from)?
+            .ok_or_else(|| BurrowError::from("Sent vote not found".to_string()))?;
+
+        Ok(SendMessageResult {
+            event_json,
+            message: GroupMessage {
+                event_id_hex: msg.id.to_hex(),
+                author_pubkey_hex: msg.pubkey.to_hex(),
+                content: msg.content.clone(),
+                created_at: msg.created_at.as_secs(),
+                mls_group_id_hex: hex::encode(msg.mls_group_id.as_slice()),
+                kind: msg.kind.as_u16() as u64,
+                tags: msg.tags.iter().map(|t| t.as_slice().to_vec()).collect(),
+                wrapper_event_id_hex: msg.wrapper_event_id.to_hex(),
+                epoch: msg.epoch.unwrap_or(0),
+            },
+        })
+    })
+    .await
+}
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

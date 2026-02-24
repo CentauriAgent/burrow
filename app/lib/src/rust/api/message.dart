@@ -66,6 +66,34 @@ Future<String> sendTypingIndicator({required String mlsGroupIdHex}) => RustLib
     .api
     .crateApiMessageSendTypingIndicator(mlsGroupIdHex: mlsGroupIdHex);
 
+/// Send a poll to a group.
+///
+/// Creates a kind 1068 MLS app message with the question as content
+/// and poll options as `poll_option` tags: `["poll_option", "0", "Option text"]`.
+Future<SendMessageResult> sendPoll({
+  required String mlsGroupIdHex,
+  required String question,
+  required List<String> options,
+}) => RustLib.instance.api.crateApiMessageSendPoll(
+  mlsGroupIdHex: mlsGroupIdHex,
+  question: question,
+  options: options,
+);
+
+/// Send a vote on a poll.
+///
+/// Creates a kind 1018 MLS app message with the selected option index as content
+/// and an `e` tag referencing the poll event ID.
+Future<SendMessageResult> sendPollVote({
+  required String mlsGroupIdHex,
+  required String pollEventIdHex,
+  required int optionIndex,
+}) => RustLib.instance.api.crateApiMessageSendPollVote(
+  mlsGroupIdHex: mlsGroupIdHex,
+  pollEventIdHex: pollEventIdHex,
+  optionIndex: optionIndex,
+);
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1240668188;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 662584846;
 
 // Section: executor
 
@@ -4805,6 +4805,92 @@ fn wire__crate__api__message__send_message_with_media_impl(
         },
     )
 }
+fn wire__crate__api__message__send_poll_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "send_poll",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_mls_group_id_hex = <String>::sse_decode(&mut deserializer);
+            let api_question = <String>::sse_decode(&mut deserializer);
+            let api_options = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::BurrowError>(
+                    (move || async move {
+                        let output_ok = crate::api::message::send_poll(
+                            api_mls_group_id_hex,
+                            api_question,
+                            api_options,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__message__send_poll_vote_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "send_poll_vote",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_mls_group_id_hex = <String>::sse_decode(&mut deserializer);
+            let api_poll_event_id_hex = <String>::sse_decode(&mut deserializer);
+            let api_option_index = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::BurrowError>(
+                    (move || async move {
+                        let output_ok = crate::api::message::send_poll_vote(
+                            api_mls_group_id_hex,
+                            api_poll_event_id_hex,
+                            api_option_index,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__message__send_reaction_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7536,83 +7622,85 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        128 => wire__crate__api__message__send_reaction_impl(port, ptr, rust_vec_len, data_len),
-        129 => {
+        128 => wire__crate__api__message__send_poll_impl(port, ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__message__send_poll_vote_impl(port, ptr, rust_vec_len, data_len),
+        130 => wire__crate__api__message__send_reaction_impl(port, ptr, rust_vec_len, data_len),
+        131 => {
             wire__crate__api__message__send_typing_indicator_impl(port, ptr, rust_vec_len, data_len)
         }
-        130 => wire__crate__api__state__set_data_dir_impl(port, ptr, rust_vec_len, data_len),
-        131 => wire__crate__api__app_state__set_group_state_impl(port, ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__call_session__set_muted_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__identity__set_profile_impl(port, ptr, rust_vec_len, data_len),
-        134 => wire__crate__api__call_session__set_video_enabled_impl(
+        132 => wire__crate__api__state__set_data_dir_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__app_state__set_group_state_impl(port, ptr, rust_vec_len, data_len),
+        134 => wire__crate__api__call_session__set_muted_impl(port, ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__identity__set_profile_impl(port, ptr, rust_vec_len, data_len),
+        136 => wire__crate__api__call_session__set_video_enabled_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => {
+        137 => {
             wire__crate__api__call_webrtc__should_use_sfu_impl(port, ptr, rust_vec_len, data_len)
         }
-        136 => wire__crate__api__transcription__start_transcription_impl(
+        138 => wire__crate__api__transcription__start_transcription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__transcription__stop_transcription_impl(
+        139 => wire__crate__api__transcription__stop_transcription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => wire__crate__api__call_signaling__subscribe_call_events_impl(
+        140 => wire__crate__api__call_signaling__subscribe_call_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__crate__api__contacts__sync_contacts_impl(port, ptr, rust_vec_len, data_len),
-        140 => {
+        141 => wire__crate__api__contacts__sync_contacts_impl(port, ptr, rust_vec_len, data_len),
+        142 => {
             wire__crate__api__message__sync_group_messages_impl(port, ptr, rust_vec_len, data_len)
         }
-        141 => wire__crate__api__invite__sync_welcomes_impl(port, ptr, rust_vec_len, data_len),
-        142 => wire__crate__api__meeting_intelligence__toggle_action_item_impl(
+        143 => wire__crate__api__invite__sync_welcomes_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__meeting_intelligence__toggle_action_item_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__transcription__transcription_config_default_impl(
+        145 => wire__crate__api__transcription__transcription_config_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__crate__api__app_state__unarchive_group_impl(port, ptr, rust_vec_len, data_len),
-        145 => wire__crate__api__contacts__unfollow_contact_impl(port, ptr, rust_vec_len, data_len),
-        146 => wire__crate__api__group__update_group_description_impl(
+        146 => wire__crate__api__app_state__unarchive_group_impl(port, ptr, rust_vec_len, data_len),
+        147 => wire__crate__api__contacts__unfollow_contact_impl(port, ptr, rust_vec_len, data_len),
+        148 => wire__crate__api__group__update_group_description_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__crate__api__group__update_group_name_impl(port, ptr, rust_vec_len, data_len),
-        148 => wire__crate__api__group__update_group_relays_impl(port, ptr, rust_vec_len, data_len),
-        149 => {
+        149 => wire__crate__api__group__update_group_name_impl(port, ptr, rust_vec_len, data_len),
+        150 => wire__crate__api__group__update_group_relays_impl(port, ptr, rust_vec_len, data_len),
+        151 => {
             wire__crate__api__call_webrtc__update_peer_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        150 => wire__crate__api__call_session__update_session_state_impl(
+        152 => wire__crate__api__call_session__update_session_state_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__crate__api__group__upload_group_image_impl(port, ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__media__upload_media_impl(port, ptr, rust_vec_len, data_len),
-        153 => {
+        153 => wire__crate__api__group__upload_group_image_impl(port, ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__media__upload_media_impl(port, ptr, rust_vec_len, data_len),
+        155 => {
             wire__crate__api__identity__upload_profile_photo_impl(port, ptr, rust_vec_len, data_len)
         }
-        154 => {
+        156 => {
             wire__crate__api__relay__verify_event_published_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
