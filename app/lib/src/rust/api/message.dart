@@ -56,6 +56,16 @@ Future<SendMessageResult> sendReaction({
   emoji: emoji,
 );
 
+/// Send a typing indicator to a group.
+///
+/// Creates a kind 10000 (ephemeral) MLS app message that signals the user is
+/// typing. These are not stored by MDK — recipients surface them as transient
+/// UI state that auto-expires after a few seconds.
+Future<String> sendTypingIndicator({required String mlsGroupIdHex}) => RustLib
+    .instance
+    .api
+    .crateApiMessageSendTypingIndicator(mlsGroupIdHex: mlsGroupIdHex);
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts

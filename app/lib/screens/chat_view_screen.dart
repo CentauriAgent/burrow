@@ -23,6 +23,7 @@ import 'package:burrow_app/widgets/chat_bubble.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/error.dart';
+import 'package:burrow_app/src/rust/api/group.dart' as rust_group;
 import 'package:burrow_app/src/rust/api/message.dart' as rust_message;
 
 class ChatViewScreen extends ConsumerStatefulWidget {
@@ -53,6 +54,11 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   Timer? _recordingTimer;
   int _recordingSeconds = 0;
+
+  // @mention autocomplete state
+  bool _showMentions = false;
+  String _mentionQuery = '';
+  List<rust_group.MemberInfo> _mentionCandidates = [];
 
   @override
   void initState() {
@@ -229,13 +235,17 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                 child: ListTile(
                   dense: true,
                   leading: Icon(
-                    (ref.read(muteProvider).value ?? {}).contains(widget.groupId)
+                    (ref.read(muteProvider).value ?? {}).contains(
+                          widget.groupId,
+                        )
                         ? Icons.notifications_active_outlined
                         : Icons.notifications_off_outlined,
                     size: 20,
                   ),
                   title: Text(
-                    (ref.read(muteProvider).value ?? {}).contains(widget.groupId)
+                    (ref.read(muteProvider).value ?? {}).contains(
+                          widget.groupId,
+                        )
                         ? 'Unmute notifications'
                         : 'Mute notifications',
                   ),
@@ -316,48 +326,51 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                           final msgReactions = messagesNotifier.reactionsFor(
                             msg.eventIdHex,
                           );
-                          final isSearchMatch = _isSearching &&
+                          final isSearchMatch =
+                              _isSearching &&
                               _searchQuery.isNotEmpty &&
-                              msg.content
-                                  .toLowerCase()
-                                  .contains(_searchQuery.toLowerCase());
-                          final isCurrentMatch = isSearchMatch &&
+                              msg.content.toLowerCase().contains(
+                                _searchQuery.toLowerCase(),
+                              );
+                          final isCurrentMatch =
+                              isSearchMatch &&
                               _currentMatchIndex >= 0 &&
                               _currentMatchIndex < _searchMatchIndices.length &&
                               _searchMatchIndices[_currentMatchIndex] == index;
                           // Assign a GlobalKey so search can scroll
                           // accurately to variable-height items.
-                          _messageKeys.putIfAbsent(
-                              index, () => GlobalKey());
+                          _messageKeys.putIfAbsent(index, () => GlobalKey());
                           return Container(
                             key: _messageKeys[index],
                             color: isCurrentMatch
-                                ? theme.colorScheme.tertiaryContainer
-                                    .withAlpha(120)
-                                : isSearchMatch
-                                    ? theme.colorScheme.tertiaryContainer
-                                        .withAlpha(50)
-                                    : null,
-                            child: ChatBubble(
-                            content: msg.content,
-                            timestamp: DateTime.fromMillisecondsSinceEpoch(
-                              msg.createdAt.toInt() * 1000,
-                            ),
-                            isSent: isSent,
-                            senderName: senderName,
-                            showSenderName: showNameForThis,
-                            attachments: attachments,
-                            groupId: widget.groupId,
-                            reactions: msgReactions,
-                            selfPubkey: selfPubkey,
-                            onReact: (emoji) {
-                              ref
-                                  .read(
-                                    messagesProvider(widget.groupId).notifier,
+                                ? theme.colorScheme.tertiaryContainer.withAlpha(
+                                    120,
                                   )
-                                  .sendReaction(msg.eventIdHex, emoji);
-                            },
-                          ),
+                                : isSearchMatch
+                                ? theme.colorScheme.tertiaryContainer.withAlpha(
+                                    50,
+                                  )
+                                : null,
+                            child: ChatBubble(
+                              content: msg.content,
+                              timestamp: DateTime.fromMillisecondsSinceEpoch(
+                                msg.createdAt.toInt() * 1000,
+                              ),
+                              isSent: isSent,
+                              senderName: senderName,
+                              showSenderName: showNameForThis,
+                              attachments: attachments,
+                              groupId: widget.groupId,
+                              reactions: msgReactions,
+                              selfPubkey: selfPubkey,
+                              onReact: (emoji) {
+                                ref
+                                    .read(
+                                      messagesProvider(widget.groupId).notifier,
+                                    )
+                                    .sendReaction(msg.eventIdHex, emoji);
+                              },
+                            ),
                           );
                         },
                       );
@@ -387,6 +400,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
               ],
             ),
           ),
+
+          // @mention suggestions
+          _buildMentionSuggestions(theme),
+
+          // Typing indicator
+          _buildTypingIndicator(theme, messagesNotifier),
 
           // Input bar
           _buildInputBar(theme),
@@ -418,8 +437,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
               decoration: InputDecoration(
                 hintText: 'Search in chat...',
                 border: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 isDense: true,
                 suffixText: _searchMatchIndices.isNotEmpty
                     ? '${_currentMatchIndex + 1}/${_searchMatchIndices.length}'
@@ -502,15 +523,18 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   ) {
     if (_searchMatchIndices.isEmpty) return;
     setState(() {
-      _currentMatchIndex =
-          (_currentMatchIndex + delta).clamp(0, _searchMatchIndices.length - 1);
+      _currentMatchIndex = (_currentMatchIndex + delta).clamp(
+        0,
+        _searchMatchIndices.length - 1,
+      );
     });
     _scrollToMatch(messages);
   }
 
   void _scrollToMatch(List<rust_message.GroupMessage> messages) {
     if (_currentMatchIndex < 0 ||
-        _currentMatchIndex >= _searchMatchIndices.length) return;
+        _currentMatchIndex >= _searchMatchIndices.length)
+      return;
     final targetIndex = _searchMatchIndices[_currentMatchIndex];
     // Use Scrollable.ensureVisible with the message's GlobalKey for accurate
     // positioning regardless of variable-height message bubbles.
@@ -555,6 +579,146 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _checkForMention(String text) {
+    final cursor = _messageController.selection.baseOffset;
+    if (cursor <= 0) {
+      setState(() => _showMentions = false);
+      return;
+    }
+
+    // Find the last '@' before the cursor
+    final beforeCursor = text.substring(0, cursor);
+    final atIndex = beforeCursor.lastIndexOf('@');
+    if (atIndex < 0 ||
+        (atIndex > 0 &&
+            beforeCursor[atIndex - 1] != ' ' &&
+            beforeCursor[atIndex - 1] != '\n')) {
+      setState(() => _showMentions = false);
+      return;
+    }
+
+    final query = beforeCursor.substring(atIndex + 1).toLowerCase();
+    // Don't show if there's a space in the query (mention is complete)
+    if (query.contains(' ')) {
+      setState(() => _showMentions = false);
+      return;
+    }
+
+    setState(() {
+      _showMentions = true;
+      _mentionQuery = query;
+    });
+    _loadMentionCandidates();
+  }
+
+  Future<void> _loadMentionCandidates() async {
+    final query = _mentionQuery;
+    try {
+      final members = await rust_group.getGroupMembers(
+        mlsGroupIdHex: widget.groupId,
+      );
+      final selfPubkey = ref.read(authProvider).value?.account.pubkeyHex;
+      setState(() {
+        _mentionCandidates = members
+            .where((m) => m.pubkeyHex != selfPubkey)
+            .where((m) {
+              if (query.isEmpty) return true;
+              final name = (m.displayName ?? m.pubkeyHex).toLowerCase();
+              return name.contains(query);
+            })
+            .toList();
+      });
+    } catch (_) {}
+  }
+
+  void _insertMention(rust_group.MemberInfo member) {
+    final text = _messageController.text;
+    final cursor = _messageController.selection.baseOffset;
+    final beforeCursor = text.substring(0, cursor);
+    final atIndex = beforeCursor.lastIndexOf('@');
+    if (atIndex < 0) return;
+
+    final name = member.displayName ?? member.pubkeyHex.substring(0, 12);
+    final replacement = '@$name ';
+    final newText =
+        text.substring(0, atIndex) + replacement + text.substring(cursor);
+    _messageController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: atIndex + replacement.length),
+    );
+    setState(() => _showMentions = false);
+  }
+
+  Widget _buildMentionSuggestions(ThemeData theme) {
+    if (!_showMentions || _mentionCandidates.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 180),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
+        ),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _mentionCandidates.length,
+        itemBuilder: (context, index) {
+          final member = _mentionCandidates[index];
+          return ListTile(
+            dense: true,
+            leading: CircleAvatar(
+              radius: 14,
+              backgroundImage: member.picture != null
+                  ? NetworkImage(member.picture!)
+                  : null,
+              child: member.picture == null
+                  ? const Icon(Icons.person, size: 16)
+                  : null,
+            ),
+            title: Text(
+              member.displayName ?? member.pubkeyHex.substring(0, 16),
+              style: const TextStyle(fontSize: 14),
+            ),
+            onTap: () => _insertMention(member),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator(ThemeData theme, MessagesNotifier notifier) {
+    final typing = notifier.typingPubkeys;
+    if (typing.isEmpty) return const SizedBox.shrink();
+
+    final names = typing.map((pk) {
+      final profile = ref.watch(memberProfileProvider(pk));
+      return profile.value?.displayName ??
+          profile.value?.name ??
+          '${pk.substring(0, 8)}...';
+    }).toList();
+
+    final text = names.length == 1
+        ? '${names[0]} is typing...'
+        : '${names.join(', ')} are typing...';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontStyle: FontStyle.italic,
+          color: theme.colorScheme.onSurface.withAlpha(120),
         ),
       ),
     );
@@ -628,7 +792,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           Expanded(
             child: _isRecording
                 ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.withAlpha(25),
                       borderRadius: BorderRadius.circular(24),
@@ -639,7 +806,10 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'Recording... ${_formatDuration(_recordingSeconds)}',
-                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -673,7 +843,13 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                             vertical: 10,
                           ),
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (text) {
+                          setState(() {});
+                          ref
+                              .read(messagesProvider(widget.groupId).notifier)
+                              .onTyping();
+                          _checkForMention(text);
+                        },
                       ),
                     ),
                   ),
@@ -702,40 +878,46 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                     onPressed: _isSending ? null : _sendMessage,
                   )
                 : _isRecording
-                    ? Row(
-                        key: const ValueKey('recording'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: _cancelRecording,
-                            tooltip: 'Cancel recording',
-                          ),
-                          Text(
-                            _formatDuration(_recordingSeconds),
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: Icon(Icons.send, color: theme.colorScheme.primary),
-                            onPressed: _isSending ? null : _stopAndSendVoiceMessage,
-                            tooltip: 'Send voice message',
-                          ),
-                        ],
-                      )
-                    : IconButton(
-                        key: const ValueKey('voice'),
-                        icon: Icon(
-                          Icons.mic,
-                          color: theme.colorScheme.onSurface.withAlpha(150),
+                ? Row(
+                    key: const ValueKey('recording'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
                         ),
-                        onPressed: _onVoiceMessage,
-                        tooltip: 'Voice message',
+                        onPressed: _cancelRecording,
+                        tooltip: 'Cancel recording',
                       ),
+                      Text(
+                        _formatDuration(_recordingSeconds),
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(
+                          Icons.send,
+                          color: theme.colorScheme.primary,
+                        ),
+                        onPressed: _isSending ? null : _stopAndSendVoiceMessage,
+                        tooltip: 'Send voice message',
+                      ),
+                    ],
+                  )
+                : IconButton(
+                    key: const ValueKey('voice'),
+                    icon: Icon(
+                      Icons.mic,
+                      color: theme.colorScheme.onSurface.withAlpha(150),
+                    ),
+                    onPressed: _onVoiceMessage,
+                    tooltip: 'Voice message',
+                  ),
           ),
         ],
       ),
@@ -887,7 +1069,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
 
     // Start recording
     final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final path =
+        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _audioRecorder.start(
       const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
       path: path,
@@ -931,7 +1114,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send voice message: ${_mediaError(e)}')),
+          SnackBar(
+            content: Text('Failed to send voice message: ${_mediaError(e)}'),
+          ),
         );
       }
     } finally {
@@ -985,9 +1170,9 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         ref.read(muteProvider.notifier).toggle(groupId);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(wasMuted
-                ? 'Notifications unmuted'
-                : 'Notifications muted'),
+            content: Text(
+              wasMuted ? 'Notifications unmuted' : 'Notifications muted',
+            ),
           ),
         );
       case 'archive':

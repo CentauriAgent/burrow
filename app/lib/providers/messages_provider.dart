@@ -23,6 +23,16 @@ class Reaction {
   });
 }
 
+/// Tracks who is currently typing in a group.
+class TypingState {
+  final String pubkeyHex;
+  final DateTime expiresAt;
+
+  TypingState({required this.pubkeyHex, required this.expiresAt});
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+}
+
 /// Manages messages for a single group. Loads history from MDK on creation
 /// and accepts real-time messages from the global [messageListenerProvider].
 /// Separates kind 7 reactions from kind 1 text messages.
@@ -33,8 +43,23 @@ class MessagesNotifier extends ChangeNotifier {
   /// Reactions indexed by target event ID.
   Map<String, List<Reaction>> reactions = {};
 
+  /// Currently typing users (auto-expires after 5 seconds).
+  final Map<String, TypingState> _typingUsers = {};
+
+  /// Timer to clean up expired typing indicators.
+  Timer? _typingCleanupTimer;
+
+  /// Debounce timer for sending our own typing indicator.
+  Timer? _typingDebounce;
+
   bool _loading = false;
   bool get loading => _loading;
+
+  /// Get list of pubkeys currently typing (excludes expired).
+  List<String> get typingPubkeys {
+    _typingUsers.removeWhere((_, v) => v.isExpired);
+    return _typingUsers.keys.toList();
+  }
 
   MessagesNotifier(this.groupId) {
     _loadHistory();
@@ -98,6 +123,17 @@ class MessagesNotifier extends ChangeNotifier {
 
   /// Add a real-time message from the relay listener stream.
   void addIncomingMessage(rust_message.GroupMessage message) {
+    // Kind 10000 = typing indicator (ephemeral, not stored)
+    if (message.kind == BigInt.from(10000)) {
+      _typingUsers[message.authorPubkeyHex] = TypingState(
+        pubkeyHex: message.authorPubkeyHex,
+        expiresAt: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      _startTypingCleanup();
+      notifyListeners();
+      return;
+    }
+
     if (message.kind == BigInt.from(7)) {
       final targetId = _extractETag(message.tags);
       if (targetId != null) {
@@ -118,9 +154,37 @@ class MessagesNotifier extends ChangeNotifier {
       return;
     }
 
+    // Regular message received — clear typing for this sender
+    _typingUsers.remove(message.authorPubkeyHex);
+
     if (messages.any((m) => m.eventIdHex == message.eventIdHex)) return;
     messages = [message, ...messages];
     notifyListeners();
+  }
+
+  /// Send a typing indicator (debounced to avoid flooding).
+  void onTyping() {
+    if (_typingDebounce?.isActive ?? false) return;
+    _typingDebounce = Timer(const Duration(seconds: 3), () {});
+    // Fire and forget
+    unawaited(
+      rust_message
+          .sendTypingIndicator(mlsGroupIdHex: groupId)
+          .then(
+            (eventJson) => rust_relay.publishEventJson(eventJson: eventJson),
+          )
+          .catchError((_) => ''),
+    );
+  }
+
+  void _startTypingCleanup() {
+    _typingCleanupTimer?.cancel();
+    _typingCleanupTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      final before = _typingUsers.length;
+      _typingUsers.removeWhere((_, v) => v.isExpired);
+      if (_typingUsers.length != before) notifyListeners();
+      if (_typingUsers.isEmpty) _typingCleanupTimer?.cancel();
+    });
   }
 
   /// Send a message: MLS-encrypt via Rust, display immediately, publish to relays.

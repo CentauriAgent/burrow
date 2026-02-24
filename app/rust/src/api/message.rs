@@ -280,6 +280,36 @@ pub async fn send_reaction(
     .await
 }
 
+/// Kind used for typing indicator signals (ephemeral, not stored).
+const TYPING_INDICATOR_KIND: u16 = 10000;
+
+/// Send a typing indicator to a group.
+///
+/// Creates a kind 10000 (ephemeral) MLS app message that signals the user is
+/// typing. These are not stored by MDK — recipients surface them as transient
+/// UI state that auto-expires after a few seconds.
+#[frb]
+pub async fn send_typing_indicator(
+    mls_group_id_hex: String,
+) -> Result<String, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let rumor = EventBuilder::new(Kind::Custom(TYPING_INDICATOR_KIND), "typing")
+            .build(s.keys.public_key());
+
+        let event = s
+            .mdk
+            .create_message(&group_id, rumor)
+            .map_err(BurrowError::from)?;
+
+        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+    })
+    .await
+}
+
 /// Process an incoming kind 445 group message event.
 ///
 /// Decrypts the NIP-44 layer using the group's exporter_secret, then MLS-decrypts
