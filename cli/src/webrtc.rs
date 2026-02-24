@@ -150,7 +150,10 @@ impl WebRtcSession {
         let pipe_mode_owned = pipe_mode.map(|s| s.to_string());
         webrtcbin.connect_pad_added(move |_, pad| {
             let Some(pipeline) = pipeline_weak.upgrade() else { return };
-            let caps = pad.current_caps().unwrap_or_default();
+            let caps = match pad.current_caps() {
+                Some(c) => c,
+                None => return,
+            };
             let s = caps.structure(0);
             let is_audio = s.map_or(false, |s| {
                 s.name().as_str().starts_with("application/x-rtp")
