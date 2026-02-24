@@ -65,7 +65,6 @@ impl WebRtcSession {
         // Create webrtcbin element
         let webrtcbin = gst::ElementFactory::make("webrtcbin")
             .name("webrtcbin")
-            .property_from_str("bundle-policy", "max-bundle")
             .build()
             .context("Failed to create webrtcbin (is gst-plugins-bad installed?)")?;
 

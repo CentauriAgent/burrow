@@ -74,7 +74,7 @@ pub fn generate_webrtc_config(call_id: String) -> Result<WebRtcConfig, BurrowErr
     Ok(WebRtcConfig {
         ice_servers,
         sdp_semantics: "unified-plan".to_string(),
-        bundle_policy: "max-bundle".to_string(),
+        bundle_policy: "balanced".to_string(),
     })
 }
 
