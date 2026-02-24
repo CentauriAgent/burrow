@@ -57,8 +57,7 @@ class WebRtcService {
           : false,
     };
 
-    _localStream =
-        await navigator.mediaDevices.getUserMedia(constraints);
+    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
     _isCameraEnabled = isVideo;
     _isMuted = false;
     return _localStream!;
@@ -77,11 +76,13 @@ class WebRtcService {
 
     // Build ICE servers list, checking for user-configured TURN override
     var iceServers = config.iceServers
-        .map((s) => <String, dynamic>{
-              'urls': s.urls,
-              if (s.username != null) 'username': s.username,
-              if (s.credential != null) 'credential': s.credential,
-            })
+        .map(
+          (s) => <String, dynamic>{
+            'urls': s.urls,
+            if (s.username != null) 'username': s.username,
+            if (s.credential != null) 'credential': s.credential,
+          },
+        )
         .toList();
 
     // Override TURN servers with user settings if configured
@@ -93,7 +94,8 @@ class WebRtcService {
         <String, dynamic>{
           'urls': customTurn.urls,
           if (customTurn.username != null) 'username': customTurn.username,
-          if (customTurn.credential != null) 'credential': customTurn.credential,
+          if (customTurn.credential != null)
+            'credential': customTurn.credential,
         },
       ];
     }
@@ -115,37 +117,48 @@ class WebRtcService {
 
     // Handle ICE candidates
     pc.onIceCandidate = (RTCIceCandidate candidate) {
-      _iceCandidateController.add(IceCandidateEvent(
-        remotePubkeyHex: remotePubkeyHex,
-        candidate: candidate,
-      ));
+      if (!_iceCandidateController.isClosed) {
+        _iceCandidateController.add(
+          IceCandidateEvent(
+            remotePubkeyHex: remotePubkeyHex,
+            candidate: candidate,
+          ),
+        );
+      }
     };
 
     // Handle remote tracks
     pc.onTrack = (RTCTrackEvent event) {
-      if (event.streams.isNotEmpty) {
-        _remoteStreamController.add(RemoteStreamEvent(
-          remotePubkeyHex: remotePubkeyHex,
-          stream: event.streams[0],
-          isAdded: true,
-        ));
+      if (event.streams.isNotEmpty && !_remoteStreamController.isClosed) {
+        _remoteStreamController.add(
+          RemoteStreamEvent(
+            remotePubkeyHex: remotePubkeyHex,
+            stream: event.streams[0],
+            isAdded: true,
+          ),
+        );
       }
     };
 
     // Handle connection state changes
     pc.onConnectionState = (RTCPeerConnectionState state) {
-      _connectionStateController.add(PeerConnectionStateEvent(
-        remotePubkeyHex: remotePubkeyHex,
-        state: state,
-      ));
+      if (_connectionStateController.isClosed) return;
+      _connectionStateController.add(
+        PeerConnectionStateEvent(
+          remotePubkeyHex: remotePubkeyHex,
+          state: state,
+        ),
+      );
     };
 
     pc.onRemoveStream = (MediaStream stream) {
-      _remoteStreamController.add(RemoteStreamEvent(
-        remotePubkeyHex: remotePubkeyHex,
-        stream: stream,
-        isAdded: false,
-      ));
+      _remoteStreamController.add(
+        RemoteStreamEvent(
+          remotePubkeyHex: remotePubkeyHex,
+          stream: stream,
+          isAdded: false,
+        ),
+      );
     };
 
     _peerConnections[remotePubkeyHex] = pc;
@@ -286,8 +299,5 @@ class IceCandidateEvent {
   final String remotePubkeyHex;
   final RTCIceCandidate candidate;
 
-  IceCandidateEvent({
-    required this.remotePubkeyHex,
-    required this.candidate,
-  });
+  IceCandidateEvent({required this.remotePubkeyHex, required this.candidate});
 }
