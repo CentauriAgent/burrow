@@ -1353,6 +1353,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     if (!file.existsSync()) return;
 
     final bytes = await file.readAsBytes();
+    final filename = file.path.split('/').last;
 
     setState(() => _isSending = true);
     try {
@@ -1360,7 +1361,7 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         groupId: widget.groupId,
         fileData: bytes,
         mimeType: 'audio/mp4',
-        filename: 'voice_message.m4a',
+        filename: filename,
       );
       ref
           .read(messagesProvider(widget.groupId).notifier)
