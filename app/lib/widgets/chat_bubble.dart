@@ -664,12 +664,8 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
       if (!file.existsSync() || file.lengthSync() == 0) {
         throw Exception('Downloaded file is empty or missing');
       }
-      try {
-        await _player.setFilePath(file.path);
-      } catch (playerError) {
-        // Fallback: try setting as a file URI (some platforms need this)
-        await _player.setUrl('file://${file.path}');
-      }
+      // Pre-set the source so duration is available
+      await _player.setFilePath(file.path);
       if (mounted) {
         setState(() {
           _file = file;
@@ -688,6 +684,7 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
     }
   }
 
+  @override
   @override
   void dispose() {
     _player.dispose();
