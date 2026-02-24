@@ -25,10 +25,11 @@ Implement all missing features to reach parity with Pika, plus CLI audio call su
 - [ ] 4.4 Background message decryption
 
 ### Batch 5: CLI Agent Audio Calls (large effort, new capability)
-- [ ] 5.1 Call signaling in CLI (Nostr-based offer/answer/ICE, MLS-encrypted)
-- [ ] 5.2 Headless WebRTC in Rust (libwebrtc or GStreamer)
-- [ ] 5.3 Audio I/O via cpal (capture mic / playback speaker)
-- [ ] 5.4 Agent integration: stdin/stdout audio pipes for STT/TTS
+- [x] 5.1 Call signaling in CLI (NIP-59 gift-wrapped, kinds 25050-25054)
+- [x] 5.2 Headless WebRTC in Rust (GStreamer webrtcbin + Opus)
+- [x] 5.3 Audio I/O (PulseAudio/PipeWire + pipe mode for agent)
+- [x] 5.4 Agent integration: --pipe flag for raw PCM STT/TTS
+- [ ] 5.5 End-to-end test with Flutter app
 
 ## Decisions Made
 - Agent calls: audio-only (listen + speak), no video needed
@@ -36,4 +37,4 @@ Implement all missing features to reach parity with Pika, plus CLI audio call su
 - Interactive widgets (HTML): deprioritized (even Pika only has iOS)
 
 ## Status
-**Batches 1-3 complete** - Moving to Batch 4 (push notifications)
+**Batches 1-3, 5 complete** — Batch 4 (push notifications) skipped for now. Batch 5 needs build+test on CLI machine.
