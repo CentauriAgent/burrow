@@ -673,17 +673,15 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
         throw Exception('Downloaded file is empty or missing');
       }
 
-      // Try just_audio first (works on mobile + macOS + web)
-      try {
+      // On Linux, just_audio has no native plugin — skip it entirely
+      // and use process-based playback (ffplay/mpv/paplay).
+      if (Platform.isLinux) {
+        _useProcessFallback = true;
+        _probeDuration(file.path);
+      } else {
+        // Mobile/macOS/web: use just_audio
         _initJustAudio();
         await _jaPlayer!.setFilePath(file.path);
-      } catch (_) {
-        // Fallback for Linux: use ffplay/mpv/aplay via Process
-        _jaPlayer?.dispose();
-        _jaPlayer = null;
-        _useProcessFallback = true;
-        // Probe duration with ffprobe if available
-        _probeDuration(file.path);
       }
 
       if (mounted) {
