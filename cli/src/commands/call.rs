@@ -17,6 +17,9 @@ use crate::config;
 use crate::relay::pool;
 use crate::storage::file_store::FileStore;
 
+#[cfg(feature = "webrtc")]
+use crate::webrtc::{WebRtcEvent, WebRtcSession};
+
 // ── Signaling event kinds (matching Flutter app) ───────────────────────────
 
 const KIND_CALL_OFFER: u16 = 25050;
@@ -108,6 +111,33 @@ fn extract_tag_value(tags: &Tags, name: &str) -> Option<String> {
     None
 }
 
+#[cfg(feature = "webrtc")]
+async fn send_ice_to_relay(
+    keys: &Keys,
+    client: &Client,
+    remote_pk: &PublicKey,
+    call_id: &str,
+    candidate: &str,
+    sdp_m_line_index: u32,
+) -> Result<()> {
+    let payload = serde_json::to_string(&IceCandidatePayload {
+        candidate: candidate.to_string(),
+        sdp_mid: Some("0".to_string()),
+        sdp_m_line_index: Some(sdp_m_line_index),
+    })?;
+    let event = gift_wrap_signaling(
+        keys,
+        KIND_ICE_CANDIDATE,
+        &payload,
+        remote_pk,
+        call_id,
+        None,
+    )
+    .await?;
+    client.send_event(&event).await?;
+    Ok(())
+}
+
 // ── Main entry point ───────────────────────────────────────────────────────
 
 pub async fn run(
@@ -115,7 +145,8 @@ pub async fn run(
     key_path: Option<String>,
     data_dir: Option<String>,
     answer_call_id: Option<String>,
-    _pipe: Option<String>,
+    #[allow(unused_variables)]
+    pipe: Option<String>,
 ) -> Result<()> {
     let data = config::data_dir(data_dir.as_deref());
     let store = FileStore::new(&data)?;
@@ -128,13 +159,12 @@ pub async fn run(
         .context("Invalid secret key")?;
     let keys = Keys::new(sk);
 
-    // Resolve target — could be a group ID or a pubkey (npub/hex)
+    // Resolve target pubkey
     let remote_pk = if target.starts_with("npub") {
         PublicKey::from_bech32(&target).context("Invalid npub")?
     } else if target.len() == 64 {
         PublicKey::from_hex(&target).context("Invalid hex pubkey")?
     } else {
-        // Try as group ID — get first other member
         let group = store
             .find_group_by_prefix(&target)?
             .context("Group not found — provide an npub or group ID")?;
@@ -147,10 +177,7 @@ pub async fn run(
     // Collect relays from all known groups
     let relay_urls: Vec<String> = {
         let groups = store.load_groups().unwrap_or_default();
-        let mut urls: Vec<String> = groups
-            .into_iter()
-            .flat_map(|g| g.relay_urls)
-            .collect();
+        let mut urls: Vec<String> = groups.into_iter().flat_map(|g| g.relay_urls).collect();
         urls.sort();
         urls.dedup();
         if urls.is_empty() {
@@ -172,7 +199,17 @@ pub async fn run(
         &call_id[..8],
     );
 
-    // Subscribe to incoming gift-wrapped signaling events
+    // ── Create WebRTC session (if feature enabled) ─────────────────────
+    #[cfg(feature = "webrtc")]
+    let (webrtc_session, mut webrtc_rx) = {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let session = WebRtcSession::new(pipe.as_deref(), tx)
+            .context("Failed to create WebRTC session")?;
+        session.start()?;
+        (Arc::new(session), rx)
+    };
+
+    // ── Subscribe to incoming signaling ────────────────────────────────
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkey(keys.public_key())
@@ -180,160 +217,246 @@ pub async fn run(
     client.subscribe(filter, None).await?;
 
     let shutdown = Arc::new(Notify::new());
-    let shutdown_clone = shutdown.clone();
-    let keys_clone = keys.clone();
-    let client_clone = client.clone();
-    let remote_pk_clone = remote_pk;
-    let call_id_clone = call_id.clone();
 
-    // Handle incoming signaling events
-    let _signaling_task = tokio::spawn(async move {
-        let keys = keys_clone;
-        let client = client_clone;
-        let remote_pk = remote_pk_clone;
-        let call_id = call_id_clone;
+    // ── Forward local ICE candidates to remote (WebRTC only) ───────────
+    #[cfg(feature = "webrtc")]
+    let _ice_task = {
+        let keys = keys.clone();
+        let client = client.clone();
+        let remote_pk = remote_pk;
+        let call_id = call_id.clone();
+        let session = webrtc_session.clone();
+        let shutdown = shutdown.clone();
 
-        client
-            .handle_notifications(|notification| {
-                let keys = keys.clone();
-                let client = client.clone();
-                let remote_pk = remote_pk;
-                let call_id = call_id.clone();
-                let shutdown = shutdown_clone.clone();
-
-                async move {
-                    if let RelayPoolNotification::Event { event, .. } = notification {
-                        if event.kind != Kind::GiftWrap {
-                            return Ok(false);
+        tokio::spawn(async move {
+            while let Some(event) = webrtc_rx.recv().await {
+                match event {
+                    WebRtcEvent::OfferCreated(sdp) => {
+                        eprintln!("📤 Sending SDP offer ({} bytes)", sdp.len());
+                        let payload = serde_json::to_string(&CallOfferPayload {
+                            sdp,
+                            call_type: "audio".to_string(),
+                        })
+                        .unwrap();
+                        if let Ok(ev) = gift_wrap_signaling(
+                            &keys,
+                            KIND_CALL_OFFER,
+                            &payload,
+                            &remote_pk,
+                            &call_id,
+                            Some("audio"),
+                        )
+                        .await
+                        {
+                            let _ = client.send_event(&ev).await;
                         }
-
-                        // Unwrap NIP-59 gift wrap
-                        let unwrapped = match UnwrappedGift::from_gift_wrap(&keys, &event).await {
-                            Ok(u) => u,
-                            Err(_) => return Ok(false),
-                        };
-
-                        let inner = unwrapped.rumor;
-                        let kind_num = inner.kind.as_u16();
-
-                        // Only handle call signaling kinds
-                        if kind_num < KIND_CALL_OFFER || kind_num > KIND_CALL_STATE_UPDATE {
-                            return Ok(false);
+                    }
+                    WebRtcEvent::AnswerCreated(sdp) => {
+                        eprintln!("📤 Sending SDP answer ({} bytes)", sdp.len());
+                        let payload =
+                            serde_json::to_string(&CallAnswerPayload { sdp }).unwrap();
+                        if let Ok(ev) = gift_wrap_signaling(
+                            &keys,
+                            KIND_CALL_ANSWER,
+                            &payload,
+                            &remote_pk,
+                            &call_id,
+                            None,
+                        )
+                        .await
+                        {
+                            let _ = client.send_event(&ev).await;
                         }
+                    }
+                    WebRtcEvent::IceCandidateGathered(ice) => {
+                        let _ = send_ice_to_relay(
+                            &keys,
+                            &client,
+                            &remote_pk,
+                            &call_id,
+                            &ice.candidate,
+                            ice.sdp_m_line_index,
+                        )
+                        .await;
+                    }
+                    WebRtcEvent::StateChanged(state) => {
+                        eprintln!("🔗 WebRTC state: {}", state);
+                    }
+                    WebRtcEvent::Error(err) => {
+                        eprintln!("❌ WebRTC error: {}", err);
+                        shutdown.notify_one();
+                    }
+                }
+            }
+        })
+    };
 
-                        // Verify call-id matches
-                        let event_call_id = extract_tag_value(&inner.tags, "call-id");
-                        if event_call_id.as_deref() != Some(&call_id) {
-                            return Ok(false);
-                        }
+    // ── Handle incoming signaling events ───────────────────────────────
+    {
+        let keys = keys.clone();
+        let client = client.clone();
+        let call_id = call_id.clone();
+        let shutdown = shutdown.clone();
+        #[cfg(feature = "webrtc")]
+        let session = webrtc_session.clone();
 
-                        match kind_num {
-                            KIND_CALL_OFFER => {
-                                eprintln!("📥 Received call offer");
-                                if let Ok(payload) =
-                                    serde_json::from_str::<CallOfferPayload>(&inner.content)
-                                {
-                                    eprintln!(
-                                        "   Type: {}, SDP length: {} bytes",
-                                        payload.call_type,
-                                        payload.sdp.len()
-                                    );
+        tokio::spawn(async move {
+            client
+                .handle_notifications(|notification| {
+                    let keys = keys.clone();
+                    let client = client.clone();
+                    let call_id = call_id.clone();
+                    let shutdown = shutdown.clone();
+                    #[cfg(feature = "webrtc")]
+                    let session = session.clone();
 
-                                    #[cfg(feature = "webrtc")]
+                    async move {
+                        if let RelayPoolNotification::Event { event, .. } = notification {
+                            if event.kind != Kind::GiftWrap {
+                                return Ok(false);
+                            }
+
+                            let unwrapped =
+                                match UnwrappedGift::from_gift_wrap(&keys, &event).await {
+                                    Ok(u) => u,
+                                    Err(_) => return Ok(false),
+                                };
+
+                            let inner = unwrapped.rumor;
+                            let kind_num = inner.kind.as_u16();
+
+                            if kind_num < KIND_CALL_OFFER || kind_num > KIND_CALL_STATE_UPDATE {
+                                return Ok(false);
+                            }
+
+                            if extract_tag_value(&inner.tags, "call-id").as_deref()
+                                != Some(&call_id)
+                            {
+                                return Ok(false);
+                            }
+
+                            match kind_num {
+                                KIND_CALL_OFFER => {
+                                    if let Ok(payload) =
+                                        serde_json::from_str::<CallOfferPayload>(&inner.content)
                                     {
-                                        // TODO: Create GStreamer pipeline, set remote offer,
-                                        // create answer, send it back
-                                        eprintln!("   WebRTC: processing offer...");
-                                    }
+                                        eprintln!(
+                                            "📥 Call offer (type: {}, SDP: {} bytes)",
+                                            payload.call_type,
+                                            payload.sdp.len()
+                                        );
 
-                                    #[cfg(not(feature = "webrtc"))]
-                                    {
-                                        eprintln!("   WebRTC not available (build with --features webrtc)");
-                                        // Send a placeholder answer for protocol testing
-                                        let answer_payload = serde_json::to_string(
-                                            &CallAnswerPayload {
-                                                sdp: "v=0\r\n".to_string(),
-                                            },
-                                        )
-                                        .unwrap();
-                                        let answer = gift_wrap_signaling(
-                                            &keys,
-                                            KIND_CALL_ANSWER,
-                                            &answer_payload,
-                                            &remote_pk,
-                                            &call_id,
-                                            None,
-                                        )
-                                        .await;
-                                        if let Ok(event) = answer {
-                                            let _ = client.send_event(&event).await;
-                                            eprintln!("📤 Sent placeholder answer");
+                                        #[cfg(feature = "webrtc")]
+                                        {
+                                            if let Err(e) = session
+                                                .set_remote_offer_and_answer(&payload.sdp)
+                                                .await
+                                            {
+                                                eprintln!("❌ Failed to process offer: {}", e);
+                                            }
+                                        }
+
+                                        #[cfg(not(feature = "webrtc"))]
+                                        {
+                                            eprintln!(
+                                                "   (signaling only — build with --features webrtc)"
+                                            );
+                                            let answer_payload = serde_json::to_string(
+                                                &CallAnswerPayload {
+                                                    sdp: "v=0\r\n".to_string(),
+                                                },
+                                            )
+                                            .unwrap();
+                                            if let Ok(ev) = gift_wrap_signaling(
+                                                &keys,
+                                                KIND_CALL_ANSWER,
+                                                &answer_payload,
+                                                &remote_pk,
+                                                &call_id,
+                                                None,
+                                            )
+                                            .await
+                                            {
+                                                let _ = client.send_event(&ev).await;
+                                                eprintln!("📤 Sent placeholder answer");
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            KIND_CALL_ANSWER => {
-                                eprintln!("📥 Received call answer");
-                                if let Ok(payload) =
-                                    serde_json::from_str::<CallAnswerPayload>(&inner.content)
-                                {
-                                    eprintln!(
-                                        "   SDP length: {} bytes",
-                                        payload.sdp.len()
-                                    );
-
-                                    #[cfg(feature = "webrtc")]
+                                KIND_CALL_ANSWER => {
+                                    if let Ok(payload) =
+                                        serde_json::from_str::<CallAnswerPayload>(&inner.content)
                                     {
-                                        // TODO: Set remote answer on GStreamer webrtcbin
-                                        eprintln!("   WebRTC: setting remote answer...");
+                                        eprintln!(
+                                            "📥 Call answer (SDP: {} bytes)",
+                                            payload.sdp.len()
+                                        );
+
+                                        #[cfg(feature = "webrtc")]
+                                        {
+                                            if let Err(e) =
+                                                session.set_remote_answer(&payload.sdp)
+                                            {
+                                                eprintln!(
+                                                    "❌ Failed to set remote answer: {}",
+                                                    e
+                                                );
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                            KIND_ICE_CANDIDATE => {
-                                if let Ok(payload) =
-                                    serde_json::from_str::<IceCandidatePayload>(&inner.content)
-                                {
-                                    eprintln!(
-                                        "📥 ICE candidate: {}",
-                                        &payload.candidate
-                                            .get(..60)
-                                            .unwrap_or(&payload.candidate)
-                                    );
-
-                                    #[cfg(feature = "webrtc")]
+                                KIND_ICE_CANDIDATE => {
+                                    if let Ok(payload) =
+                                        serde_json::from_str::<IceCandidatePayload>(
+                                            &inner.content,
+                                        )
                                     {
-                                        // TODO: Add ICE candidate to webrtcbin
+                                        eprintln!(
+                                            "📥 ICE: {}",
+                                            payload
+                                                .candidate
+                                                .get(..50)
+                                                .unwrap_or(&payload.candidate)
+                                        );
+
+                                        #[cfg(feature = "webrtc")]
+                                        {
+                                            session.add_ice_candidate(
+                                                payload.sdp_m_line_index.unwrap_or(0),
+                                                &payload.candidate,
+                                            );
+                                        }
                                     }
                                 }
+                                KIND_CALL_END => {
+                                    eprintln!("📥 Call ended by remote: {}", inner.content);
+                                    shutdown.notify_one();
+                                    return Ok(true);
+                                }
+                                KIND_CALL_STATE_UPDATE => {
+                                    eprintln!("📥 Remote state update: {}", inner.content);
+                                }
+                                _ => {}
                             }
-                            KIND_CALL_END => {
-                                eprintln!("📥 Call ended by remote: {}", inner.content);
-                                shutdown.notify_one();
-                                return Ok(true); // stop listening
-                            }
-                            KIND_CALL_STATE_UPDATE => {
-                                eprintln!("📥 Remote state update: {}", inner.content);
-                            }
-                            _ => {}
                         }
+                        Ok(false)
                     }
-                    Ok(false)
-                }
-            })
-            .await
-    });
+                })
+                .await
+        });
+    }
 
-    // If initiating, send the offer
+    // ── Initiate call (if not answering) ───────────────────────────────
     if !is_answering {
         #[cfg(feature = "webrtc")]
         {
-            // TODO: Create GStreamer pipeline, generate SDP offer
             eprintln!("🔧 Creating WebRTC offer...");
+            webrtc_session.create_offer().await?;
+            // SDP offer will be sent via the ICE task when OfferCreated event fires
         }
 
         #[cfg(not(feature = "webrtc"))]
         {
-            // Send placeholder offer for protocol testing
             let offer_payload = serde_json::to_string(&CallOfferPayload {
                 sdp: "v=0\r\n".to_string(),
                 call_type: "audio".to_string(),
@@ -348,11 +471,11 @@ pub async fn run(
             )
             .await?;
             client.send_event(&offer).await?;
-            eprintln!("📤 Sent call offer (signaling-only, no WebRTC)");
+            eprintln!("📤 Sent call offer (signaling only)");
         }
     }
 
-    // Wait for Ctrl+C or remote hangup
+    // ── Wait for Ctrl+C or remote hangup ───────────────────────────────
     eprintln!("Press Ctrl+C to end the call");
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -363,7 +486,10 @@ pub async fn run(
         }
     }
 
-    // Send hangup
+    // ── Cleanup ────────────────────────────────────────────────────────
+    #[cfg(feature = "webrtc")]
+    webrtc_session.stop();
+
     let hangup = gift_wrap_signaling(
         &keys,
         KIND_CALL_END,

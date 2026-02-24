@@ -34,8 +34,8 @@ CLI Agent                          Flutter App
 
 ## Phases
 - [x] Phase 1: CLI call command scaffold + signaling (Nostr events)
-- [ ] Phase 2: GStreamer WebRTC integration (webrtcbin)
-- [ ] Phase 3: Audio I/O (PulseAudio/pipewire + file pipe for agent)
+- [x] Phase 2: GStreamer WebRTC integration (webrtcbin) — code written, needs build on CLI machine
+- [x] Phase 3: Audio I/O (PulseAudio/pipewire + pipe mode for agent) — integrated in Phase 2
 - [ ] Phase 4: End-to-end test with Flutter app
 
 ## Key Decisions
@@ -50,4 +50,4 @@ CLI Agent                          Flutter App
 - PulseAudio or PipeWire for mic/speaker (or filesrc/filesink for agent mode)
 
 ## Status
-**Phase 1 complete** - Moving to Phase 2 (GStreamer WebRTC)
+**Phases 1-3 code complete** — needs `cargo build --release --features webrtc` on CLI machine

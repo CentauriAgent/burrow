@@ -3,6 +3,8 @@ mod commands;
 mod config;
 mod keyring;
 pub mod media;
+#[cfg(feature = "webrtc")]
+pub mod webrtc;
 mod relay;
 mod storage;
 
