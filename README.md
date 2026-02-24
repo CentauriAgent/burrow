@@ -73,10 +73,8 @@ Burrow integrates with AI agents via [OpenClaw](https://github.com/openclaw/open
 - **Plugin:** `@openclaw/mls` — installed at `~/.openclaw/extensions/mls/`
 - **Inbound:** Watches `daemon.jsonl` via `fs.watch`, maps Nostr pubkeys to contacts
 - **Outbound:** Sends via `burrow send <group-id> <message>` subprocess
-- **Full agent capabilities:** Unlike a simple API bridge, messages flow through OpenClaw's session system — giving the AI agent memory, tools, and conversational context
+- **Full agent capabilities:** Messages flow through OpenClaw's session system — giving the AI agent memory, tools, and conversational context
 - **ACL-aware:** Respects Burrow's built-in access control; only allowlisted contacts reach the agent
-
-This replaces the earlier `burrow-bridge` binary, which was a standalone Rust program that called OpenClaw's chat completions API without session continuity or tool access.
 
 ---
 

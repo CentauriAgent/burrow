@@ -31,10 +31,11 @@ pub async fn run(
     let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
     let mdk = MDK::new(mdk_storage);
 
-    // Subscribe to kind 445 for this group
+    // Subscribe to kind 445 for this group (only new events from now)
     let nostr_gid = &group.nostr_group_id_hex;
     let filter = Filter::new()
         .kind(Kind::MlsGroupMessage)
+        .since(Timestamp::now())
         .custom_tag(SingleLetterTag::lowercase(Alphabet::H), nostr_gid.to_string());
 
     println!("👂 Listening for messages in '{}' ({}..)", group.name, &nostr_gid[..12]);

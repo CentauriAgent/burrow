@@ -133,8 +133,10 @@ pub async fn run(
         eprintln!("ℹ️ Reusing existing KeyPackage from store (no new publish).");
     }
 
-    // Subscribe to kind 445 for all groups
-    let mut filter = Filter::new().kind(Kind::MlsGroupMessage);
+    // Subscribe to kind 445 for all groups (only new events from now)
+    let mut filter = Filter::new()
+        .kind(Kind::MlsGroupMessage)
+        .since(Timestamp::now());
     for g in &groups {
         filter = filter.custom_tag(SingleLetterTag::lowercase(Alphabet::H), g.nostr_group_id_hex.clone());
     }
@@ -319,6 +321,11 @@ pub async fn run(
                     }
                 }
                 else if event.kind == Kind::MlsGroupMessage {
+                    // Skip our own messages to prevent echo/feedback loops
+                    if event.pubkey == keys_clone.public_key() {
+                        return Ok(false);
+                    }
+
                     match mdk.process_message(&event) {
                         Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(msg)) => {
                             let sender_hex = msg.pubkey.to_hex();
