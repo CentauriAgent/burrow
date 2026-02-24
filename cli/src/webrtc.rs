@@ -83,20 +83,22 @@ impl WebRtcSession {
                 .property("location", input_path)
                 .build()
                 .context("Failed to create filesrc")?;
-            let capsfilter = gst::ElementFactory::make("capsfilter")
-                .property(
-                    "caps",
-                    &gst::Caps::builder("audio/x-raw")
-                        .field("format", "S16LE")
-                        .field("rate", 48000i32)
-                        .field("channels", 1i32)
-                        .build(),
-                )
+            // rawaudioparse tells GStreamer how to interpret the raw bytes
+            let rawparse = gst::ElementFactory::make("rawaudioparse")
+                .property_from_str("format", "pcm")
+                .property("sample-rate", 48000i32)
+                .property("num-channels", 1i32)
+                .property_from_str("pcm-format", "s16le")
                 .build()
-                .context("Failed to create capsfilter")?;
+                .context("Failed to create rawaudioparse")?;
+            let convert = gst::ElementFactory::make("audioconvert")
+                .build()
+                .context("Failed to create audioconvert")?;
+            let resample = gst::ElementFactory::make("audioresample")
+                .build()
+                .context("Failed to create audioresample")?;
             let enc = gst::ElementFactory::make("opusenc")
                 .property("bitrate", 32000i32)
-                .property("audio-type", 2048i32) // voice
                 .build()
                 .context("Failed to create opusenc")?;
             let pay = gst::ElementFactory::make("rtpopuspay")
@@ -104,9 +106,9 @@ impl WebRtcSession {
                 .build()
                 .context("Failed to create rtpopuspay")?;
 
-            pipeline.add_many([&src, &capsfilter, &enc, &pay])
+            pipeline.add_many([&src, &rawparse, &convert, &resample, &enc, &pay])
                 .context("Failed to add source elements")?;
-            gst::Element::link_many([&src, &capsfilter, &enc, &pay])
+            gst::Element::link_many([&src, &rawparse, &convert, &resample, &enc, &pay])
                 .context("Failed to link source elements")?;
 
             (src, enc, pay)
@@ -118,7 +120,6 @@ impl WebRtcSession {
                 .context("Failed to create audio source (pulsesrc or autoaudiosrc)")?;
             let enc = gst::ElementFactory::make("opusenc")
                 .property("bitrate", 32000i32)
-                .property("audio-type", 2048i32)
                 .build()
                 .context("Failed to create opusenc")?;
             let pay = gst::ElementFactory::make("rtpopuspay")
@@ -134,15 +135,40 @@ impl WebRtcSession {
             (src, enc, pay)
         };
 
-        // Link RTP payloader to webrtcbin
+        // Add capsfilter before webrtcbin so it knows the RTP caps for SDP generation
+        let rtp_capsfilter = gst::ElementFactory::make("capsfilter")
+            .property(
+                "caps",
+                &gst::Caps::builder("application/x-rtp")
+                    .field("media", "audio")
+                    .field("encoding-name", "OPUS")
+                    .field("payload", 111i32)
+                    .field("clock-rate", 48000i32)
+                    .field("encoding-params", "2")
+                    .build(),
+            )
+            .build()
+            .context("Failed to create RTP capsfilter")?;
+        pipeline.add(&rtp_capsfilter).context("Failed to add RTP capsfilter")?;
+
+        // Link: rtpopuspay → capsfilter → webrtcbin
         let webrtc_sink = webrtcbin
             .request_pad_simple("sink_%u")
             .context("Failed to get webrtcbin sink pad")?;
-        let pay_src = rtp_pay
+        rtp_pay.link(&rtp_capsfilter)
+            .map_err(|e| anyhow::anyhow!("Failed to link pay to capsfilter: {:?}", e))?;
+        let cf_src = rtp_capsfilter
             .static_pad("src")
-            .context("Failed to get rtpopuspay src pad")?;
-        pay_src.link(&webrtc_sink)
-            .map_err(|e| anyhow::anyhow!("Failed to link to webrtcbin: {:?}", e))?;
+            .context("Failed to get capsfilter src pad")?;
+        cf_src.link(&webrtc_sink)
+            .map_err(|e| anyhow::anyhow!("Failed to link capsfilter to webrtcbin: {:?}", e))?;
+
+        // Set transceiver direction to sendrecv for bidirectional audio
+        let transceiver = webrtcbin.emit_by_name::<gst_webrtc::WebRTCRTPTransceiver>(
+            "get-transceiver",
+            &[&0i32],
+        );
+        transceiver.set_property("direction", gst_webrtc::WebRTCRTPTransceiverDirection::Sendrecv);
 
         // Handle incoming audio from remote peer
         let pipeline_weak = pipeline.downgrade();
