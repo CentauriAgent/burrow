@@ -92,6 +92,14 @@ enum Commands {
         #[arg(long)]
         no_access_control: bool,
     },
+    /// Send a typing indicator to a group
+    Typing {
+        group_id: String,
+        #[arg(short = 'k', long)]
+        key_path: Option<String>,
+        #[arg(short = 'd', long)]
+        data_dir: Option<String>,
+    },
     /// Start or answer a 1:1 audio call
     Call {
         /// Peer npub or hex pubkey for 1:1 call
@@ -222,6 +230,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Daemon { key_path, data_dir, log_file, reconnect_delay, no_access_control } => {
             commands::daemon::run(key_path, data_dir, log_file, reconnect_delay, no_access_control).await?;
+        }
+        Commands::Typing { group_id, key_path, data_dir } => {
+            commands::send::typing(group_id, key_path, data_dir).await?;
         }
         Commands::Call { target, key_path, data_dir, answer, pipe } => {
             commands::call::run(target, key_path, data_dir, answer, pipe).await?;

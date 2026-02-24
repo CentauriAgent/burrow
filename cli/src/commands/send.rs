@@ -170,6 +170,46 @@ pub async fn run(
     Ok(())
 }
 
+/// Send a typing indicator (kind 10000 ephemeral MLS message).
+pub async fn typing(
+    group_id: String,
+    key_path: Option<String>,
+    data_dir: Option<String>,
+) -> Result<()> {
+    let data = config::data_dir(data_dir.as_deref());
+    let store = FileStore::new(&data)?;
+
+    let group = store.find_group_by_prefix(&group_id)?
+        .context("Group not found")?;
+
+    let kp = key_path.map(std::path::PathBuf::from).unwrap_or_else(config::default_key_path);
+    let secret = fs::read_to_string(&kp).context("Failed to read secret key")?;
+    let sk = SecretKey::from_hex(secret.trim())
+        .or_else(|_| SecretKey::from_bech32(secret.trim()))
+        .context("Invalid secret key")?;
+    let keys = Keys::new(sk);
+
+    let mls_db_path = data.join("mls.sqlite");
+    let mdk_storage = keyring::open_mls_storage(&mls_db_path, &keys)?;
+    let mdk = MDK::new(mdk_storage);
+    let mls_group_id = mdk_core::prelude::GroupId::from_slice(
+        &hex::decode(&group.mls_group_id_hex)?
+    );
+
+    let rumor = EventBuilder::new(Kind::Custom(10000), "typing")
+        .build(keys.public_key());
+
+    let event = mdk.create_message(&mls_group_id, rumor)
+        .context("Failed to encrypt typing indicator")?;
+
+    let client = pool::connect(&keys, &group.relay_urls).await?;
+    client.send_event(&event).await
+        .context("Failed to publish typing indicator")?;
+
+    client.disconnect().await;
+    Ok(())
+}
+
 /// Guess MIME type from filename extension.
 fn guess_mime_type(filename: &str) -> String {
     let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
