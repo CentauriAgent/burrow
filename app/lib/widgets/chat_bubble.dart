@@ -840,67 +840,72 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: _togglePlay,
-            child: Icon(
-              _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-              size: 32,
-              color: widget.textColor,
+      child: SizedBox(
+        width: 200,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: _togglePlay,
+              child: Icon(
+                _isPlaying
+                    ? Icons.pause_circle_filled
+                    : Icons.play_circle_filled,
+                size: 28,
+                color: widget.textColor,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 16,
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 14,
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 3,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 10,
+                        ),
+                        activeTrackColor: widget.textColor,
+                        inactiveTrackColor: widget.textColor.withAlpha(60),
+                        thumbColor: widget.textColor,
                       ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 10,
-                      ),
-                      activeTrackColor: widget.textColor,
-                      inactiveTrackColor: widget.textColor.withAlpha(60),
-                      thumbColor: widget.textColor,
-                    ),
-                    child: Slider(
-                      min: 0,
-                      max: _duration.inMilliseconds.toDouble().clamp(
-                        1,
-                        double.infinity,
-                      ),
-                      value: _position.inMilliseconds.toDouble().clamp(
-                        0,
-                        _duration.inMilliseconds.toDouble().clamp(
+                      child: Slider(
+                        min: 0,
+                        max: _duration.inMilliseconds.toDouble().clamp(
                           1,
                           double.infinity,
                         ),
+                        value: _position.inMilliseconds.toDouble().clamp(
+                          0,
+                          _duration.inMilliseconds.toDouble().clamp(
+                            1,
+                            double.infinity,
+                          ),
+                        ),
+                        onChanged: (v) =>
+                            _jaPlayer?.seek(Duration(milliseconds: v.toInt())),
                       ),
-                      onChanged: (v) =>
-                          _jaPlayer?.seek(Duration(milliseconds: v.toInt())),
                     ),
                   ),
-                ),
-                Text(
-                  '${_fmt(_position)} / ${_fmt(_duration)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: widget.textColor.withAlpha(180),
+                  Text(
+                    '${_fmt(_position)} / ${_fmt(_duration)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.textColor.withAlpha(180),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
