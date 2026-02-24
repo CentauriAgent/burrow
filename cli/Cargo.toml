@@ -10,10 +10,10 @@ path = "src/main.rs"
 
 [dependencies]
 # Marmot protocol — same rev as Flutter app
-mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304", features = ["mip04"] }
-mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304" }
-mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304" }
-mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "1517b34a148cf1b98872f7205505ff164ec03304", features = [] }
+mdk-core = { git = "https://github.com/marmot-protocol/mdk", rev = "136a9ee929580206ea0357d48d9766427918186d", features = ["mip04"] }
+mdk-memory-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "136a9ee929580206ea0357d48d9766427918186d" }
+mdk-sqlite-storage = { git = "https://github.com/marmot-protocol/mdk", rev = "136a9ee929580206ea0357d48d9766427918186d" }
+mdk-storage-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "136a9ee929580206ea0357d48d9766427918186d", features = [] }
 
 nostr-sdk = { version = "0.44", features = ["nip04", "nip44", "nip59"] }
 clap = { version = "4", features = ["derive"] }

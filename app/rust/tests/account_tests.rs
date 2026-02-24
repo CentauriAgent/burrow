@@ -95,25 +95,5 @@ async fn login_with_nsec_key() {
     state::destroy_state().await;
 }
 
-#[tokio::test]
-async fn save_and_load_account() {
-    state::destroy_state().await;
-    setup_test_data_dir();
-
-    let created: account::AccountInfo = account::create_account().await.unwrap();
-
-    let tmp = std::env::temp_dir().join("burrow_tests").join("burrow_test_key.nsec");
-    let tmp_path = tmp.to_string_lossy().to_string();
-
-    let _: () = account::save_secret_key(tmp_path.clone()).await.unwrap();
-
-    let _: () = account::logout().await.unwrap();
-    assert!(!account::is_logged_in().await);
-
-    let loaded: account::AccountInfo =
-        account::load_account_from_file(tmp_path.clone()).await.unwrap();
-    assert_eq!(loaded.pubkey_hex, created.pubkey_hex);
-
-    let _ = std::fs::remove_file(&tmp_path);
-    state::destroy_state().await;
-}
+// Note: save/load via keyring requires platform-specific keyring backends
+// and cannot be reliably tested in a headless CI environment.

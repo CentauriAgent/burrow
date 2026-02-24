@@ -1605,8 +1605,8 @@ checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 
 [[package]]
 name = "mdk-core"
-version = "0.5.3"
-source = "git+https://github.com/marmot-protocol/mdk?rev=1517b34a148cf1b98872f7205505ff164ec03304#1517b34a148cf1b98872f7205505ff164ec03304"
+version = "0.6.0"
+source = "git+https://github.com/marmot-protocol/mdk?rev=136a9ee929580206ea0357d48d9766427918186d#136a9ee929580206ea0357d48d9766427918186d"
 dependencies = [
  "blurhash",
  "chacha20poly1305",
@@ -1629,8 +1629,8 @@ dependencies = [
 
 [[package]]
 name = "mdk-memory-storage"
-version = "0.5.1"
-source = "git+https://github.com/marmot-protocol/mdk?rev=1517b34a148cf1b98872f7205505ff164ec03304#1517b34a148cf1b98872f7205505ff164ec03304"
+version = "0.6.0"
+source = "git+https://github.com/marmot-protocol/mdk?rev=136a9ee929580206ea0357d48d9766427918186d#136a9ee929580206ea0357d48d9766427918186d"
 dependencies = [
  "lru",
  "mdk-storage-traits",
@@ -1644,8 +1644,8 @@ dependencies = [
 
 [[package]]
 name = "mdk-storage-traits"
-version = "0.5.1"
-source = "git+https://github.com/marmot-protocol/mdk?rev=1517b34a148cf1b98872f7205505ff164ec03304#1517b34a148cf1b98872f7205505ff164ec03304"
+version = "0.6.0"
+source = "git+https://github.com/marmot-protocol/mdk?rev=136a9ee929580206ea0357d48d9766427918186d#136a9ee929580206ea0357d48d9766427918186d"
 dependencies = [
  "nostr",
  "openmls",
