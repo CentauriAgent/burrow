@@ -3,10 +3,11 @@ use mdk_core::MDK;
 use mdk_storage_traits::welcomes::types::WelcomeState;
 use nostr_sdk::prelude::*;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::acl::access_control::AccessControl;
 use crate::acl::audit;
@@ -164,10 +165,22 @@ pub async fn run(
     let log_path_clone = log_path.clone();
     let keys_clone = keys.clone();
     let store_clone = Arc::new(store);
+    let seen_events: Arc<Mutex<HashSet<EventId>>> = Arc::new(Mutex::new(HashSet::new()));
 
     client
         .handle_notifications(|notification| async {
             if let RelayPoolNotification::Event { event, .. } = notification {
+                // Deduplicate: skip events already seen from other relays
+                {
+                    let mut seen = seen_events.lock().unwrap();
+                    if !seen.insert(event.id) {
+                        return Ok(false);
+                    }
+                    // Cap at 10k to prevent unbounded growth on long-running daemons
+                    if seen.len() > 10_000 {
+                        seen.clear();
+                    }
+                }
                 // Handle NIP-59 gift wraps (kind 1059) — Welcome messages
                 if event.kind == Kind::GiftWrap {
                     match nip59::extract_rumor(&keys_clone, &event).await {

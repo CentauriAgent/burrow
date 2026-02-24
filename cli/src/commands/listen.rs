@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use mdk_core::MDK;
 use nostr_sdk::prelude::*;
+use std::collections::HashSet;
 use std::fs;
+use std::sync::{Arc, Mutex};
 
 use crate::config;
 use crate::keyring;
@@ -42,11 +44,22 @@ pub async fn run(
     println!("   Press Ctrl+C to stop.");
 
     client.subscribe(filter, None).await?;
+    let seen_events: Arc<Mutex<HashSet<EventId>>> = Arc::new(Mutex::new(HashSet::new()));
 
     // Process events
     client
         .handle_notifications(|notification| async {
             if let RelayPoolNotification::Event { event, .. } = notification {
+                // Deduplicate: skip events already seen from other relays
+                {
+                    let mut seen = seen_events.lock().unwrap();
+                    if !seen.insert(event.id) {
+                        return Ok(false);
+                    }
+                    if seen.len() > 10_000 {
+                        seen.clear();
+                    }
+                }
                 if event.kind == Kind::MlsGroupMessage {
                     match mdk.process_message(&event) {
                         Ok(mdk_core::messages::MessageProcessingResult::ApplicationMessage(msg)) => {
