@@ -56,6 +56,18 @@ Future<ProfileData> bootstrapIdentity() =>
 Future<ProfileData> getCachedProfile({required String pubkeyHex}) =>
     RustLib.instance.api.crateApiIdentityGetCachedProfile(pubkeyHex: pubkeyHex);
 
+/// Upload a profile photo to Blossom and update kind 0 metadata with the URL.
+/// The image is uploaded unencrypted (public avatar, not MLS-encrypted).
+Future<String> uploadProfilePhoto({
+  required List<int> fileData,
+  required String mimeType,
+  required String blossomServerUrl,
+}) => RustLib.instance.api.crateApiIdentityUploadProfilePhoto(
+  fileData: fileData,
+  mimeType: mimeType,
+  blossomServerUrl: blossomServerUrl,
+);
+
 /// Nostr profile metadata (kind 0), FFI-friendly.
 class ProfileData {
   final String? name;

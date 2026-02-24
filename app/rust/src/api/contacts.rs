@@ -418,6 +418,71 @@ pub async fn get_last_contacts_sync() -> Result<Option<i64>, BurrowError> {
     }
 }
 
+/// Follow a contact by adding them to the NIP-02 follow list (kind 3).
+/// Publishes the updated follow list to relays and updates local DB.
+#[frb]
+pub async fn follow_contact(pubkey_hex: String) -> Result<(), BurrowError> {
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+    let self_pubkey_hex = state::with_state(|s| Ok(s.keys.public_key().to_hex())).await?;
+
+    // Fetch current follow list
+    let mut current = fetch_follow_list_inner(&client, &self_pubkey_hex).await?;
+
+    // Don't add duplicates or self
+    if current.contains(&pubkey_hex) || pubkey_hex == self_pubkey_hex {
+        return Ok(());
+    }
+    current.push(pubkey_hex.clone());
+
+    // Publish updated kind 3
+    publish_follow_list(&client, &current).await?;
+
+    // Update local DB
+    let data_dir = state::get_data_dir()?;
+    app_state::ensure_db_with(&data_dir, &self_pubkey_hex)?;
+    let _ = app_state::with_db(|conn| {
+        conn.execute(
+            "INSERT OR IGNORE INTO follows (pubkey_hex) VALUES (?1)",
+            [&pubkey_hex],
+        )
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+        Ok(())
+    });
+
+    Ok(())
+}
+
+/// Unfollow a contact by removing them from the NIP-02 follow list (kind 3).
+/// Publishes the updated follow list to relays and removes from local DB.
+#[frb]
+pub async fn unfollow_contact(pubkey_hex: String) -> Result<(), BurrowError> {
+    let client = state::with_state(|s| Ok(s.client.clone())).await?;
+    let self_pubkey_hex = state::with_state(|s| Ok(s.keys.public_key().to_hex())).await?;
+
+    // Fetch current follow list
+    let mut current = fetch_follow_list_inner(&client, &self_pubkey_hex).await?;
+
+    // Remove the contact
+    current.retain(|p| p != &pubkey_hex);
+
+    // Publish updated kind 3
+    publish_follow_list(&client, &current).await?;
+
+    // Update local DB
+    let data_dir = state::get_data_dir()?;
+    app_state::ensure_db_with(&data_dir, &self_pubkey_hex)?;
+    let _ = app_state::with_db(|conn| {
+        conn.execute(
+            "DELETE FROM follows WHERE pubkey_hex = ?1",
+            [&pubkey_hex],
+        )
+        .map_err(|e| BurrowError::from(e.to_string()))?;
+        Ok(())
+    });
+
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -497,6 +562,29 @@ async fn batch_check_key_packages(
     }
 
     Ok(found)
+}
+
+/// Publish a NIP-02 follow list (kind 3) with the given pubkey hexes.
+async fn publish_follow_list(
+    client: &Client,
+    pubkey_hexes: &[String],
+) -> Result<(), BurrowError> {
+    let tags: Vec<Tag> = pubkey_hexes
+        .iter()
+        .filter_map(|hex| {
+            PublicKey::from_hex(hex)
+                .ok()
+                .map(|pk| Tag::public_key(pk))
+        })
+        .collect();
+
+    let builder = EventBuilder::new(Kind::ContactList, "").tags(tags);
+    client
+        .send_event_builder(builder)
+        .await
+        .map_err(|e| BurrowError::from(format!("Failed to publish follow list: {e}")))?;
+
+    Ok(())
 }
 
 /// Update the last_synced timestamp in contacts_meta.

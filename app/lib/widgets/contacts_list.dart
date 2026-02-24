@@ -46,6 +46,53 @@ class _ContactsListBodyState extends ConsumerState<ContactsListBody> {
     }
   }
 
+  Future<void> _showContactOptions(Contact contact) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.message),
+              title: const Text('Send Message'),
+              onTap: () => Navigator.pop(ctx, 'message'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_remove, color: Colors.red),
+              title: const Text(
+                'Unfollow',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () => Navigator.pop(ctx, 'unfollow'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+    if (result == 'message') {
+      _onContactTap(contact);
+    } else if (result == 'unfollow') {
+      try {
+        await rust_contacts.unfollowContact(pubkeyHex: contact.pubkeyHex);
+        ref.read(contactsProvider.notifier).refresh();
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Unfollowed ${contact.name}')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
   Future<void> _showDebug(BuildContext context) async {
     final debug = await rust_contacts.debugSyncContacts();
     if (!context.mounted) return;
@@ -175,6 +222,7 @@ class _ContactsListBodyState extends ConsumerState<ContactsListBody> {
                           )
                         : null,
                     onTap: isLoading ? null : () => _onContactTap(contact),
+                    onLongPress: () => _showContactOptions(contact),
                   );
                 },
               ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:burrow_app/providers/auth_provider.dart';
 import 'package:burrow_app/providers/relay_provider.dart';
 import 'package:burrow_app/providers/profile_provider.dart';
@@ -21,6 +23,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _saving = false;
   bool _publishingKeyPackage = false;
   bool _showNsec = false;
+  bool _uploadingPhoto = false;
   String? _nsec;
 
   @override
@@ -77,6 +80,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _publishingKeyPackage = false);
   }
 
+  Future<void> _uploadProfilePhoto() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+    if (image == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final bytes = await image.readAsBytes();
+      final mimeType = image.mimeType ?? 'image/jpeg';
+      await uploadProfilePhoto(
+        fileData: bytes,
+        mimeType: mimeType,
+        blossomServerUrl: 'https://blossom.primal.net',
+      );
+      ref.invalidate(selfProfileProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile photo updated')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+    setState(() => _uploadingPhoto = false);
+  }
+
   Future<void> _loadNsec() async {
     try {
       final nsec = await exportNsec();
@@ -123,25 +161,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          // User avatar from Nostr profile
+          // User avatar from Nostr profile (tap to change)
           Center(
             child: Builder(
               builder: (context) {
                 final profile = ref.watch(selfProfileProvider);
                 final pictureUrl = profile.value?.picture;
-                return CircleAvatar(
-                  radius: 40,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  backgroundImage: pictureUrl != null && pictureUrl.isNotEmpty
-                      ? NetworkImage(pictureUrl)
-                      : null,
-                  child: pictureUrl != null && pictureUrl.isNotEmpty
-                      ? null
-                      : Icon(
-                          Icons.person,
-                          size: 40,
-                          color: theme.colorScheme.onPrimaryContainer,
+                return GestureDetector(
+                  onTap: _uploadingPhoto ? null : _uploadProfilePhoto,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        backgroundImage:
+                            pictureUrl != null && pictureUrl.isNotEmpty
+                            ? NetworkImage(pictureUrl)
+                            : null,
+                        child: _uploadingPhoto
+                            ? const CircularProgressIndicator(strokeWidth: 2)
+                            : (pictureUrl != null && pictureUrl.isNotEmpty
+                                  ? null
+                                  : Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
+                                    )),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.camera_alt,
+                            size: 14,
+                            color: theme.colorScheme.onPrimary,
+                          ),
                         ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -178,6 +243,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SnackBar(content: Text('Copied npub!')),
                     );
                   },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.qr_code, size: 18),
+                  onPressed: () => _showQrDialog(npub),
                 ),
               ],
             ),
@@ -355,6 +424,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onPressed: () => _showAddRelayDialog(),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add relay'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQrDialog(String npub) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Share Identity'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: QrImageView(
+                data: npub,
+                version: QrVersions.auto,
+                size: 220,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              npub,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
           ),
         ],
       ),

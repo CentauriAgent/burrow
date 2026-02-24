@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `batch_check_key_packages`, `fetch_follow_list_inner`, `set_last_synced`, `sync_contacts_inner`
+// These functions are ignored because they are not marked as `pub`: `batch_check_key_packages`, `fetch_follow_list_inner`, `publish_follow_list`, `set_last_synced`, `sync_contacts_inner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 
 /// Debug contacts sync: returns diagnostic info about each step.
@@ -30,6 +30,16 @@ Future<List<ContactInfo>> syncContacts() =>
 /// Get the timestamp of the last contacts sync (epoch seconds), or None.
 Future<PlatformInt64?> getLastContactsSync() =>
     RustLib.instance.api.crateApiContactsGetLastContactsSync();
+
+/// Follow a contact by adding them to the NIP-02 follow list (kind 3).
+/// Publishes the updated follow list to relays and updates local DB.
+Future<void> followContact({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiContactsFollowContact(pubkeyHex: pubkeyHex);
+
+/// Unfollow a contact by removing them from the NIP-02 follow list (kind 3).
+/// Publishes the updated follow list to relays and removes from local DB.
+Future<void> unfollowContact({required String pubkeyHex}) =>
+    RustLib.instance.api.crateApiContactsUnfollowContact(pubkeyHex: pubkeyHex);
 
 /// A Marmot-capable contact (has published a key package).
 class ContactInfo {

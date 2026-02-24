@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 
@@ -82,123 +84,176 @@ class ChatBubble extends StatelessWidget {
               )
             else if (!isSent && senderName != null)
               const SizedBox(width: 34), // align with avatar above
-            Flexible(child: Column(
-          crossAxisAlignment: isSent
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [
-            // The bubble itself — long press to show reaction bar
-            GestureDetector(
-              onLongPressStart: onReact != null
-                  ? (details) => _showReactionBar(context, details)
-                  : null,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.75,
-                ),
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(isSent ? 18 : 4),
-                    bottomRight: Radius.circular(isSent ? 4 : 18),
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final attachment in attachments)
-                      if (attachment.isImage)
-                        _ImageAttachmentWidget(
-                          attachment: attachment,
-                          groupId: groupId,
-                        ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isSent
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  // The bubble itself — long press to show reaction bar
+                  GestureDetector(
+                    onLongPressStart: onReact != null
+                        ? (details) => _showReactionBar(context, details)
+                        : null,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75,
                       ),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(18),
+                          topRight: const Radius.circular(18),
+                          bottomLeft: Radius.circular(isSent ? 18 : 4),
+                          bottomRight: Radius.circular(isSent ? 4 : 18),
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (showSenderName && senderName != null) ...[
-                            Text(
-                              senderName!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _senderColor(senderName!),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                          ],
-                          if (!isMediaOnly)
-                            SelectableText(
-                              content,
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 15,
-                                height: 1.3,
-                              ),
-                            ),
                           for (final attachment in attachments)
-                            if (attachment.isAudio)
-                              _AudioAttachmentWidget(
+                            if (attachment.isImage)
+                              _ImageAttachmentWidget(
                                 attachment: attachment,
                                 groupId: groupId,
-                                textColor: textColor,
-                              )
-                            else if (!attachment.isImage)
-                              _FileAttachmentChip(
-                                attachment: attachment,
-                                groupId: groupId,
-                                textColor: textColor,
                               ),
-                          const SizedBox(height: 3),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _formatTime(timestamp),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: timeColor,
-                                ),
-                              ),
-                              if (isSent) ...[
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.done_all,
-                                  size: 14,
-                                  color: timeColor,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (showSenderName && senderName != null) ...[
+                                  Text(
+                                    senderName!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: _senderColor(senderName!),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                                if (!isMediaOnly)
+                                  MarkdownBody(
+                                    data: content,
+                                    selectable: true,
+                                    onTapLink: (text, href, title) {
+                                      if (href != null) {
+                                        launchUrl(Uri.parse(href));
+                                      }
+                                    },
+                                    styleSheet: MarkdownStyleSheet(
+                                      p: TextStyle(
+                                        color: textColor,
+                                        fontSize: 15,
+                                        height: 1.3,
+                                      ),
+                                      a: TextStyle(
+                                        color: textColor,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                      code: TextStyle(
+                                        color: textColor,
+                                        backgroundColor: textColor.withAlpha(
+                                          25,
+                                        ),
+                                        fontSize: 13,
+                                        fontFamily: 'monospace',
+                                      ),
+                                      codeblockDecoration: BoxDecoration(
+                                        color: textColor.withAlpha(20),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      blockquoteDecoration: BoxDecoration(
+                                        border: Border(
+                                          left: BorderSide(
+                                            color: textColor.withAlpha(80),
+                                            width: 3,
+                                          ),
+                                        ),
+                                      ),
+                                      listBullet: TextStyle(
+                                        color: textColor,
+                                        fontSize: 15,
+                                      ),
+                                      h1: TextStyle(
+                                        color: textColor,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      h2: TextStyle(
+                                        color: textColor,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      h3: TextStyle(
+                                        color: textColor,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                for (final attachment in attachments)
+                                  if (attachment.isAudio)
+                                    _AudioAttachmentWidget(
+                                      attachment: attachment,
+                                      groupId: groupId,
+                                      textColor: textColor,
+                                    )
+                                  else if (!attachment.isImage)
+                                    _FileAttachmentChip(
+                                      attachment: attachment,
+                                      groupId: groupId,
+                                      textColor: textColor,
+                                    ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _formatTime(timestamp),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: timeColor,
+                                      ),
+                                    ),
+                                    if (isSent) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.done_all,
+                                        size: 14,
+                                        color: timeColor,
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
-                            ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  // Reaction pills below the bubble
+                  if (reactions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, bottom: 4),
+                      child: _ReactionPills(
+                        reactions: reactions,
+                        selfPubkey: selfPubkey,
+                        onTap: onReact,
+                      ),
+                    ),
+                ],
               ),
             ),
-
-            // Reaction pills below the bubble
-            if (reactions.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 4),
-                child: _ReactionPills(
-                  reactions: reactions,
-                  selfPubkey: selfPubkey,
-                  onTap: onReact,
-                ),
-              ),
-          ],
-        )),
           ],
         ),
       ),
@@ -590,7 +645,10 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
 
   Future<void> _download() async {
     if (widget.groupId == null) {
-      setState(() { _loading = false; _error = 'No group context'; });
+      setState(() {
+        _loading = false;
+        _error = 'No group context';
+      });
       return;
     }
     try {
@@ -599,9 +657,17 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
         attachment: widget.attachment,
       );
       await _player.setFilePath(file.path);
-      if (mounted) setState(() { _file = file; _loading = false; });
+      if (mounted)
+        setState(() {
+          _file = file;
+          _loading = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _error = 'Failed to load audio'; _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = 'Failed to load audio';
+          _loading = false;
+        });
     }
   }
 
@@ -625,9 +691,16 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             const SizedBox(width: 8),
-            Text('Loading audio...', style: TextStyle(color: widget.textColor, fontSize: 13)),
+            Text(
+              'Loading audio...',
+              style: TextStyle(color: widget.textColor, fontSize: 13),
+            ),
           ],
         ),
       );
@@ -638,9 +711,16 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 18, color: widget.textColor.withAlpha(180)),
+            Icon(
+              Icons.error_outline,
+              size: 18,
+              color: widget.textColor.withAlpha(180),
+            ),
             const SizedBox(width: 6),
-            Text(_error ?? 'Audio unavailable', style: TextStyle(color: widget.textColor, fontSize: 13)),
+            Text(
+              _error ?? 'Audio unavailable',
+              style: TextStyle(color: widget.textColor, fontSize: 13),
+            ),
           ],
         ),
       );
@@ -670,23 +750,40 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
                   child: SliderTheme(
                     data: SliderThemeData(
                       trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 6,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 10,
+                      ),
                       activeTrackColor: widget.textColor,
                       inactiveTrackColor: widget.textColor.withAlpha(60),
                       thumbColor: widget.textColor,
                     ),
                     child: Slider(
                       min: 0,
-                      max: _duration.inMilliseconds.toDouble().clamp(1, double.infinity),
-                      value: _position.inMilliseconds.toDouble().clamp(0, _duration.inMilliseconds.toDouble().clamp(1, double.infinity)),
-                      onChanged: (v) => _player.seek(Duration(milliseconds: v.toInt())),
+                      max: _duration.inMilliseconds.toDouble().clamp(
+                        1,
+                        double.infinity,
+                      ),
+                      value: _position.inMilliseconds.toDouble().clamp(
+                        0,
+                        _duration.inMilliseconds.toDouble().clamp(
+                          1,
+                          double.infinity,
+                        ),
+                      ),
+                      onChanged: (v) =>
+                          _player.seek(Duration(milliseconds: v.toInt())),
                     ),
                   ),
                 ),
                 Text(
                   '${_fmt(_position)} / ${_fmt(_duration)}',
-                  style: TextStyle(fontSize: 11, color: widget.textColor.withAlpha(180)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: widget.textColor.withAlpha(180),
+                  ),
                 ),
               ],
             ),

@@ -280,3 +280,91 @@ pub async fn get_cached_profile(pubkey_hex: String) -> Result<ProfileData, Burro
     })
     .await
 }
+
+/// Upload a profile photo to Blossom and update kind 0 metadata with the URL.
+/// The image is uploaded unencrypted (public avatar, not MLS-encrypted).
+#[frb]
+pub async fn upload_profile_photo(
+    file_data: Vec<u8>,
+    mime_type: String,
+    blossom_server_url: String,
+) -> Result<String, BurrowError> {
+    use sha2::{Sha256, Digest};
+
+    let keys = state::with_state(|s| Ok(s.keys.clone())).await?;
+
+    // Hash the file for BUD-02
+    let hash_hex = hex::encode(Sha256::digest(&file_data));
+
+    // Build BUD-02 auth event
+    let auth_event = nostr_sdk::EventBuilder::new(
+        nostr_sdk::Kind::Custom(24242),
+        "Upload profile photo",
+    )
+    .tag(nostr_sdk::Tag::parse(["t".to_string(), "upload".to_string()]).unwrap())
+    .tag(nostr_sdk::Tag::parse(["x".to_string(), hash_hex.clone()]).unwrap())
+    .tag(nostr_sdk::Tag::parse([
+        "expiration".to_string(),
+        (nostr_sdk::Timestamp::now().as_secs() + 300).to_string(),
+    ]).unwrap())
+    .build(keys.public_key())
+    .sign(&keys)
+    .await
+    .map_err(|e| BurrowError::from(format!("Failed to sign auth event: {e}")))?;
+
+    let auth_b64 = {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.encode(auth_event.as_json().as_bytes())
+    };
+
+    let upload_url = format!("{}/upload", blossom_server_url.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let resp = client
+        .put(&upload_url)
+        .header("Content-Type", &mime_type)
+        .header("X-SHA-256", &hash_hex)
+        .header("Authorization", format!("Nostr {}", auth_b64))
+        .body(file_data)
+        .send()
+        .await
+        .map_err(|e| BurrowError::from(format!("Blossom upload failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(BurrowError::from(format!(
+            "Blossom upload returned HTTP {status}: {body}"
+        )));
+    }
+
+    // Parse response for URL
+    let resp_text = resp.text().await
+        .map_err(|e| BurrowError::from(format!("Failed to read response: {e}")))?;
+
+    let picture_url = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&resp_text) {
+        json.get("url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!(
+                "{}/{}",
+                blossom_server_url.trim_end_matches('/'),
+                hash_hex
+            ))
+    } else {
+        format!("{}/{}", blossom_server_url.trim_end_matches('/'), hash_hex)
+    };
+
+    // Fetch current profile, update picture, republish kind 0
+    let pubkey_hex = keys.public_key().to_hex();
+    let current = state::with_state(|s| {
+        Ok(s.profile_cache.get(&pubkey_hex).cloned().unwrap_or_default())
+    }).await?;
+
+    let updated = ProfileData {
+        picture: Some(picture_url.clone()),
+        ..current
+    };
+    set_profile(updated).await?;
+
+    Ok(picture_url)
+}
