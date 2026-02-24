@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:just_audio/just_audio.dart' as ja;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
@@ -615,30 +615,38 @@ class _AudioAttachmentWidget extends StatefulWidget {
 }
 
 class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
-  final AudioPlayer _player = AudioPlayer();
+  ja.AudioPlayer? _jaPlayer;
+  Process? _process;
   File? _file;
   bool _loading = true;
   String? _error;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _isPlaying = false;
+  bool _useProcessFallback = false;
+  Timer? _positionTimer;
 
   @override
   void initState() {
     super.initState();
     _download();
-    _player.positionStream.listen((p) {
+  }
+
+  void _initJustAudio() {
+    final player = ja.AudioPlayer();
+    _jaPlayer = player;
+    player.positionStream.listen((p) {
       if (mounted) setState(() => _position = p);
     });
-    _player.durationStream.listen((d) {
+    player.durationStream.listen((d) {
       if (mounted && d != null) setState(() => _duration = d);
     });
-    _player.playerStateStream.listen((state) {
+    player.playerStateStream.listen((state) {
       if (mounted) {
         setState(() => _isPlaying = state.playing);
-        if (state.processingState == ProcessingState.completed) {
-          _player.seek(Duration.zero);
-          _player.pause();
+        if (state.processingState == ja.ProcessingState.completed) {
+          player.seek(Duration.zero);
+          player.pause();
         }
       }
     });
@@ -664,8 +672,20 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
       if (!file.existsSync() || file.lengthSync() == 0) {
         throw Exception('Downloaded file is empty or missing');
       }
-      // Pre-set the source so duration is available
-      await _player.setFilePath(file.path);
+
+      // Try just_audio first (works on mobile + macOS + web)
+      try {
+        _initJustAudio();
+        await _jaPlayer!.setFilePath(file.path);
+      } catch (_) {
+        // Fallback for Linux: use ffplay/mpv/aplay via Process
+        _jaPlayer?.dispose();
+        _jaPlayer = null;
+        _useProcessFallback = true;
+        // Probe duration with ffprobe if available
+        _probeDuration(file.path);
+      }
+
       if (mounted) {
         setState(() {
           _file = file;
@@ -684,10 +704,90 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
     }
   }
 
-  @override
+  Future<void> _probeDuration(String path) async {
+    try {
+      final result = await Process.run('ffprobe', [
+        '-v',
+        'quiet',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'csv=p=0',
+        path,
+      ]);
+      if (result.exitCode == 0) {
+        final secs = double.tryParse(result.stdout.toString().trim());
+        if (secs != null && mounted) {
+          setState(
+            () => _duration = Duration(milliseconds: (secs * 1000).round()),
+          );
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _togglePlay() async {
+    if (_isPlaying) {
+      if (_useProcessFallback) {
+        _process?.kill();
+        _process = null;
+        _positionTimer?.cancel();
+        setState(() {
+          _isPlaying = false;
+          _position = Duration.zero;
+        });
+      } else {
+        _jaPlayer?.pause();
+      }
+    } else {
+      if (_useProcessFallback && _file != null) {
+        // Try ffplay first (comes with ffmpeg), then mpv, then aplay
+        final players = ['ffplay', 'mpv', 'paplay'];
+        for (final cmd in players) {
+          try {
+            final args = cmd == 'ffplay'
+                ? ['-nodisp', '-autoexit', '-loglevel', 'quiet', _file!.path]
+                : cmd == 'mpv'
+                ? ['--no-video', '--really-quiet', _file!.path]
+                : [_file!.path];
+            _process = await Process.start(cmd, args);
+            setState(() => _isPlaying = true);
+            // Track position by timer
+            final startTime = DateTime.now();
+            _positionTimer = Timer.periodic(const Duration(milliseconds: 200), (
+              _,
+            ) {
+              if (mounted) {
+                setState(
+                  () => _position = DateTime.now().difference(startTime),
+                );
+              }
+            });
+            _process!.exitCode.then((_) {
+              _positionTimer?.cancel();
+              if (mounted) {
+                setState(() {
+                  _isPlaying = false;
+                  _position = Duration.zero;
+                });
+              }
+            });
+            break;
+          } catch (_) {
+            continue;
+          }
+        }
+      } else {
+        _jaPlayer?.play();
+      }
+    }
+  }
+
   @override
   void dispose() {
-    _player.dispose();
+    _jaPlayer?.dispose();
+    _process?.kill();
+    _positionTimer?.cancel();
     super.dispose();
   }
 
@@ -746,7 +846,7 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
-            onTap: () => _isPlaying ? _player.pause() : _player.play(),
+            onTap: _togglePlay,
             child: Icon(
               _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
               size: 32,
@@ -788,7 +888,7 @@ class _AudioAttachmentWidgetState extends State<_AudioAttachmentWidget> {
                         ),
                       ),
                       onChanged: (v) =>
-                          _player.seek(Duration(milliseconds: v.toInt())),
+                          _jaPlayer?.seek(Duration(milliseconds: v.toInt())),
                     ),
                   ),
                 ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:burrow_app/src/rust/frb_generated.dart';
 import 'package:burrow_app/src/rust/api/state.dart' as rust_state;
@@ -28,7 +27,6 @@ import 'package:burrow_app/screens/archived_groups_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  JustAudioMediaKit.ensureInitialized();
   await RustLib.init();
   // Set the data directory for persistent MLS storage before auth loads
   final appDir = await getApplicationSupportDirectory();

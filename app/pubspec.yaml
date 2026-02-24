@@ -55,8 +55,6 @@ dependencies:
   qr_flutter: ^4.1.0
   url_launcher: ^6.3.2
   just_audio: ^0.10.5
-  just_audio_media_kit: ^2.1.0
-  media_kit_libs_linux: ^1.2.1
 
 dev_dependencies:
   flutter_test:
