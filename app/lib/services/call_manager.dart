@@ -355,7 +355,9 @@ class CallManager {
         _callStateController.add(
           CallStateEvent(callId: callId, state: 'active'),
         );
-        rust_session.updateSessionState(callId: callId, state: 'active');
+        try {
+          rust_session.updateSessionState(callId: callId, state: 'active');
+        } catch (_) {}
       case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
         stateStr = 'disconnected';
       case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -363,16 +365,20 @@ class CallManager {
         _callStateController.add(
           CallStateEvent(callId: callId, state: 'failed'),
         );
-        rust_session.updateSessionState(callId: callId, state: 'failed');
+        try {
+          rust_session.updateSessionState(callId: callId, state: 'failed');
+        } catch (_) {}
       case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
         stateStr = 'closed';
     }
 
-    rust_webrtc.updatePeerState(
-      callId: callId,
-      participantPubkeyHex: event.remotePubkeyHex,
-      state: stateStr,
-    );
+    try {
+      rust_webrtc.updatePeerState(
+        callId: callId,
+        participantPubkeyHex: event.remotePubkeyHex,
+        state: stateStr,
+      );
+    } catch (_) {}
   }
 
   Future<void> _sendIceCandidate(IceCandidateEvent event) async {

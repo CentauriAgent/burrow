@@ -138,7 +138,11 @@ class CallNotifier extends Notifier<CallState> {
           callStartTime: now,
           isSpeakerOn: useSpeaker,
         );
-        Helper.setSpeakerphoneOn(useSpeaker);
+        try {
+          Helper.setSpeakerphoneOn(useSpeaker);
+        } catch (_) {
+          // Not available on desktop platforms
+        }
         _startDurationTimer();
         _scheduleControlsHide();
         break;
