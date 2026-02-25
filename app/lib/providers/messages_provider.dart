@@ -96,6 +96,9 @@ class MessagesNotifier extends ChangeNotifier {
     final votes = <String, List<PollVote>>{};
 
     for (final m in all) {
+      // Kind 10000 = typing indicator (ephemeral, never display)
+      if (m.kind == BigInt.from(10000)) continue;
+
       if (m.kind == BigInt.from(7)) {
         // Kind 7 = reaction — find the target event ID from e-tag
         final targetId = _extractETag(m.tags);

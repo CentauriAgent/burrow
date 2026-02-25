@@ -398,11 +398,14 @@ pub async fn listen_for_call_events(
 ) -> Result<(), BurrowError> {
     let (client, keys) = state::with_state(|s| Ok((s.client.clone(), s.keys.clone()))).await?;
 
-    // Subscribe to gift-wrapped events addressed to us
+    // Subscribe to gift-wrapped events addressed to us.
+    // NIP-59 randomizes the outer event timestamp, so use a wider window
+    // to avoid missing events. Stale events are filtered by rumor age below.
+    let since = Timestamp::from(Timestamp::now().as_secs().saturating_sub(120));
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkey(keys.public_key())
-        .since(Timestamp::now());
+        .since(since);
 
     client
         .subscribe(filter, None)
@@ -429,21 +432,11 @@ pub async fn listen_for_call_events(
                                 if kind_num >= KIND_CALL_OFFER
                                     && kind_num <= KIND_CALL_STATE_UPDATE
                                 {
-                                    // Discard expired events (60s TTL)
-                                    let expiration = rumor
-                                        .tags
-                                        .iter()
-                                        .find(|t| {
-                                            t.as_slice()
-                                                .first()
-                                                .map(|v| v == "expiration")
-                                                .unwrap_or(false)
-                                        })
-                                        .and_then(|t| t.as_slice().get(1)?.parse::<u64>().ok());
-                                    if let Some(exp) = expiration {
-                                        if Timestamp::now().as_secs() > exp {
-                                            return Ok(false);
-                                        }
+                                    // Discard stale events (older than 2 minutes)
+                                    let age_secs = Timestamp::now().as_secs()
+                                        .saturating_sub(rumor.created_at.as_secs());
+                                    if age_secs > 120 {
+                                        return Ok(false);
                                     }
                                     let call_id = rumor
                                         .tags
