@@ -196,19 +196,30 @@ class CallManager {
 
     _callStateController.add(CallStateEvent(callId: callId, state: 'ending'));
 
-    final session = await rust_session.getSession(callId: callId);
-    if (session != null) {
-      final wrappedEventJson = await rust_signaling.endCall(
-        callId: callId,
-        remotePubkeyHex: session.remotePubkeyHex,
-      );
-      await _signalingService.publishSignalingEvent(wrappedEventJson);
-      await rust_session.updateSessionState(callId: callId, state: 'ending');
+    // Try to send hangup signal, but don't block cleanup on failure
+    try {
+      final session = await rust_session.getSession(callId: callId);
+      if (session != null) {
+        final wrappedEventJson = await rust_signaling.endCall(
+          callId: callId,
+          remotePubkeyHex: session.remotePubkeyHex,
+        );
+        await _signalingService.publishSignalingEvent(wrappedEventJson);
+        await rust_session.updateSessionState(callId: callId, state: 'ending');
+      }
+    } catch (_) {
+      // Signaling may fail if not connected — still clean up
     }
 
-    await _webrtcService.dispose();
-    await rust_webrtc.removeCallPeers(callId: callId);
-    await rust_session.removeSession(callId: callId);
+    try {
+      await _webrtcService.dispose();
+    } catch (_) {}
+    try {
+      await rust_webrtc.removeCallPeers(callId: callId);
+    } catch (_) {}
+    try {
+      await rust_session.removeSession(callId: callId);
+    } catch (_) {}
 
     _activeCallId = null;
     _remotePubkeyHex = null;

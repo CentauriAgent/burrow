@@ -234,6 +234,7 @@ class CallNotifier extends Notifier<CallState> {
     if (callId != null) {
       await _callManager.endCall(callId);
     }
+    state = const CallState();
   }
 
   /// Toggle mute.
