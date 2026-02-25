@@ -399,9 +399,9 @@ pub async fn listen_for_call_events(
     let (client, keys) = state::with_state(|s| Ok((s.client.clone(), s.keys.clone()))).await?;
 
     // Subscribe to gift-wrapped events addressed to us.
-    // NIP-59 randomizes the outer event timestamp, so use a wider window
-    // to avoid missing events. Stale events are filtered by rumor age below.
-    let since = Timestamp::from(Timestamp::now().as_secs().saturating_sub(120));
+    // NIP-59 randomizes the outer event timestamp by up to ±2 days,
+    // so we need a wide window. Stale events are filtered by rumor age below.
+    let since = Timestamp::from(Timestamp::now().as_secs().saturating_sub(3 * 86400));
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkey(keys.public_key())

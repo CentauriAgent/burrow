@@ -213,7 +213,9 @@ pub async fn run(
     let filter = Filter::new()
         .kind(Kind::GiftWrap)
         .pubkey(keys.public_key())
-        .since(Timestamp::now());
+        // NIP-59 randomizes the outer gift-wrap timestamp by up to ±2 days,
+        // so use a wide window. Stale events are filtered by call-id match.
+        .since(Timestamp::from(Timestamp::now().as_secs().saturating_sub(3 * 86400)));
     client.subscribe(filter, None).await?;
 
     let shutdown = Arc::new(Notify::new());
@@ -238,7 +240,7 @@ pub async fn run(
                             call_type: "audio".to_string(),
                         })
                         .unwrap();
-                        if let Ok(ev) = gift_wrap_signaling(
+                        match gift_wrap_signaling(
                             &keys,
                             KIND_CALL_OFFER,
                             &payload,
@@ -248,7 +250,13 @@ pub async fn run(
                         )
                         .await
                         {
-                            let _ = client.send_event(&ev).await;
+                            Ok(ev) => {
+                                match client.send_event(&ev).await {
+                                    Ok(output) => eprintln!("✅ Call offer published: {}", output.id()),
+                                    Err(e) => eprintln!("❌ Failed to publish call offer: {}", e),
+                                }
+                            }
+                            Err(e) => eprintln!("❌ Failed to gift-wrap call offer: {}", e),
                         }
                     }
                     WebRtcEvent::AnswerCreated(sdp) => {
