@@ -138,11 +138,7 @@ class CallNotifier extends Notifier<CallState> {
           callStartTime: now,
           isSpeakerOn: useSpeaker,
         );
-        try {
-          Helper.setSpeakerphoneOn(useSpeaker);
-        } catch (_) {
-          // Not available on desktop platforms
-        }
+        Helper.setSpeakerphoneOn(useSpeaker).catchError((_) {});
         _startDurationTimer();
         _scheduleControlsHide();
         break;
@@ -227,7 +223,9 @@ class CallNotifier extends Notifier<CallState> {
   Future<void> rejectCall() async {
     final callId = state.callId;
     if (callId != null) {
-      await _callManager.endCall(callId);
+      try {
+        await _callManager.endCall(callId);
+      } catch (_) {}
     }
     state = const CallState();
   }
@@ -236,7 +234,9 @@ class CallNotifier extends Notifier<CallState> {
   Future<void> endCall() async {
     final callId = state.callId;
     if (callId != null) {
-      await _callManager.endCall(callId);
+      try {
+        await _callManager.endCall(callId);
+      } catch (_) {}
     }
     state = const CallState();
   }
