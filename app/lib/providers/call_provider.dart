@@ -127,7 +127,10 @@ class CallNotifier extends Notifier<CallState> {
     switch (event.state) {
       case 'initiating':
       case 'connecting':
-        state = state.copyWith(status: CallStatus.connecting);
+        // Don't regress from active back to connecting
+        if (state.status != CallStatus.active) {
+          state = state.copyWith(status: CallStatus.connecting);
+        }
         break;
       case 'active':
         final now = DateTime.now();
@@ -140,7 +143,10 @@ class CallNotifier extends Notifier<CallState> {
         );
         Helper.setSpeakerphoneOn(useSpeaker).catchError((_) {});
         _startDurationTimer();
-        _scheduleControlsHide();
+        // Only auto-hide controls for video calls
+        if (state.isVideo) {
+          _scheduleControlsHide();
+        }
         break;
       case 'ending':
         state = state.copyWith(status: CallStatus.ending);
