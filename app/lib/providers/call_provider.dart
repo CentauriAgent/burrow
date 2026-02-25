@@ -228,23 +228,20 @@ class CallNotifier extends Notifier<CallState> {
   /// Reject an incoming call or cancel outgoing.
   Future<void> rejectCall() async {
     final callId = state.callId;
-    if (callId != null) {
-      try {
-        await _callManager.endCall(callId);
-      } catch (_) {}
-    }
     state = const CallState();
+    if (callId != null) {
+      _callManager.endCall(callId).catchError((_) {});
+    }
   }
 
   /// End active call.
   Future<void> endCall() async {
     final callId = state.callId;
-    if (callId != null) {
-      try {
-        await _callManager.endCall(callId);
-      } catch (_) {}
-    }
     state = const CallState();
+    if (callId != null) {
+      // Fire and forget — don't block UI on relay/cleanup
+      _callManager.endCall(callId).catchError((_) {});
+    }
   }
 
   /// Toggle mute.
