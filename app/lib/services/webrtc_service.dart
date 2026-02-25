@@ -249,7 +249,11 @@ class WebRtcService {
   Future<void> dispose() async {
     // Close all peer connections
     for (final pc in _peerConnections.values) {
-      await pc.close();
+      try {
+        await pc.close();
+      } catch (_) {
+        // Peer connection may already be null/closed
+      }
     }
     _peerConnections.clear();
 

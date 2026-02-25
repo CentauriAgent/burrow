@@ -429,6 +429,22 @@ pub async fn listen_for_call_events(
                                 if kind_num >= KIND_CALL_OFFER
                                     && kind_num <= KIND_CALL_STATE_UPDATE
                                 {
+                                    // Discard expired events (60s TTL)
+                                    let expiration = rumor
+                                        .tags
+                                        .iter()
+                                        .find(|t| {
+                                            t.as_slice()
+                                                .first()
+                                                .map(|v| v == "expiration")
+                                                .unwrap_or(false)
+                                        })
+                                        .and_then(|t| t.as_slice().get(1)?.parse::<u64>().ok());
+                                    if let Some(exp) = expiration {
+                                        if Timestamp::now().as_secs() > exp {
+                                            return Ok(false);
+                                        }
+                                    }
                                     let call_id = rumor
                                         .tags
                                         .iter()
