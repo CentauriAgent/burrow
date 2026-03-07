@@ -20,6 +20,7 @@ import 'package:burrow_app/providers/call_provider.dart';
 import 'package:burrow_app/providers/group_avatar_provider.dart';
 import 'package:burrow_app/screens/chat_shell_screen.dart';
 import 'package:burrow_app/widgets/chat_bubble.dart';
+import 'package:burrow_app/widgets/typing_indicator.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
 import 'package:burrow_app/src/rust/api/app_state.dart' as rust_app;
 import 'package:burrow_app/src/rust/api/error.dart';
@@ -436,8 +437,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
           // @mention suggestions
           _buildMentionSuggestions(theme),
 
-          // Typing indicator
-          _buildTypingIndicator(theme, messagesNotifier),
+          // Typing indicator (animated dots widget)
+          TypingIndicator(groupId: widget.groupId),
 
           // Input bar
           _buildInputBar(theme),
@@ -961,34 +962,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
     );
   }
 
-  Widget _buildTypingIndicator(ThemeData theme, MessagesNotifier notifier) {
-    final typing = notifier.typingPubkeys;
-    if (typing.isEmpty) return const SizedBox.shrink();
-
-    final names = typing.map((pk) {
-      final profile = ref.watch(memberProfileProvider(pk));
-      return profile.value?.displayName ??
-          profile.value?.name ??
-          '${pk.substring(0, 8)}...';
-    }).toList();
-
-    final text = names.length == 1
-        ? '${names[0]} is typing...'
-        : '${names.join(', ')} are typing...';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontStyle: FontStyle.italic,
-          color: theme.colorScheme.onSurface.withAlpha(120),
-        ),
-      ),
-    );
-  }
+  // Typing indicator is now handled by TypingIndicator widget
+  // in app/lib/widgets/typing_indicator.dart
 
   Widget _buildInputBar(ThemeData theme) {
     return Container(
