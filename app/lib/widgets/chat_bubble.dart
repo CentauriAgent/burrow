@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:burrow_app/services/media_attachment_service.dart';
+import 'package:burrow_app/services/link_preview_service.dart';
+import 'package:burrow_app/widgets/link_preview_card.dart';
 import 'package:burrow_app/providers/messages_provider.dart';
 
 /// Default reaction emojis shown in the quick-react bar.
@@ -200,6 +202,8 @@ class ChatBubble extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                // Link preview cards for URLs in the message
+                                ..._buildLinkPreviews(),
                                 for (final attachment in attachments)
                                   if (attachment.isAudio)
                                     _AudioAttachmentWidget(
@@ -401,6 +405,17 @@ class ChatBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Build link preview cards for any URLs found in the message content.
+  List<Widget> _buildLinkPreviews() {
+    final urls = LinkPreviewService.extractUrls(content);
+    if (urls.isEmpty) return [];
+    // Show previews for up to 3 URLs to avoid overwhelming the UI
+    return urls.take(3).map((url) => LinkPreviewCard(
+      url: url,
+      isSent: isSent,
+    )).toList();
   }
 
   String _formatTime(DateTime dt) => DateFormat.jm().format(dt);

@@ -17,3 +17,4 @@ pub mod call_webrtc;
 pub mod call_quality;
 pub mod transcription;
 pub mod meeting_intelligence;
+pub mod link_preview;
