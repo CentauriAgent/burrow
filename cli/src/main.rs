@@ -92,6 +92,17 @@ enum Commands {
         #[arg(long)]
         no_access_control: bool,
     },
+    /// Send read receipt(s) for messages in a group
+    ReadReceipt {
+        group_id: String,
+        /// One or more message event IDs to mark as read
+        #[arg(required = true, num_args = 1..)]
+        message_ids: Vec<String>,
+        #[arg(short = 'k', long)]
+        key_path: Option<String>,
+        #[arg(short = 'd', long)]
+        data_dir: Option<String>,
+    },
     /// Send a typing indicator to a group
     Typing {
         group_id: String,
@@ -230,6 +241,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Daemon { key_path, data_dir, log_file, reconnect_delay, no_access_control } => {
             commands::daemon::run(key_path, data_dir, log_file, reconnect_delay, no_access_control).await?;
+        }
+        Commands::ReadReceipt { group_id, message_ids, key_path, data_dir } => {
+            commands::read_receipt::run(group_id, message_ids, key_path, data_dir).await?;
         }
         Commands::Typing { group_id, key_path, data_dir } => {
             commands::send::typing(group_id, key_path, data_dir).await?;

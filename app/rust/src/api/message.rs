@@ -280,6 +280,55 @@ pub async fn send_reaction(
     .await
 }
 
+/// Kind used for read receipt signals (MIP read receipts spec).
+const READ_RECEIPT_KIND: u16 = 15;
+
+/// A read receipt from another group member.
+#[frb(non_opaque)]
+#[derive(Debug, Clone)]
+pub struct ReadReceipt {
+    /// Hex-encoded public key of the reader.
+    pub reader_pubkey_hex: String,
+    /// Unix timestamp when the messages were marked as read.
+    pub read_at: u64,
+    /// Hex-encoded event IDs of messages that were read.
+    pub message_event_ids: Vec<String>,
+}
+
+/// Send a read receipt for one or more messages in a group (MIP read receipts).
+///
+/// Creates a kind 15 MLS application message with `e` tags referencing
+/// the event IDs of messages that have been read. The receipt is encrypted
+/// via MLS + NIP-44, so relays see only a standard kind 445 event.
+#[frb]
+pub async fn send_read_receipt(
+    mls_group_id_hex: String,
+    message_event_ids: Vec<String>,
+) -> Result<String, BurrowError> {
+    state::with_state(|s| {
+        let group_id = GroupId::from_slice(
+            &hex::decode(&mls_group_id_hex).map_err(|e| BurrowError::from(e.to_string()))?,
+        );
+
+        let mut builder = EventBuilder::new(Kind::Custom(READ_RECEIPT_KIND), "");
+        for msg_id in &message_event_ids {
+            let event_id = EventId::from_hex(msg_id)
+                .map_err(|e| BurrowError::from(e.to_string()))?;
+            builder = builder.tag(Tag::event(event_id));
+        }
+
+        let rumor = builder.build(s.keys.public_key());
+
+        let event = s
+            .mdk
+            .create_message(&group_id, rumor)
+            .map_err(BurrowError::from)?;
+
+        serde_json::to_string(&event).map_err(|e| BurrowError::from(e.to_string()))
+    })
+    .await
+}
+
 /// Kind used for typing indicator signals (ephemeral, not stored).
 const TYPING_INDICATOR_KIND: u16 = 10000;
 

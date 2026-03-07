@@ -81,7 +81,8 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
   }
 
   void _markAsRead() {
-    final messages = ref.read(messagesProvider(widget.groupId)).messages;
+    final messagesNotifier = ref.read(messagesProvider(widget.groupId));
+    final messages = messagesNotifier.messages;
     if (messages.isNotEmpty) {
       final newest = messages.first;
       ref.read(groupsProvider.notifier).markGroupRead(widget.groupId);
@@ -90,6 +91,19 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
         lastEventIdHex: newest.eventIdHex,
         timestamp: newest.createdAt.toInt(),
       );
+
+      // Send E2EE read receipts for visible messages
+      final selfPubkey = ref.read(authProvider).publicKeyHex;
+      final unreadIds = messages
+          .where((m) => m.authorPubkeyHex != selfPubkey)
+          .take(20) // Batch up to 20 message IDs
+          .map((m) => m.eventIdHex)
+          .toList();
+      if (unreadIds.isNotEmpty) {
+        for (final id in unreadIds) {
+          messagesNotifier.markAsRead(id);
+        }
+      }
     }
   }
 
@@ -373,6 +387,12 @@ class _ChatViewScreenState extends ConsumerState<ChatViewScreen> {
                                     groupId: widget.groupId,
                                     reactions: msgReactions,
                                     selfPubkey: selfPubkey,
+                                    readStatus: isSent
+                                        ? messagesNotifier.readStatusFor(
+                                            msg.eventIdHex,
+                                            2, // TODO: pass actual member count
+                                          )
+                                        : ReadStatus.sent,
                                     onReact: (emoji) {
                                       ref
                                           .read(

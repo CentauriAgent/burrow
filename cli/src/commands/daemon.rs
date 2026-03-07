@@ -16,6 +16,9 @@ use crate::keyring;
 use crate::relay::pool;
 use crate::storage::file_store::{FileStore, StoredGroup, StoredMessage};
 
+/// Kind 15 — Read receipt (inside MLS-encrypted rumor).
+const READ_RECEIPT_KIND: u16 = 15;
+
 #[derive(Serialize)]
 struct DaemonLogEntry {
     #[serde(rename = "type")]
@@ -31,6 +34,8 @@ struct DaemonLogEntry {
     allowed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "messageIds")]
+    message_ids: Option<Vec<String>>,
 }
 
 fn write_jsonl(log_file: &Option<PathBuf>, entry: &DaemonLogEntry) {
@@ -118,6 +123,7 @@ pub async fn run(
                             content: Some(format!("KeyPackage published: {}", output.id().to_hex())),
                             allowed: None,
                             error: None,
+                                    message_ids: None,
                         };
                         write_jsonl(&log_path, &entry);
                     }
@@ -155,6 +161,7 @@ pub async fn run(
         content: Some(format!("Listening on {} groups, {} relays + NIP-59 gift wraps", groups.len(), all_relays.len())),
         allowed: None,
         error: None,
+                                    message_ids: None,
     };
     write_jsonl(&log_path, &startup);
 
@@ -194,6 +201,7 @@ pub async fn run(
                                     content: Some("Kind 444 Welcome rumor received".into()),
                                     allowed: None,
                                     error: None,
+                                    message_ids: None,
                                 };
                                 write_jsonl(&log_path_clone, &entry);
 
@@ -213,6 +221,7 @@ pub async fn run(
                                                 )),
                                                 allowed: None,
                                                 error: None,
+                                    message_ids: None,
                                             };
                                             write_jsonl(&log_path_clone, &skip_entry);
                                         } else {
@@ -227,6 +236,7 @@ pub async fn run(
                                             )),
                                             allowed: None,
                                             error: None,
+                                    message_ids: None,
                                         };
                                         write_jsonl(&log_path_clone, &welcome_entry);
 
@@ -259,6 +269,7 @@ pub async fn run(
                                                             )),
                                                             allowed: None,
                                                             error: None,
+                                    message_ids: None,
                                                         };
                                                         write_jsonl(&log_path_clone, &accepted_entry);
                                                     }
@@ -271,6 +282,7 @@ pub async fn run(
                                                             content: None,
                                                             allowed: None,
                                                             error: Some(format!("accept_welcome failed: {}", e)),
+                                    message_ids: None,
                                                         };
                                                         write_jsonl(&log_path_clone, &err_entry);
                                                     }
@@ -285,6 +297,7 @@ pub async fn run(
                                                     content: None,
                                                     allowed: None,
                                                     error: Some("Welcome not found after processing".into()),
+                                    message_ids: None,
                                                 };
                                                 write_jsonl(&log_path_clone, &err_entry);
                                             }
@@ -297,6 +310,7 @@ pub async fn run(
                                                     content: None,
                                                     allowed: None,
                                                     error: Some(format!("get_welcome failed: {}", e)),
+                                    message_ids: None,
                                                 };
                                                 write_jsonl(&log_path_clone, &err_entry);
                                             }
@@ -312,6 +326,7 @@ pub async fn run(
                                             content: None,
                                             allowed: None,
                                             error: Some(format!("process_welcome failed: {}", e)),
+                                    message_ids: None,
                                         };
                                         write_jsonl(&log_path_clone, &err_entry);
                                     }
@@ -328,6 +343,7 @@ pub async fn run(
                                 content: None,
                                 allowed: None,
                                 error: Some(format!("NIP-59 unwrap failed: {}", e)),
+                                    message_ids: None,
                             };
                             write_jsonl(&log_path_clone, &entry);
                         }
@@ -366,6 +382,43 @@ pub async fn run(
                                 audit::log_message(&data_clone, &sender_hex, nostr_gid, allowed, None);
                             }
 
+                            // Handle read receipts (kind 15) separately
+                            if msg.kind == Kind::Custom(READ_RECEIPT_KIND) {
+                                if allowed {
+                                    let read_msg_ids: Vec<String> = msg.tags.iter()
+                                        .filter_map(|t| {
+                                            let s = t.as_slice();
+                                            if s.len() >= 2 && s[0] == "e" {
+                                                Some(s[1].clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect();
+
+                                    // Store read receipt
+                                    let _ = store_clone.save_read_receipt(
+                                        &group_hex,
+                                        &sender_hex,
+                                        &read_msg_ids,
+                                        msg.created_at.as_secs(),
+                                    );
+
+                                    let entry = DaemonLogEntry {
+                                        entry_type: "read_receipt".into(),
+                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                        group_id: Some(nostr_gid.to_string()),
+                                        sender_pubkey: Some(sender_hex),
+                                        content: None,
+                                        allowed: Some(true),
+                                        error: None,
+                                        message_ids: Some(read_msg_ids),
+                                    };
+                                    write_jsonl(&log_path_clone, &entry);
+                                }
+                                return Ok(false);
+                            }
+
                             let tags: Vec<Vec<String>> = msg.tags.iter()
                                 .map(|t| t.as_slice().to_vec())
                                 .collect();
@@ -394,6 +447,7 @@ pub async fn run(
                                 content: display_content,
                                 allowed: Some(allowed),
                                 error: None,
+                                message_ids: None,
                             };
                             write_jsonl(&log_path_clone, &entry);
 
@@ -424,6 +478,7 @@ pub async fn run(
                                 content: None,
                                 allowed: None,
                                 error: Some(e.to_string()),
+                                    message_ids: None,
                             };
                             write_jsonl(&log_path_clone, &entry);
                         }

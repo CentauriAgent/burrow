@@ -25,6 +25,8 @@ class ChatBubble extends StatelessWidget {
   final List<Reaction> reactions;
   final String? selfPubkey;
   final void Function(String emoji)? onReact;
+  /// Read status for sent messages (sent / readBySome / readByAll).
+  final ReadStatus readStatus;
 
   const ChatBubble({
     super.key,
@@ -38,6 +40,7 @@ class ChatBubble extends StatelessWidget {
     this.reactions = const [],
     this.selfPubkey,
     this.onReact,
+    this.readStatus = ReadStatus.sent,
   });
 
   @override
@@ -231,9 +234,13 @@ class ChatBubble extends StatelessWidget {
                                     if (isSent) ...[
                                       const SizedBox(width: 4),
                                       Icon(
-                                        Icons.done_all,
+                                        readStatus == ReadStatus.sent
+                                            ? Icons.done
+                                            : Icons.done_all,
                                         size: 14,
-                                        color: timeColor,
+                                        color: readStatus == ReadStatus.readByAll
+                                            ? Colors.lightBlueAccent
+                                            : timeColor,
                                       ),
                                     ],
                                   ],

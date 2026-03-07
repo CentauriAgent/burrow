@@ -30,6 +30,23 @@ class Reaction {
   });
 }
 
+/// A read receipt from a group member.
+class ReadReceipt {
+  final String readerPubkeyHex;
+  final int readAt;
+  const ReadReceipt({required this.readerPubkeyHex, required this.readAt});
+}
+
+/// Read status for a sent message.
+enum ReadStatus {
+  /// Message sent to relay (single check).
+  sent,
+  /// Read by at least one member (double check, grey).
+  readBySome,
+  /// Read by all members (double check, blue).
+  readByAll,
+}
+
 /// Tracks who is currently typing in a group.
 class TypingState {
   final String pubkeyHex;
@@ -53,6 +70,15 @@ class MessagesNotifier extends ChangeNotifier {
   /// Poll votes indexed by poll event ID.
   Map<String, List<PollVote>> pollVotes = {};
 
+  /// Read receipts indexed by message event ID.
+  Map<String, List<ReadReceipt>> readReceipts = {};
+
+  /// Timer for debouncing read receipt sending.
+  Timer? _readReceiptDebounce;
+
+  /// Pending message IDs to batch into the next read receipt.
+  final Set<String> _pendingReadReceiptIds = {};
+
   /// Currently typing users (auto-expires after 5 seconds).
   final Map<String, TypingState> _typingUsers = {};
 
@@ -64,6 +90,49 @@ class MessagesNotifier extends ChangeNotifier {
 
   bool _loading = false;
   bool get loading => _loading;
+
+  /// Get read receipts for a specific message event ID.
+  List<ReadReceipt> readReceiptsFor(String eventIdHex) {
+    return readReceipts[eventIdHex] ?? [];
+  }
+
+  /// Get read status for a message given total group member count.
+  ReadStatus readStatusFor(String eventIdHex, int memberCount) {
+    final receipts = readReceiptsFor(eventIdHex);
+    if (receipts.isEmpty) return ReadStatus.sent;
+    // memberCount - 1 because sender doesn't read-receipt their own message
+    if (receipts.length >= memberCount - 1 && memberCount > 1) {
+      return ReadStatus.readByAll;
+    }
+    return ReadStatus.readBySome;
+  }
+
+  /// Queue a message ID for read receipt sending (batched with debounce).
+  void markAsRead(String eventIdHex) {
+    _pendingReadReceiptIds.add(eventIdHex);
+    _readReceiptDebounce?.cancel();
+    _readReceiptDebounce = Timer(const Duration(seconds: 1), () {
+      _sendPendingReadReceipts();
+    });
+  }
+
+  /// Send batched read receipts for all pending message IDs.
+  Future<void> _sendPendingReadReceipts() async {
+    if (_pendingReadReceiptIds.isEmpty) return;
+    final ids = _pendingReadReceiptIds.toList();
+    _pendingReadReceiptIds.clear();
+    try {
+      final eventJson = await rust_message.sendReadReceipt(
+        mlsGroupIdHex: groupId,
+        messageEventIds: ids,
+      );
+      unawaited(
+        rust_relay
+            .publishEventJson(eventJson: eventJson)
+            .catchError((_) => ''),
+      );
+    } catch (_) {}
+  }
 
   /// Get list of pubkeys currently typing (excludes expired).
   List<String> get typingPubkeys {
@@ -151,6 +220,29 @@ class MessagesNotifier extends ChangeNotifier {
 
   /// Add a real-time message from the relay listener stream.
   void addIncomingMessage(rust_message.GroupMessage message) {
+    // Kind 15 = read receipt (process and discard, not displayed)
+    if (message.kind == BigInt.from(15)) {
+      final readEventIds = <String>[];
+      for (final tag in message.tags) {
+        if (tag.length >= 2 && tag[0] == 'e') {
+          readEventIds.add(tag[1]);
+        }
+      }
+      for (final eventId in readEventIds) {
+        readReceipts.putIfAbsent(eventId, () => []);
+        // Don't duplicate receipts from the same reader
+        if (!readReceipts[eventId]!
+            .any((r) => r.readerPubkeyHex == message.authorPubkeyHex)) {
+          readReceipts[eventId]!.add(ReadReceipt(
+            readerPubkeyHex: message.authorPubkeyHex,
+            readAt: message.createdAt.toInt(),
+          ));
+        }
+      }
+      notifyListeners();
+      return;
+    }
+
     // Kind 10000 = typing indicator (ephemeral, not stored)
     if (message.kind == BigInt.from(10000)) {
       _typingUsers[message.authorPubkeyHex] = TypingState(
